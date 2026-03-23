@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Milo Pro - Sistema de Gestión</title>
+  <link rel="stylesheet" href="/css/styles.css?v=2">
+</head>
+<body>
+  <div id="login-screen" class="login-screen">
+    <div class="login-container">
+      <div class="login-header">
+        <h1>Milo Pro</h1>
+        <p>Sistema de Gestión</p>
+      </div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="username">Usuario</label>
+          <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Iniciar Sesión</button>
+        <div id="login-error" class="error-message"></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" class="app-container" style="display: none;">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2 id="sidebar-business-name">Milo Pro</h2>
+        <span id="user-role" class="user-role"></span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#dashboard" class="nav-item active" data-page="dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Inicio</span>
+        </a>
+        <a href="#products" class="nav-item" data-page="products">
+          <span class="nav-icon">📦</span>
+          <span>Artículos</span>
+        </a>
+        <a href="#customers" class="nav-item" data-page="customers">
+          <span class="nav-icon">👥</span>
+          <span>Clientes</span>
+        </a>
+        <div class="nav-group" id="compras-group">
+          <div class="nav-group-header" onclick="toggleMenu('compras-group')">
+            <span class="nav-icon">🛒</span>
+            <span>Compras</span>
+            <span class="nav-arrow" id="compras-arrow">▶</span>
+          </div>
+          <div class="nav-group-items" id="compras-items">
+            <a href="#merchandise-entry" class="nav-item nav-group-item" data-page="merchandise-entry">
+              <span>📥</span>
+              <span>Ingreso de Mercadería</span>
+            </a>
+            <a href="#nc-proveedor" class="nav-item nav-group-item" data-page="nc-proveedor">
+              <span>📤</span>
+              <span>N/C Proveedor (Carga)</span>
+            </a>
+            <a href="#purchase-query" class="nav-item nav-group-item" data-page="purchase-query">
+              <span>🔍</span>
+              <span>Consulta de Compras</span>
+            </a>
+            <a href="#nc-query" class="nav-item nav-group-item" data-page="nc-query">
+              <span>🔍</span>
+              <span>Consulta de N/C</span>
+            </a>
+            <a href="#supplier-payments" class="nav-item nav-group-item" data-page="supplier-payments">
+              <span>💳</span>
+              <span>Pagos a Proveedores</span>
+            </a>
+          </div>
+        </div>
+        <a href="#sales" class="nav-item" data-page="sales">
+          <span class="nav-icon">💰</span>
+          <span>Ventas</span>
+        </a>
+        <a href="#suppliers" class="nav-item" data-page="suppliers">
+          <span class="nav-icon">🚚</span>
+          <span>Proveedores</span>
+        </a>
+        <a href="#sellers" class="nav-item" data-page="sellers">
+          <span class="nav-icon">💼</span>
+          <span>Vendedores</span>
+        </a>
+        <a href="#cash" class="nav-item" data-page="cash">
+          <span class="nav-icon">💵</span>
+          <span>Caja</span>
+        </a>
+        <a href="#repairs" class="nav-item" data-page="repairs">
+          <span class="nav-icon">🔧</span>
+          <span>Reparaciones</span>
+        </a>
+        <a href="#reports" class="nav-item" data-page="reports">
+          <span class="nav-icon">📈</span>
+          <span>Reportes</span>
+        </a>
+        <a href="#invoices" class="nav-item" data-page="invoices">
+          <span class="nav-icon">📋</span>
+          <span>Remitos</span>
+        </a>
+        <a href="#quotes" class="nav-item" data-page="quotes">
+          <span class="nav-icon">📝</span>
+          <span>Presupuestos</span>
+        </a>
+        <a href="#sales-query" class="nav-item" data-page="sales-query">
+          <span class="nav-icon">🔍</span>
+          <span>Consulta Ventas</span>
+        </a>
+        <a href="#admin" class="nav-item" data-page="admin" id="admin-nav" style="display: none;">
+          <span class="nav-icon">⚙️</span>
+          <span>Administración</span>
+        </a>
+        <a href="#tools" class="nav-item" data-page="tools">
+          <span class="nav-icon">🔨</span>
+          <span>Herramientas</span>
+        </a>
+        <a href="#help" class="nav-item" data-page="help">
+          <span class="nav-icon">❓</span>
+          <span>Ayuda</span>
+        </a>
+        <a href="#settings" class="nav-item" data-page="settings">
+          <span class="nav-icon">⚙️</span>
+          <span>Configuración</span>
+        </a>
+        <a href="#" class="nav-item" id="logout-btn-sidebar">
+          <span class="nav-icon">🚪</span>
+          <span>Salir</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-bar">
+        <h1 id="page-title">Inicio</h1>
+        <div class="header-actions">
+          <span id="current-date"></span>
+        </div>
+      </header>
+
+      <div id="page-content" class="page-content">
+        <!-- Dynamic content loaded here -->
+      </div>
+    </main>
+  </div>
+
+  <div id="modal-container"></div>
+
+  <script src="/js/api.js?v=2"></script>
+  <script src="/js/auth.js?v=2"></script>
+  <script src="/js/pages/dashboard.js?v=2"></script>
+  <script src="/js/pages/products.js?v=2"></script>
+  <script src="/js/pages/sales.js?v=2"></script>
+  <script src="/js/pages/customers.js?v=2"></script>
+  <script src="/js/pages/repairs.js?v=2"></script>
+  <script src="/js/pages/reports.js?v=2"></script>
+  <script src="/js/pages/users.js?v=3"></script>
+  <script src="/js/pages/settings.js?v=3"></script>
+  <script src="/js/pages/merchandise.js?v=3"></script>
+  <script src="/js/pages/ncProveedor.js?v=3"></script>
+  <script src="/js/pages/purchaseQuery.js?v=3"></script>
+  <script src="/js/pages/ncQuery.js?v=4"></script>
+  <script src="/js/pages/supplierPayments.js?v=3"></script>
+  <script src="/js/pages/suppliers.js?v=6"></script>
+  <script>
+    if (typeof renderSuppliers === 'function') {
+      window.renderSuppliers = renderSuppliers;
+    }
+  </script>
+  <script src="/js/router.js?v=23"></script>
+  
+  <script type="text/plain" id="legacy-suppliers-inline-disabled">
+  console.log('INLINE SUPPLIERS LOADING');
+  let allSuppliersList = [];
+  let currentSupplierPage = 1;
+  const suppliersPerPage = 10;
+  
+  async function renderSuppliers() {
+    document.getElementById('page-content').innerHTML = '<div class="loading">Cargando...</div>';
+    
+    try {
+      allSuppliersList = await api.purchases.getSuppliers();
+      currentSupplierPage = 1;
+      
+      document.getElementById('page-content').innerHTML = `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+            <h2 style="margin:0;">Listado de Proveedores</h2>
+            <button class="btn btn-primary" onclick="showAddSupplierModal()">+ Nuevo Proveedor</button>
+          </div>
+          
+          <div style="margin-bottom:16px;">
+            <label for="supplier-search" style="display:block;font-weight:600;margin-bottom:6px;">Buscar:</label>
+            <input type="text" id="supplier-search" placeholder="Ejemplo búsqueda..." onkeyup="filterSuppliers()" style="width:100%;max-width:360px;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;">
+          </div>
+          
+          <div style="margin-top: 15px;">
+            <button class="btn btn-secondary" onclick="exportSuppliers()">📤 Exportar</button>
+            <button class="btn btn-secondary" onclick="printSuppliersPDF()">📄 Imprimir PDF</button>
+          </div>
+          
+          <div id="suppliers-table-container"></div>
+        </div>
+      `;
+      
+      document.getElementById('suppliers-table-container').innerHTML = renderSuppliersTable();
+      
+    } catch (e) {
+      document.getElementById('page-content').innerHTML = '<div class="alert alert-warning">Error: ' + e.message + '</div>';
+    }
+  }
+
+  window.renderSuppliers = renderSuppliers;
+  
+  function renderSuppliersTable() {
+    const filtered = getFilteredSuppliers();
+    const totalRecords = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalRecords / suppliersPerPage));
+    if (currentSupplierPage > totalPages) currentSupplierPage = totalPages;
+    const start = totalRecords === 0 ? 0 : (currentSupplierPage - 1) * suppliersPerPage;
+    const end = Math.min(start + suppliersPerPage, totalRecords);
+    const pageItems = filtered.slice(start, end);
+    
+    return `
+      <table class="products-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Razón Social</th>
+            <th>Contacto</th>
+            <th>Teléfono</th>
+            <th>CUIT</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pageItems.length === 0 ? `
+            <tr>
+              <td colspan="6" style="text-align:center;padding:32px;color:#64748b;">No hay proveedores para mostrar</td>
+            </tr>
+          ` : pageItems.map(s => `
+            <tr>
+              <td>${s.id}</td>
+              <td>${s.name}</td>
+              <td>${s.email || ''}</td>
+              <td>${s.phone || ''}</td>
+              <td>${s.tax_id || ''}</td>
+              <td>
+                <div class="btn-group">
+                  <button class="btn btn-action btn-view" onclick="viewSupplier(${s.id})">👁️</button>
+                  <button class="btn btn-action btn-edit" onclick="editSupplier(${s.id})">✏️</button>
+                  <button class="btn btn-action btn-delete" onclick="deleteSupplier(${s.id})">❌</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;">
+        <div class="table-footer" style="margin:0;">
+          Mostrando ${totalRecords === 0 ? 0 : start + 1} a ${end} de ${totalRecords} registros
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-secondary" onclick="changeSupplierPage(-1)" ${currentSupplierPage === 1 ? 'disabled' : ''}>Anterior</button>
+          <button class="btn btn-primary" type="button">${currentSupplierPage}</button>
+          <button class="btn btn-secondary" onclick="changeSupplierPage(1)" ${currentSupplierPage >= totalPages ? 'disabled' : ''}>Siguiente</button>
+        </div>
+      </div>
+    `;
+  }
+  
+  function getFilteredSuppliers() {
+    const searchInput = document.getElementById('supplier-search');
+    const search = searchInput ? searchInput.value.toLowerCase() : '';
+    return allSuppliersList.filter(s => {
+      return !search || 
+        (s.name && s.name.toLowerCase().includes(search)) ||
+        (s.phone && s.phone.toLowerCase().includes(search)) ||
+        (s.email && s.email.toLowerCase().includes(search)) ||
+        (s.tax_id && s.tax_id.toLowerCase().includes(search));
+    });
+  }
+  
+  function filterSuppliers() {
+    currentSupplierPage = 1;
+    document.getElementById('suppliers-table-container').innerHTML = renderSuppliersTable();
+  }
+  
+  function changeSupplierPage(direction) {
+    const filtered = getFilteredSuppliers();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / suppliersPerPage));
+    currentSupplierPage = Math.min(totalPages, Math.max(1, currentSupplierPage + direction));
+    document.getElementById('suppliers-table-container').innerHTML = renderSuppliersTable();
+  }
+  
+  function showAddSupplierModal() {
+    app.showModal(`
+      <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3>Nuevo Proveedor</h3>
+          <button type="button" class="btn-close" onclick="app.closeModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="supplier-name">Razón Social *</label>
+            <input type="text" id="supplier-name" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="supplier-phone">Teléfono</label>
+              <input type="text" id="supplier-phone">
+            </div>
+            <div class="form-group">
+              <label for="supplier-email">Email</label>
+              <input type="email" id="supplier-email">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="supplier-tax-id">CUIT</label>
+            <input type="text" id="supplier-tax-id" placeholder="XX-XXXXXXXX-X">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="saveSupplier()">Guardar</button>
+        </div>
+      </div>
+    `);
+  }
+  
+  async function saveSupplier() {
+    const name = document.getElementById('supplier-name').value.trim();
+    if (!name) { alert('El nombre es requerido'); return; }
+    
+    try {
+      await api.purchases.createSupplier({
+        name,
+        phone: document.getElementById('supplier-phone').value.trim(),
+        email: document.getElementById('supplier-email').value.trim(),
+        tax_id: document.getElementById('supplier-tax-id').value.trim()
+      });
+      allSuppliersList = await api.purchases.getSuppliers();
+      document.getElementById('suppliers-table-container').innerHTML = renderSuppliersTable();
+      app.closeModal();
+      alert('Proveedor guardado exitosamente');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  }
+  
+  async function viewSupplier(id) {
+    const s = allSuppliersList.find(x => x.id === id);
+    if (!s) return;
+    
+    app.showModal(`
+      <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3>Proveedor: ${s.name}</h3>
+          <button type="button" class="btn-close" onclick="app.closeModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div><strong>Código:</strong> ${s.id}</div>
+            <div><strong>CUIT:</strong> ${s.tax_id || '-'}</div>
+            <div><strong>Teléfono:</strong> ${s.phone || '-'}</div>
+            <div><strong>Email:</strong> ${s.email || '-'}</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cerrar</button>
+        </div>
+      </div>
+    `);
+  }
+  
+  async function editSupplier(id) {
+    const s = allSuppliersList.find(x => x.id === id);
+    if (!s) return;
+    
+    app.showModal(`
+      <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3>Editar Proveedor</h3>
+          <button type="button" class="btn-close" onclick="app.closeModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="edit-id" value="${s.id}">
+          <div class="form-group">
+            <label for="edit-name">Razón Social *</label>
+            <input type="text" id="edit-name" value="${s.name}" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-phone">Teléfono</label>
+              <input type="text" id="edit-phone" value="${s.phone || ''}">
+            </div>
+            <div class="form-group">
+              <label for="edit-email">Email</label>
+              <input type="email" id="edit-email" value="${s.email || ''}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="edit-tax-id">CUIT</label>
+            <input type="text" id="edit-tax-id" value="${s.tax_id || ''}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="updateSupplier()">Guardar Cambios</button>
+        </div>
+      </div>
+    `);
+  }
+  
+  async function updateSupplier() {
+    const id = document.getElementById('edit-id').value;
+    const name = document.getElementById('edit-name').value.trim();
+    if (!name) { alert('El nombre es requerido'); return; }
+    
+    try {
+      await api.purchases.updateSupplier(id, {
+        name,
+        phone: document.getElementById('edit-phone').value.trim(),
+        email: document.getElementById('edit-email').value.trim(),
+        tax_id: document.getElementById('edit-tax-id').value.trim()
+      });
+      allSuppliersList = await api.purchases.getSuppliers();
+      document.getElementById('suppliers-table-container').innerHTML = renderSuppliersTable();
+      app.closeModal();
+      alert('Proveedor actualizado exitosamente');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  }
+  
+  async function deleteSupplier(id) {
+    if (!confirm('¿Está seguro de que desea eliminar este proveedor?')) return;
+    
+    try {
+      await api.purchases.deleteSupplier(id);
+      allSuppliersList = await api.purchases.getSuppliers();
+      document.getElementById('suppliers-table-container').innerHTML = renderSuppliersTable();
+      alert('Proveedor eliminado');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  }
+  
+  function exportSuppliers() {
+    const data = allSuppliersList.map(s => ({
+      código: s.id,
+      razónsocial: s.name,
+      teléfono: s.phone,
+      email: s.email,
+      cuit: s.tax_id
+    }));
+    
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'proveedores.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  
+  function printSuppliersPDF() {
+    const printWindow = window.open('', '_blank');
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Lista de Proveedores</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { text-align: center; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background: #f5f5f5; }
+        </style>
+      </head>
+      <body>
+        <h1>Lista de Proveedores</h1>
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Razón Social</th>
+              <th>Teléfono</th>
+              <th>Email</th>
+              <th>CUIT</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allSuppliersList.map(s => `
+              <tr>
+                <td>${s.id}</td>
+                <td>${s.name}</td>
+                <td>${s.phone || ''}</td>
+                <td>${s.email || ''}</td>
+                <td>${s.tax_id || ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = function() { printWindow.print(); };
+  }
+  
+  window.renderSuppliers = renderSuppliers;
+  console.log('SUPPLIERS LOADED, window.renderSuppliers:', typeof window.renderSuppliers);
+  </script>
+  
+  <script src="/js/app.js?v=3"></script>
+</body>
+</html>
