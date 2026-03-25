@@ -45,6 +45,10 @@ async function startServer() {
     app.use('/api/device-options', deviceOptionsRoutes);
     app.use('/api/purchases', purchaseRoutes);
 
+    if (typeof woocommerceRoutes.initializeWooAutomation === 'function') {
+      woocommerceRoutes.initializeWooAutomation();
+    }
+
     app.use('/api', (req, res) => {
       res.status(404).json({ error: 'Endpoint not found' });
     });
