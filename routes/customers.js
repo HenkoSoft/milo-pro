@@ -45,19 +45,65 @@ router.get('/:id', authenticate, (req, res) => {
 });
 
 router.post('/', authenticate, (req, res) => {
-  const { name, phone, email, address, notes } = req.body;
+  const {
+    name,
+    phone,
+    email,
+    address,
+    contact,
+    city,
+    province,
+    country,
+    tax_id,
+    iva_condition,
+    instagram,
+    transport,
+    credit_limit,
+    zone,
+    discount_percent,
+    seller,
+    price_list,
+    billing_conditions,
+    notes
+  } = req.body;
   
   if (!name) return res.status(400).json({ error: 'Name is required' });
   
-  const phoneVal = phone === undefined ? null : phone;
-  const emailVal = email === undefined ? null : email;
-  const addressVal = address === undefined ? null : address;
-  const notesVal = notes === undefined ? null : notes;
+  const toNull = (value) => (value === undefined || value === '' ? null : value);
+  const toNumberOrNull = (value) => {
+    if (value === undefined || value === null || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
   
   const result = run(`
-    INSERT INTO customers (name, phone, email, address, notes)
-    VALUES (?, ?, ?, ?, ?)
-  `, [name, phoneVal, emailVal, addressVal, notesVal]);
+    INSERT INTO customers (
+      name, phone, email, address, contact, city, province, country, tax_id,
+      iva_condition, instagram, transport, credit_limit, zone, discount_percent,
+      seller, price_list, billing_conditions, notes
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    name,
+    toNull(phone),
+    toNull(email),
+    toNull(address),
+    toNull(contact),
+    toNull(city),
+    toNull(province),
+    toNull(country),
+    toNull(tax_id),
+    toNull(iva_condition) || 'Consumidor Final',
+    toNull(instagram),
+    toNull(transport),
+    toNumberOrNull(credit_limit),
+    toNull(zone),
+    toNumberOrNull(discount_percent),
+    toNull(seller),
+    toNull(price_list) || '1',
+    toNull(billing_conditions),
+    toNull(notes)
+  ]);
   
   const customer = get('SELECT * FROM customers WHERE id = ?', [result.lastInsertRowid]);
   saveDatabase();
@@ -65,12 +111,63 @@ router.post('/', authenticate, (req, res) => {
 });
 
 router.put('/:id', authenticate, (req, res) => {
-  const { name, phone, email, address, notes } = req.body;
+  const {
+    name,
+    phone,
+    email,
+    address,
+    contact,
+    city,
+    province,
+    country,
+    tax_id,
+    iva_condition,
+    instagram,
+    transport,
+    credit_limit,
+    zone,
+    discount_percent,
+    seller,
+    price_list,
+    billing_conditions,
+    notes
+  } = req.body;
+
+  const toNull = (value) => (value === undefined || value === '' ? null : value);
+  const toNumberOrNull = (value) => {
+    if (value === undefined || value === null || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
   
   run(`
-    UPDATE customers SET name = ?, phone = ?, email = ?, address = ?, notes = ?
+    UPDATE customers SET
+      name = ?, phone = ?, email = ?, address = ?, contact = ?, city = ?, province = ?, country = ?,
+      tax_id = ?, iva_condition = ?, instagram = ?, transport = ?, credit_limit = ?, zone = ?,
+      discount_percent = ?, seller = ?, price_list = ?, billing_conditions = ?, notes = ?
     WHERE id = ?
-  `, [name || null, phone || null, email || null, address || null, notes || null, req.params.id]);
+  `, [
+    toNull(name),
+    toNull(phone),
+    toNull(email),
+    toNull(address),
+    toNull(contact),
+    toNull(city),
+    toNull(province),
+    toNull(country),
+    toNull(tax_id),
+    toNull(iva_condition) || 'Consumidor Final',
+    toNull(instagram),
+    toNull(transport),
+    toNumberOrNull(credit_limit),
+    toNull(zone),
+    toNumberOrNull(discount_percent),
+    toNull(seller),
+    toNull(price_list) || '1',
+    toNull(billing_conditions),
+    toNull(notes),
+    req.params.id
+  ]);
   
   const customer = get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
   saveDatabase();

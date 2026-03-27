@@ -1,377 +1,459 @@
 let productsData = [];
 let categoriesData = [];
-let viewMode = 'grid';
-let editingProductId = null;
+let suppliersData = [];
 
-async function renderProducts() {
+const PRODUCT_SECTIONS = [
+  { id: 'planilla', label: 'Planilla' },
+  { id: 'price-update', label: 'Actualizacion de Precios' },
+  { id: 'stock-adjustment', label: 'Ajuste de Stock' },
+  { id: 'stock-output', label: 'Salida de Mercaderia' },
+  { id: 'stock-query', label: 'Consulta de Salidas' },
+  { id: 'labels', label: 'Imprimir Etiquetas' },
+  { id: 'barcodes', label: 'Impresion de Codigos de Barra' },
+  { id: 'qr', label: 'Impresion de Codigos QR' }
+];
+
+const PRODUCT_UNITS = ['Unidad', 'Pack', 'Caja', 'Metro', 'Kg', 'Litro', 'Servicio'];
+const PRODUCT_IVA_OPTIONS = [0, 10.5, 21, 27];
+
+const productsUiState = {
+  activeSection: 'planilla',
+  modalTab: 'data'
+};
+
+function productsEscapeHtml(value) {
+  return app.escapeHtml(value ?? '');
+}
+
+function productsEscapeAttr(value) {
+  return app.escapeAttr(value ?? '');
+}
+
+function buildOptions(options, selectedValue, placeholder) {
+  const current = String(selectedValue || '');
+  let html = placeholder ? '<option value="">' + productsEscapeHtml(placeholder) + '</option>' : '';
+  options.forEach((option) => {
+    const value = typeof option === 'object' ? option.value : option;
+    const label = typeof option === 'object' ? option.label : option;
+    html += '<option value="' + productsEscapeAttr(value) + '"' + (current === String(value) ? ' selected' : '') + '>' + productsEscapeHtml(label) + '</option>';
+  });
+  return html;
+}
+
+function getSupplierNames() {
+  const apiSuppliers = suppliersData.map((item) => item.name).filter(Boolean);
+  const productSuppliers = productsData.map((item) => item.supplier).filter(Boolean);
+  return [...new Set([...apiSuppliers, ...productSuppliers])].sort((a, b) => a.localeCompare(b));
+}
+
+function getCategoryOptions(selectedValue) {
+  return buildOptions(categoriesData.map((item) => ({ value: item.id, label: item.name })), selectedValue, 'Seleccionar categoria');
+}
+
+async function renderProducts(sectionId = 'planilla') {
   const content = document.getElementById('page-content');
   content.innerHTML = '<div class="loading">Cargando...</div>';
+  productsUiState.activeSection = sectionId;
 
   try {
-    [productsData, categoriesData] = await Promise.all([
+    const [products, categories, suppliers] = await Promise.all([
       api.products.getAll({}),
-      api.categories.getAll()
+      api.categories.getAll(),
+      api.purchases && api.purchases.getSuppliers ? api.purchases.getSuppliers().catch(() => []) : Promise.resolve([])
     ]);
 
-    const categoryOptions = categoriesData.map(c => '<option value="' + c.id + '">' + app.escapeHtml(c.name) + '</option>').join('');
-    const totalProducts = productsData.length;
-    const lowStockCount = productsData.filter(p => p.stock > 0 && p.stock <= p.min_stock).length;
-    const outOfStockCount = productsData.filter(p => p.stock <= 0).length;
-    const syncedCount = productsData.filter(p => p.woocommerce_id).length;
+    productsData = products;
+    categoriesData = categories;
+    suppliersData = suppliers;
 
-    content.innerHTML =
-      '<div class="card">' +
-      '<div class="card-header">' +
-      '<h3 class="card-title">Gestion de Productos</h3>' +
-      '<div class="btn-group">' +
-      '<button class="btn btn-primary" onclick="showProductModal()">+ Nuevo</button>' +
-      '<button class="btn btn-info" onclick="syncSingleProduct()" id="sync-single-btn" disabled>Sincronizar</button>' +
-      '</div>' +
-      '</div>' +
-      '<div class="products-toolbar">' +
-      '<div class="toolbar-row">' +
-      '<div class="toolbar-left">' +
-      '<div class="search-box"><input type="text" id="product-search" placeholder="Buscar por nombre, SKU o codigo..." oninput="filterProducts()"></div>' +
-      '<select id="product-category-filter" onchange="filterProducts()"><option value="">Categoria</option>' + categoryOptions + '</select>' +
-      '<select id="product-stock-filter" onchange="filterProducts()">' +
-      '<option value="">Stock</option>' +
-      '<option value="low">Stock bajo</option>' +
-      '<option value="out">Sin stock</option>' +
-      '<option value="available">Disponible</option>' +
-      '</select>' +
-      '</div>' +
-      '<div class="toolbar-right">' +
-      '<button class="btn btn-sm ' + (viewMode === 'grid' ? 'btn-primary' : 'btn-secondary') + '" onclick="setViewMode(\'grid\')" title="Vista cuadricula">[]</button>' +
-      '<button class="btn btn-sm ' + (viewMode === 'table' ? 'btn-primary' : 'btn-secondary') + '" onclick="setViewMode(\'table\')" title="Vista tabla">=</button>' +
-      '<button class="btn btn-sm btn-warning" onclick="renderProducts()" title="Actualizar">R</button>' +
-      '</div>' +
-      '</div>' +
-      '<div class="stats-bar">' +
-      '<span>Total: <span class="count">' + totalProducts + '</span></span>' +
-      '<span>Stock bajo: <span class="count">' + lowStockCount + '</span></span>' +
-      '<span>Sin stock: <span class="count">' + outOfStockCount + '</span></span>' +
-      '<span>WooCommerce: <span class="count">' + syncedCount + '</span></span>' +
-      '</div>' +
-      '</div>' +
-      '<div id="products-container"></div>' +
-      '</div>' +
-      getProductModalHtml(categoryOptions);
-
-    renderProductsView(productsData);
-  } catch (e) {
-    content.innerHTML = '<div class="alert alert-warning">Error: ' + app.escapeHtml(e.message) + '</div>';
+    content.innerHTML = renderProductsShell();
+    renderProductsSection();
+  } catch (error) {
+    content.innerHTML = '<div class="alert alert-warning">Error: ' + productsEscapeHtml(error.message) + '</div>';
   }
 }
 
-function setViewMode(mode) {
-  viewMode = mode;
-  filterProducts();
+function renderProductsShell() {
+  return `
+    <section class="products-admin-content">
+      <div class="products-admin-panel card" id="products-admin-panel"></div>
+    </section>
+  `;
 }
 
-function filterProducts() {
-  const search = (document.getElementById('product-search') || {}).value || '';
-  const category = (document.getElementById('product-category-filter') || {}).value || '';
-  const stockFilter = (document.getElementById('product-stock-filter') || {}).value || '';
-  const normalized = search.toLowerCase();
-
-  const filtered = productsData.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(normalized) ||
-      (p.sku && p.sku.toLowerCase().includes(normalized)) ||
-      (p.barcode && p.barcode.toLowerCase().includes(normalized));
-    const matchCategory = !category || p.category_id == category;
-
-    let matchStock = true;
-    if (stockFilter === 'low') matchStock = p.stock > 0 && p.stock <= p.min_stock;
-    else if (stockFilter === 'out') matchStock = p.stock <= 0;
-    else if (stockFilter === 'available') matchStock = p.stock > 0;
-
-    return matchSearch && matchCategory && matchStock;
-  });
-
-  renderProductsView(filtered);
-
-  const filteredLowStock = filtered.filter(p => p.stock > 0 && p.stock <= p.min_stock).length;
-  const filteredOutStock = filtered.filter(p => p.stock <= 0).length;
-
-  const statsBar = document.querySelector('.stats-bar');
-  if (statsBar) {
-    statsBar.innerHTML =
-      '<span>Mostrando: <span class="count">' + filtered.length + '</span> de ' + productsData.length + '</span>' +
-      '<span>| Stock bajo: <span class="count">' + filteredLowStock + '</span></span>' +
-      '<span>| Sin stock: <span class="count">' + filteredOutStock + '</span></span>';
-  }
+function selectProductSection(sectionId) {
+  const routeMap = {
+    planilla: 'products',
+    'price-update': 'products-price-update',
+    'stock-adjustment': 'products-stock-adjustment',
+    'stock-output': 'products-stock-output',
+    'stock-query': 'products-stock-query',
+    labels: 'products-labels',
+    barcodes: 'products-barcodes',
+    qr: 'products-qr'
+  };
+  window.location.hash = routeMap[sectionId] || 'products';
 }
 
-function renderProductsView(products) {
-  const container = document.getElementById('products-container');
-  if (!container) return;
+function renderProductsSection() {
+  const panel = document.getElementById('products-admin-panel');
+  if (!panel) return;
 
-  if (products.length === 0) {
-    container.innerHTML = '<div class="empty-state"><p>No se encontraron productos</p></div>';
+  if (productsUiState.activeSection === 'planilla') {
+    panel.innerHTML = renderProductsPlanilla();
     return;
   }
 
-  if (viewMode === 'grid') {
-    container.className = 'products-grid';
-    container.innerHTML = products.map(p => {
-      const isLow = p.stock <= p.min_stock;
-      const isOut = p.stock <= 0;
-      const stockClass = isOut ? 'out-of-stock' : (isLow ? 'low-stock' : 'in-stock');
-      const imageUrl = app.safeImageUrl(p.image_url);
-      const img = imageUrl ? '<img src="' + imageUrl + '" style="width:100%;height:100px;object-fit:contain;" onerror="this.parentElement.textContent=\'[img]\';">' : '<div style="width:100%;height:100px;display:flex;align-items:center;justify-content:center;font-size:35px;">[img]</div>';
-      const wooBadge = p.woocommerce_id ? '<span class="woo-badge" title="Sincronizado con WooCommerce">W</span>' : '';
-
-      return '<div class="product-item">' +
-        '<div class="product-select" onclick="event.stopPropagation();toggleProductSelect(' + p.id + ')">' +
-        '<input type="checkbox" id="sel-' + p.id + '" onchange="toggleProductSelect(' + p.id + ')">' +
-        '</div>' +
-        '<div class="product-image" onclick="showProductDetail(' + p.id + ')">' + img + '</div>' +
-        '<div class="product-info">' +
-        '<div class="product-name" onclick="showProductDetail(' + p.id + ')">' + app.escapeHtml(p.name) + ' ' + wooBadge + '</div>' +
-        '<div class="product-sku">' + app.escapeHtml(p.sku || '-') + '</div>' +
-        '<div class="product-price" onclick="showProductDetail(' + p.id + ')">' + app.formatMoney(p.sale_price) + '</div>' +
-        '<div class="product-stock ' + stockClass + '">' +
-        (isOut ? 'Sin stock' : (isLow ? 'Stock bajo: ' + p.stock : 'Stock: ' + p.stock)) +
-        '</div>' +
-        '<div class="product-actions" onclick="event.stopPropagation()">' +
-        '<button class="btn-action btn-edit" onclick="editProduct(' + p.id + ')" title="Editar">E</button>' +
-        '<button class="btn-action btn-sync" onclick="syncProductToWoo(' + p.id + ')" title="Sincronizar">S</button>' +
-        '<button class="btn-action btn-delete" onclick="deleteProduct(' + p.id + ')" title="Eliminar">X</button>' +
-        '</div>' +
-        '</div></div>';
-    }).join('');
-  } else {
-    container.className = '';
-    container.innerHTML = '<table class="products-table"><thead><tr>' +
-      '<th style="width:40px;"></th>' +
-      '<th style="width:60px;">Img</th>' +
-      '<th>SKU</th><th>Nombre</th><th>Categoria</th><th>Precio</th><th>Stock</th><th>Woo</th><th>Acciones</th>' +
-      '</tr></thead><tbody>' +
-      products.map(p => {
-        const isLow = p.stock <= p.min_stock;
-        const isOut = p.stock <= 0;
-        const imageUrl = app.safeImageUrl(p.image_url);
-        const img = imageUrl ? '<img src="' + imageUrl + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" onerror="this.style.display=\'none\'">' : '<div style="width:40px;height:40px;background:#eee;display:flex;align-items:center;justify-content:center;">[img]</div>';
-        return '<tr>' +
-          '<td><input type="checkbox" id="sel-' + p.id + '" onchange="toggleProductSelect(' + p.id + ')"></td>' +
-          '<td>' + img + '</td>' +
-          '<td>' + app.escapeHtml(p.sku || '-') + '</td>' +
-          '<td>' + app.escapeHtml(p.name) + '</td>' +
-          '<td>' + app.escapeHtml(p.category_name || '-') + '</td>' +
-          '<td>' + app.formatMoney(p.sale_price) + '</td>' +
-          '<td><span class="badge ' + (isOut ? 'badge-red' : (isLow ? 'badge-yellow' : 'badge-green')) + '">' + p.stock + '</span></td>' +
-          '<td>' + (p.woocommerce_id ? 'W' : '-') + '</td>' +
-          '<td><button class="btn btn-sm btn-secondary" onclick="editProduct(' + p.id + ')">E</button> ' +
-          '<button class="btn btn-sm btn-info" onclick="syncProductToWoo(' + p.id + ')">S</button> ' +
-          '<button class="btn btn-sm btn-danger" onclick="deleteProduct(' + p.id + ')">X</button></td>' +
-          '</tr>';
-      }).join('') + '</tbody></table>';
-  }
+  panel.innerHTML = renderProductsModule(productsUiState.activeSection);
 }
 
-let selectedProducts = [];
+function getFilteredProducts() {
+  const search = ((document.getElementById('product-search') || {}).value || '').trim().toLowerCase();
+  const category = ((document.getElementById('product-category-filter') || {}).value || '').trim();
+  const stock = ((document.getElementById('product-stock-filter') || {}).value || '').trim();
 
-function toggleProductSelect(id) {
-  const checkbox = document.getElementById('sel-' + id);
-  if (checkbox.checked) {
-    if (!selectedProducts.includes(id)) selectedProducts.push(id);
-  } else {
-    selectedProducts = selectedProducts.filter(p => p !== id);
-  }
-  updateSyncButton();
+  return productsData.filter((product) => {
+    const matchesSearch = !search || [product.sku, product.barcode, product.name, product.description]
+      .some((value) => String(value || '').toLowerCase().includes(search));
+    const matchesCategory = !category || String(product.category_id || '') === category;
+
+    let matchesStock = true;
+    if (stock === 'low') matchesStock = Number(product.stock) > 0 && Number(product.stock) <= Number(product.min_stock || 0);
+    if (stock === 'out') matchesStock = Number(product.stock) <= 0;
+    if (stock === 'available') matchesStock = Number(product.stock) > 0;
+
+    return matchesSearch && matchesCategory && matchesStock;
+  });
 }
 
-function updateSyncButton() {
-  const btn = document.getElementById('sync-single-btn');
-  if (btn) {
-    btn.disabled = selectedProducts.length === 0;
-    btn.textContent = selectedProducts.length > 0 ? 'Sincronizar (' + selectedProducts.length + ')' : 'Sincronizar Seleccionado';
-  }
+function renderProductsPlanilla() {
+  const filtered = getFilteredProducts();
+  const lowStock = filtered.filter((item) => Number(item.stock) > 0 && Number(item.stock) <= Number(item.min_stock || 0)).length;
+  const outOfStock = filtered.filter((item) => Number(item.stock) <= 0).length;
+
+  return `
+    <div class="products-module-head">
+      <div>
+        <p class="products-module-kicker">Planilla</p>
+        <h2>Planilla de Articulos</h2>
+        <p>Vista principal con filtros, stock y acceso directo al alta de articulos.</p>
+      </div>
+      <div class="products-module-actions">
+        <button class="btn btn-primary" type="button" onclick="showProductModal()">+ Nuevo Articulo</button>
+        <button class="btn btn-secondary" type="button" onclick="renderProducts()">Actualizar</button>
+      </div>
+    </div>
+    <div class="products-sheet-toolbar">
+      <div class="products-sheet-filters">
+        <div class="form-group">
+          <label>Buscar</label>
+          <input id="product-search" type="text" placeholder="Codigo o descripcion..." oninput="rerenderProductsPlanilla()">
+        </div>
+        <div class="form-group">
+          <label>Categoria</label>
+          <select id="product-category-filter" onchange="rerenderProductsPlanilla()">${getCategoryOptions('')}</select>
+        </div>
+        <div class="form-group">
+          <label>Stock</label>
+          <select id="product-stock-filter" onchange="rerenderProductsPlanilla()">
+            ${buildOptions([
+              { value: '', label: 'Todos' },
+              { value: 'available', label: 'Disponible' },
+              { value: 'low', label: 'Stock bajo' },
+              { value: 'out', label: 'Sin stock' }
+            ], '', '')}
+          </select>
+        </div>
+      </div>
+      <div class="products-sheet-stats">
+        <span><strong>${filtered.length}</strong> articulos</span>
+        <span><strong>${lowStock}</strong> stock bajo</span>
+        <span><strong>${outOfStock}</strong> sin stock</span>
+      </div>
+    </div>
+    <div class="products-sheet-table-wrap">
+      <table class="products-sheet-table">
+        <thead>
+          <tr>
+            <th>Codigo</th>
+            <th>Cod. Prov.</th>
+            <th>Descripcion</th>
+            <th>Proveedor</th>
+            <th>Categoria</th>
+            <th>Stock</th>
+            <th>Lista 1</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length === 0 ? `
+            <tr><td colspan="8" class="products-sheet-empty">No hay articulos para mostrar.</td></tr>
+          ` : filtered.map((product) => `
+            <tr>
+              <td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td>
+              <td>${productsEscapeHtml(product.barcode || '-')}</td>
+              <td><strong>${productsEscapeHtml(product.name)}</strong></td>
+              <td>${productsEscapeHtml(product.supplier || '-')}</td>
+              <td>${productsEscapeHtml((categoriesData.find((item) => String(item.id) === String(product.category_id)) || {}).name || '-')}</td>
+              <td><span class="badge ${Number(product.stock) <= 0 ? 'badge-red' : (Number(product.stock) <= Number(product.min_stock || 0) ? 'badge-yellow' : 'badge-green')}">${productsEscapeHtml(product.stock)}</span></td>
+              <td>${productsEscapeHtml(app.formatMoney(product.sale_price || 0))}</td>
+              <td>
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-secondary" type="button" onclick="showProductModal(${product.id})">Editar</button>
+                  <button class="btn btn-sm btn-info" type="button" onclick="syncProductToWoo(${product.id})">Sync</button>
+                  <button class="btn btn-sm btn-danger" type="button" onclick="deleteProduct(${product.id})">Eliminar</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
-async function syncSingleProduct() {
-  if (selectedProducts.length === 0) return;
-
-  const btn = document.getElementById('sync-single-btn');
-  btn.disabled = true;
-  btn.textContent = 'Sincronizando...';
-
-  let synced = 0;
-  let errors = 0;
-
-  for (const id of selectedProducts) {
-    try {
-      await api.woocommerce.syncProduct(id);
-      synced++;
-    } catch (e) {
-      errors++;
-      console.error('Error syncing product', id, e);
-    }
-  }
-
-  btn.disabled = false;
-  btn.textContent = selectedProducts.length > 0 ? 'Sincronizar (' + selectedProducts.length + ')' : 'Sincronizar Seleccionado';
-  selectedProducts = [];
-
-  alert('Sincronizacion completada: ' + synced + ' exitosos, ' + errors + ' errores');
-  renderProducts();
+function rerenderProductsPlanilla() {
+  if (productsUiState.activeSection !== 'planilla') return;
+  renderProductsSection();
 }
 
-async function syncProductToWoo(id) {
-  try {
-    const result = await api.woocommerce.syncProduct(id);
-    alert('Producto sincronizado: ' + (result.action === 'created' ? 'Creado' : 'Actualizado') + ' en WooCommerce');
-    renderProducts();
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
+function renderProductsModule(sectionId) {
+  const sampleRows = productsData.slice(0, 6).map((product) => `
+    <tr>
+      <td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td>
+      <td>${productsEscapeHtml(product.name)}</td>
+      <td>${productsEscapeHtml(product.stock)}</td>
+      <td><button class="btn btn-sm btn-secondary" type="button" onclick="showProductUiNotice('${PRODUCT_SECTIONS.find((item) => item.id === sectionId).label}')">Accion</button></td>
+    </tr>
+  `).join('');
+
+  const titles = {
+    'price-update': ['Actualizacion de Precios', 'Calcular Lista de Precios', `
+      <div class="products-inline-grid">
+        <div class="form-group"><label>Marca</label><select>${buildOptions([], '', 'Todas')}</select></div>
+        <div class="form-group"><label>Rubro</label><select>${buildOptions([], '', 'Todos')}</select></div>
+        <div class="form-group"><label>Proveedor</label><select>${buildOptions(getSupplierNames(), '', 'Todos')}</select></div>
+        <div class="form-group"><label>Categoria</label><select>${getCategoryOptions('')}</select></div>
+        <div class="form-group"><label>Lista a actualizar</label><select>${buildOptions(['Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'], 'Lista 1', '')}</select></div>
+        <div class="form-group"><label>Tomando como base</label><select>${buildOptions(['Costo', 'Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'], 'Costo', '')}</select></div>
+        <div class="form-group"><label>Valor</label><input type="number" value="0"></div>
+        <div class="form-group"><label>Modo</label><div class="products-segmented"><label><input type="radio" checked> %</label><label><input type="radio"> $</label></div></div>
+        <div class="form-group"><label>Redondear a</label><select>${buildOptions([0, 1, 5, 10, 50, 100].map((item) => ({ value: item, label: item === 0 ? 'Sin redondeo' : item })), '0', '')}</select></div>
+      </div>
+    `],
+    'stock-adjustment': ['Ajuste de Stock', 'Planilla de Ajuste', `
+      <div class="products-split-layout">
+        <section class="products-split-panel">
+          <div class="form-group"><label>Buscar por codigo o descripcion (F1,F2)</label><input type="text" placeholder="Buscar..."></div>
+          <div class="products-help-line">Ingrese la cantidad del nuevo stock y pulse Enter.</div>
+          <div class="products-sheet-table-wrap"><table class="products-sheet-table"><thead><tr><th>Codigo</th><th>Descripcion</th><th>Stock actual</th><th>Nuevo stock</th></tr></thead><tbody>${productsData.slice(0, 8).map((product) => `<tr><td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td><td>${productsEscapeHtml(product.name)}</td><td>${productsEscapeHtml(product.stock)}</td><td><input class="products-inline-number" type="number" value="${productsEscapeAttr(product.stock)}"></td></tr>`).join('')}</tbody></table></div>
+        </section>
+        <section class="products-split-panel">
+          <div class="products-subtitle">Ajustes a realizar</div>
+          <div class="products-sheet-table-wrap"><table class="products-sheet-table"><thead><tr><th>Codigo</th><th>Descripcion</th><th>Nuevo stock</th><th>Accion</th></tr></thead><tbody><tr><td colspan="4" class="products-sheet-empty">Vista UI preparada para futura integracion.</td></tr></tbody></table></div>
+          <div class="products-actions-right"><button class="btn btn-success" type="button" onclick="showProductUiNotice('Ajuste de Stock')">Guardar cambios</button></div>
+        </section>
+      </div>
+    `],
+    'stock-output': ['Salida de Mercaderia', 'Registrar Salida', `
+      <div class="products-config-card">
+        <div class="products-inline-grid">
+          <div class="form-group"><label>Usuario</label><input type="text" value="${productsEscapeAttr((window.auth && window.auth.currentUser && window.auth.currentUser.name) || 'Operador')}" readonly></div>
+          <div class="form-group"><label>Fecha</label><input type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
+          <div class="form-group products-output-search"><label>Codigo de articulo</label><div class="products-inline-action"><input type="text" placeholder="Codigo de articulo"><button class="btn btn-secondary" type="button" onclick="showProductUiNotice('Salida de Mercaderia')">Buscar (F5)</button></div></div>
+        </div>
+      </div>
+    `],
+    'stock-query': ['Consulta de Salidas', 'Historial de Salidas', `
+      <div class="products-module-actions"><button class="btn btn-danger" type="button" onclick="showProductUiNotice('Consulta de Salidas')">Borrar entre fechas</button></div>
+      <div class="products-query-search"><label>Buscar</label><input type="text" placeholder="Buscar salida..."></div>
+    `],
+    labels: ['Impresion de Etiquetas', 'Cargar articulos', `
+      <div class="products-config-card"><div class="products-inline-grid"><div class="form-group products-output-search"><label>Codigo (Enter para agregar)</label><div class="products-inline-action"><input type="text" placeholder="Codigo"><button class="btn btn-secondary" type="button" onclick="showProductUiNotice('Imprimir Etiquetas')">Buscar (F5)</button></div></div><div class="products-actions-inline"><button class="btn btn-secondary" type="button" onclick="showProductUiNotice('Imprimir Etiquetas')">Poner cantidad en 1</button></div></div></div>
+    `],
+    barcodes: ['Impresion de Codigos de Barra', 'Cargar articulos', `
+      <div class="products-config-card"><div class="products-inline-grid"><div class="form-group products-output-search"><label>Codigo (Enter para agregar)</label><div class="products-inline-action"><input type="text" placeholder="Codigo"><button class="btn btn-secondary" type="button" onclick="showProductUiNotice('Impresion de Codigos de Barra')">Buscar (F5)</button></div></div></div></div>
+    `],
+    qr: ['Impresion de Codigos QR', 'Cargar articulos', `
+      <div class="products-config-card"><div class="products-inline-grid"><div class="form-group products-output-search"><label>Codigo (Enter para agregar)</label><div class="products-inline-action"><input type="text" placeholder="Codigo"><button class="btn btn-secondary" type="button" onclick="showProductUiNotice('Impresion de Codigos QR')">Buscar (F5)</button></div></div></div></div>
+    `]
+  };
+
+  const config = titles[sectionId];
+  const extraActions = sectionId === 'barcodes' || sectionId === 'qr'
+    ? `<button class="btn btn-secondary" type="button" onclick="selectProductSection('planilla')">Salir</button>`
+    : '';
+  const primaryText = sectionId === 'stock-output' ? 'Guardar salida' : 'Aceptar';
+
+  return `
+    <div class="products-module-head">
+      <div>
+        <p class="products-module-kicker">${config[0]}</p>
+        <h2>${config[1]}</h2>
+        <p>Interfaz preparada con el mismo lenguaje visual que Clientes.</p>
+      </div>
+    </div>
+    ${config[2]}
+    <div class="products-sheet-table-wrap">
+      <table class="products-sheet-table">
+        <thead>
+          <tr>
+            <th>Codigo</th>
+            <th>Descripcion</th>
+            <th>Stock</th>
+            <th>Accion</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sampleRows || '<tr><td colspan="4" class="products-sheet-empty">No hay datos para mostrar.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    <div class="products-actions-right">
+      ${extraActions}
+      <button class="btn btn-success" type="button" onclick="showProductUiNotice('${config[0]}')">${primaryText}</button>
+    </div>
+  `;
 }
 
-function showProductDetail(id) {
-  const product = productsData.find(p => p.id === id);
-  if (!product) return;
+function buildProductModalHtml(product) {
+  const supplierOptions = buildOptions(getSupplierNames(), product ? product.supplier : '', 'Seleccionar proveedor');
+  const categoryOptions = getCategoryOptions(product ? product.category_id : '');
+  const preview = product && app.safeImageUrl(product.image_url)
+    ? '<img src="' + app.safeImageUrl(product.image_url) + '" class="products-modal-photo-img" alt="Foto">'
+    : '<div class="products-modal-photo-placeholder">Sin imagen</div>';
 
-  const container = document.getElementById('modal-container');
-  const imageUrl = app.safeImageUrl(product.image_url);
-  const img = imageUrl ?
-    '<img src="' + imageUrl + '" style="max-width:100%;max-height:250px;object-fit:contain;border-radius:8px;">' :
-    '<div style="width:100%;height:150px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:50px;border-radius:8px;">[img]</div>';
-
-  const isLow = product.stock > 0 && product.stock <= product.min_stock;
-  const isOut = product.stock <= 0;
-  const stockClass = isOut ? 'badge-red' : (isLow ? 'badge-yellow' : 'badge-green');
-  const stockText = isOut ? 'Sin stock' : (isLow ? 'Stock bajo' : 'Disponible');
-
-  container.innerHTML =
-    '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;" onclick="if(event.target === this) closeProductDetailModal()">' +
-    '<div style="background:white;border-radius:12px;width:95%;max-width:650px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 80px rgba(0,0,0,0.4);">' +
-    '<div style="padding:20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">' +
-    '<h3 style="margin:0;font-size:18px;color:#1e293b;">Detalle del Producto</h3>' +
-    '<button onclick="closeProductDetailModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#64748b;padding:0;width:30px;height:30px;line-height:1;">x</button>' +
-    '</div>' +
-    '<div style="padding:20px;">' +
-    '<div style="display:grid;grid-template-columns:180px 1fr;gap:20px;">' +
-    '<div style="background:#f8fafc;padding:15px;border-radius:8px;text-align:center;">' + img + '</div>' +
-    '<div>' +
-    '<h2 style="margin:0 0 10px 0;font-size:20px;color:#1e293b;">' + app.escapeHtml(product.name) + '</h2>' +
-    '<p style="margin:5px 0;color:#64748b;font-size:13px;">SKU: ' + app.escapeHtml(product.sku || '-') + '</p>' +
-    '<p style="margin:8px 0;font-size:20px;color:#2563eb;font-weight:600;">' + app.formatMoney(product.sale_price) + '</p>' +
-    '<p style="margin:8px 0;"><span class="badge ' + stockClass + '">' + product.stock + ' - ' + stockText + '</span></p>' +
-    '<p style="margin:5px 0;color:#64748b;font-size:13px;">Categoria: ' + app.escapeHtml(product.category_name || '-') + '</p>' +
-    '<p style="margin:5px 0;color:#64748b;font-size:13px;">Proveedor: ' + app.escapeHtml(product.supplier || '-') + '</p>' +
-    '<p style="margin:5px 0;color:#64748b;font-size:13px;">WooCommerce: ' + (product.woocommerce_id ? 'Sincronizado (ID: ' + product.woocommerce_id + ')' : 'No sincronizado') + '</p>' +
-    '</div></div>' +
-    (product.description ? '<div style="margin-top:20px;padding-top:20px;border-top:1px solid #e2e8f0;"><p style="margin:0 0 10px 0;font-weight:500;color:#1e293b;">Descripcion:</p><p style="margin:0;color:#64748b;font-size:13px;line-height:1.6;">' + app.escapeHtml(product.description) + '</p></div>' : '') +
-    '</div>' +
-    '<div style="padding:20px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end;">' +
-    '<button class="btn btn-secondary" onclick="editProduct(' + product.id + ');closeProductDetailModal();">Editar</button>' +
-    '<button class="btn btn-primary" onclick="closeProductDetailModal()">Cerrar</button>' +
-    '</div></div></div>';
+  return `
+    <div class="modal products-modal">
+      <div class="modal-header products-modal-header">
+        <div>
+          <h3>Nuevo Articulo</h3>
+          <p>Formulario reorganizado en tabs con layout tipo sistema de gestion.</p>
+        </div>
+        <button type="button" class="modal-close" onclick="closeProductModal()">&times;</button>
+      </div>
+      <form id="product-form" onsubmit="event.preventDefault(); saveProduct()">
+        <input type="hidden" id="product-id" value="${productsEscapeAttr(product ? product.id : '')}">
+        <input type="hidden" id="product-image" value="${productsEscapeAttr(product ? (product.image_url || '') : '')}">
+        <div class="products-modal-tabs">
+          <button type="button" class="products-modal-tab${productsUiState.modalTab === 'data' ? ' is-active' : ''}" data-tab="data" onclick="setProductModalTab('data')">Datos</button>
+          <button type="button" class="products-modal-tab${productsUiState.modalTab === 'prices' ? ' is-active' : ''}" data-tab="prices" onclick="setProductModalTab('prices')">Listas de precios</button>
+        </div>
+        <div class="modal-body products-modal-body">
+          <section class="products-modal-panel${productsUiState.modalTab === 'data' ? ' is-active' : ''}" data-panel="data">
+            <div class="products-modal-data-layout">
+              <div class="products-modal-data-grid">
+                <div class="form-group"><label>Codigo</label><input id="product-sku" type="text" value="${productsEscapeAttr(product ? product.sku : '')}"></div>
+                <div class="form-group"><label>Cod. Prov.</label><input id="product-barcode" type="text" value="${productsEscapeAttr(product ? product.barcode : '')}"></div>
+                <div class="form-group products-field-span-2"><label>Descripcion</label><input id="product-name" type="text" value="${productsEscapeAttr(product ? product.name : '')}" required></div>
+                <div class="form-group"><label>Rubro</label><div class="products-input-combo"><select>${buildOptions([], '', 'Seleccionar rubro')}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de rubro')">+</button></div></div>
+                <div class="form-group"><label>Marca</label><div class="products-input-combo"><select>${buildOptions([], '', 'Seleccionar marca')}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de marca')">+</button></div></div>
+                <div class="form-group"><label>Ubicacion</label><input type="text"></div>
+                <div class="form-group"><label>Unidad</label><div class="products-input-combo"><select>${buildOptions(PRODUCT_UNITS, 'Unidad', 'Seleccionar unidad')}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de unidad')">+</button></div></div>
+                <div class="form-group"><label>Proveedor</label><select id="product-supplier">${supplierOptions}</select></div>
+                <div class="form-group"><label>Categoria</label><select id="product-category">${categoryOptions}</select><div class="products-help-inline">Gestiona el arbol en Administracion -> Categorias</div></div>
+                <div class="form-group"><label>Stock</label><input id="product-stock" type="number" value="${productsEscapeAttr(product ? product.stock : 0)}"></div>
+                <div class="form-group"><label>Stock minimo</label><input id="product-min-stock" type="number" value="${productsEscapeAttr(product ? product.min_stock : 2)}"></div>
+                <div class="products-check-row products-field-span-2"><label><input type="checkbox"> Promocion</label><label><input type="checkbox"> Servicio</label></div>
+              </div>
+              <aside class="products-modal-photo-card">
+                <div class="products-modal-photo-title">Foto del producto</div>
+                <div id="product-image-preview" class="products-modal-photo-frame">${preview}</div>
+                <button class="btn btn-secondary" type="button" onclick="changeProductPhoto()">Cambiar foto</button>
+              </aside>
+            </div>
+          </section>
+          <section class="products-modal-panel${productsUiState.modalTab === 'prices' ? ' is-active' : ''}" data-panel="prices">
+            <div class="products-price-config-grid">
+              <div class="form-group"><label>Costo</label><input id="product-purchase" type="number" step="0.01" value="${productsEscapeAttr(product ? product.purchase_price : 0)}"></div>
+              <div class="form-group"><label>IVA</label><select id="product-tax">${buildOptions(PRODUCT_IVA_OPTIONS.map((item) => ({ value: item, label: item + '%' })), '21', '')}</select></div>
+              <div class="form-group"><label>Impuesto interno (%)</label><input type="number" step="0.01" value="0"></div>
+              <div class="products-check-row"><label><input type="checkbox"> Costo en dolares</label></div>
+            </div>
+            <div class="products-sheet-table-wrap">
+              <table class="products-sheet-table products-price-table">
+                <thead><tr><th>Lista</th><th>Calculada</th><th>% Ganancia</th><th>Con IVA</th><th>En dolares</th><th>Valor</th></tr></thead>
+                <tbody>
+                  ${['1','2','3','4','5','6'].map((item, index) => `
+                    <tr>
+                      <td>Lista ${item}</td>
+                      <td><input type="checkbox" ${index === 0 ? 'checked' : ''}></td>
+                      <td><input class="products-inline-number" type="number" value="${index === 0 ? 35 : 0}"></td>
+                      <td><input type="checkbox" checked></td>
+                      <td><input type="checkbox"></td>
+                      <td><input class="products-inline-number" type="number" id="${index === 0 ? 'product-sale' : ''}" value="${productsEscapeAttr(index === 0 && product ? product.sale_price : 0)}"></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="products-help-line">Si la lista esta marcada como calculada, se calcula con costo + % ganancia + IVA opcional. "En dolares" solo aplica cuando la lista es editable.</div>
+          </section>
+        </div>
+        <div class="modal-footer products-modal-footer">
+          <button class="btn btn-secondary" type="button" onclick="closeProductModal()">Cancelar</button>
+          <button class="btn btn-success" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  `;
 }
 
-function closeProductDetailModal() {
-  document.getElementById('modal-container').innerHTML = '';
+function setProductModalTab(tabId) {
+  productsUiState.modalTab = tabId;
+  document.querySelectorAll('.products-modal-tab').forEach((tab) => {
+    tab.classList.toggle('is-active', tab.getAttribute('data-tab') === tabId);
+  });
+  document.querySelectorAll('.products-modal-panel').forEach((panel) => {
+    panel.classList.toggle('is-active', panel.getAttribute('data-panel') === tabId);
+  });
 }
 
-function getProductDetailModal() {
-  return '';
-}
-
-function renderProductsTable(products) {
-  renderProductsView(products);
-}
-
-function getProductModalHtml(cats) {
-  return '<div id="product-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;" onclick="if(event.target === this) closeProductModal()">' +
-  '<div style="background:white;border-radius:12px;width:95%;max-width:600px;margin:40px auto;box-shadow:0 25px 80px rgba(0,0,0,0.3);">' +
-  '<div style="padding:20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">' +
-  '<h3 id="product-modal-title" style="margin:0;font-size:18px;color:#1e293b;">Nuevo Producto</h3>' +
-  '<button onclick="closeProductModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#64748b;padding:0;width:30px;height:30px;line-height:1;">x</button>' +
-  '</div>' +
-  '<div style="padding:20px;">' +
-  '<form id="product-form">' +
-  '<input type="hidden" id="product-id">' +
-  '<div class="form-row"><div class="form-group"><label>SKU</label><input type="text" id="product-sku"></div>' +
-  '<div class="form-group"><label>Barcode</label><input type="text" id="product-barcode"></div></div>' +
-  '<div class="form-group"><label>Nombre</label><input type="text" id="product-name" required></div>' +
-  '<div class="form-group"><label>URL de Imagen</label><input type="url" id="product-image" placeholder="https://..." oninput="previewProductImage()"></div>' +
-  '<div id="product-image-preview" style="margin-bottom:15px;"></div>' +
-  '<div class="form-group"><label>Descripcion</label><textarea id="product-description" rows="3"></textarea></div>' +
-  '<div class="form-row"><div class="form-group"><label>Categoria</label><select id="product-category">' + cats + '</select></div>' +
-  '<div class="form-group"><label>Proveedor</label><input type="text" id="product-supplier"></div></div>' +
-  '<div class="form-row-3"><div class="form-group"><label>Precio Compra</label><input type="number" step="0.01" id="product-purchase"></div>' +
-  '<div class="form-group"><label>Precio Venta</label><input type="number" step="0.01" id="product-sale"></div>' +
-  '<div class="form-group"><label>Stock</label><input type="number" id="product-stock"></div></div>' +
-  '<div class="form-row"><div class="form-group"><label>Stock Minimo</label><input type="number" id="product-min-stock" value="2"></div></div>' +
-  '</form></div>' +
-  '<div style="padding:20px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end;">' +
-  '<button class="btn btn-secondary" onclick="closeProductModal()">Cancelar</button>' +
-  '<button class="btn btn-primary" onclick="saveProduct()">Guardar</button>' +
-  '</div></div></div>';
-}
-
-function showProductModal(product) {
-  document.getElementById('product-modal').style.display = 'block';
-  document.getElementById('product-modal-title').textContent = product ? 'Editar Producto' : 'Nuevo Producto';
-  if (product) {
-    document.getElementById('product-id').value = product.id;
-    document.getElementById('product-sku').value = product.sku || '';
-    document.getElementById('product-barcode').value = product.barcode || '';
-    document.getElementById('product-name').value = product.name;
-    document.getElementById('product-category').value = product.category_id || '';
-    document.getElementById('product-supplier').value = product.supplier || '';
-    document.getElementById('product-purchase').value = product.purchase_price;
-    document.getElementById('product-sale').value = product.sale_price;
-    document.getElementById('product-stock').value = product.stock;
-    document.getElementById('product-min-stock').value = product.min_stock;
-    document.getElementById('product-image').value = product.image_url || '';
-    document.getElementById('product-description').value = product.description || '';
-    previewProductImage();
-  } else {
-    document.getElementById('product-form').reset();
-    document.getElementById('product-id').value = '';
-    document.getElementById('product-image-preview').innerHTML = '';
-    document.getElementById('product-min-stock').value = '2';
-  }
-}
-
-function previewProductImage() {
-  const preview = document.getElementById('product-image-preview');
-  const imageUrl = app.safeImageUrl(document.getElementById('product-image').value);
-  if (imageUrl) {
-    preview.innerHTML = '<img src="' + imageUrl + '" style="max-width:150px;max-height:150px;border-radius:8px;" onerror="this.parentElement.textContent=\'Error al cargar imagen\';">';
-  } else {
-    preview.innerHTML = '';
-  }
+function showProductModal(id) {
+  productsUiState.modalTab = 'data';
+  const product = id ? productsData.find((item) => item.id === id) : null;
+  app.showModal(buildProductModalHtml(product || null));
 }
 
 function closeProductModal() {
-  document.getElementById('product-modal').style.display = 'none';
+  app.closeModal();
 }
 
-function editProduct(id) {
-  const product = productsData.find(p => p.id === id);
-  if (product) showProductModal(product);
+function changeProductPhoto() {
+  const input = document.getElementById('product-image');
+  const current = input ? input.value : '';
+  const next = prompt('Ingresa la URL de la foto del producto', current || '');
+  if (next === null || !input) return;
+  input.value = next.trim();
+  const preview = document.getElementById('product-image-preview');
+  if (preview) {
+    const imageUrl = app.safeImageUrl(next.trim());
+    preview.innerHTML = imageUrl ? '<img src="' + imageUrl + '" class="products-modal-photo-img" alt="Foto">' : '<div class="products-modal-photo-placeholder">Sin imagen</div>';
+  }
+}
+
+function showProductUiNotice(featureName) {
+  alert(featureName + ' disponible en esta version como redisenio UI, sin cambiar la logica actual.');
 }
 
 async function saveProduct() {
-  const id = document.getElementById('product-id').value;
+  const id = (document.getElementById('product-id') || {}).value || '';
   const data = {
-    sku: document.getElementById('product-sku').value,
-    barcode: document.getElementById('product-barcode').value,
-    name: document.getElementById('product-name').value,
-    description: document.getElementById('product-description').value,
-    category_id: document.getElementById('product-category').value || null,
-    supplier: document.getElementById('product-supplier').value,
-    purchase_price: parseFloat(document.getElementById('product-purchase').value) || 0,
-    sale_price: parseFloat(document.getElementById('product-sale').value) || 0,
-    stock: parseInt(document.getElementById('product-stock').value, 10) || 0,
-    min_stock: parseInt(document.getElementById('product-min-stock').value, 10) || 2,
-    image_url: document.getElementById('product-image').value || null
+    sku: ((document.getElementById('product-sku') || {}).value || '').trim(),
+    barcode: ((document.getElementById('product-barcode') || {}).value || '').trim(),
+    name: ((document.getElementById('product-name') || {}).value || '').trim(),
+    description: '',
+    category_id: ((document.getElementById('product-category') || {}).value || '') || null,
+    supplier: ((document.getElementById('product-supplier') || {}).value || '').trim(),
+    purchase_price: Number((document.getElementById('product-purchase') || {}).value || 0),
+    sale_price: Number((document.getElementById('product-sale') || {}).value || 0),
+    stock: Number((document.getElementById('product-stock') || {}).value || 0),
+    min_stock: Number((document.getElementById('product-min-stock') || {}).value || 2),
+    image_url: ((document.getElementById('product-image') || {}).value || '').trim() || null
   };
 
   if (!data.name) {
-    alert('El nombre del producto es requerido');
+    alert('La descripcion del articulo es obligatoria');
     return;
   }
 
@@ -380,19 +462,30 @@ async function saveProduct() {
     else await api.products.create(data);
     closeProductModal();
     renderProducts();
-  } catch (e) {
-    alert(e.message);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function syncProductToWoo(id) {
+  try {
+    await api.woocommerce.syncProduct(id);
+    alert('Articulo sincronizado correctamente');
+    renderProducts();
+  } catch (error) {
+    alert('Error: ' + error.message);
   }
 }
 
 async function deleteProduct(id) {
-  const product = productsData.find(p => p.id === id);
-  if (!confirm('Eliminar el producto "' + (product ? product.name : '') + '"?')) return;
+  const product = productsData.find((item) => item.id === id);
+  if (!confirm('Eliminar el articulo "' + (product ? product.name : '') + '"?')) return;
+
   try {
     await api.products.delete(id);
     renderProducts();
-  } catch (e) {
-    alert(e.message);
+  } catch (error) {
+    alert(error.message);
   }
 }
 

@@ -208,8 +208,17 @@ router.post('/', authenticate, async (req, res) => {
     const product = get('SELECT * FROM products WHERE id = ?', [result.lastInsertRowid]);
     saveDatabase();
     
-    const syncResult = await syncToWooCommerce(product);
-    product.woo_sync = syncResult;
+    setImmediate(() => {
+      syncToWooCommerce(product).then(result => {
+        if (result.success) {
+          console.log('[PRODUCTS] Background sync successful for new product', product.id);
+        } else {
+          console.log('[PRODUCTS] Background sync skipped for product', product.id, ':', result.error);
+        }
+      }).catch(e => {
+        console.error('[PRODUCTS] Background sync error for product', product.id, ':', e.message);
+      });
+    });
     
     res.status(201).json(product);
   } catch (err) {
@@ -242,8 +251,17 @@ router.put('/:id', authenticate, async (req, res) => {
     const product = get('SELECT * FROM products WHERE id = ?', [req.params.id]);
     saveDatabase();
     
-    const syncResult = await syncToWooCommerce(product);
-    product.woo_sync = syncResult;
+    setImmediate(() => {
+      syncToWooCommerce(product).then(result => {
+        if (result.success) {
+          console.log('[PRODUCTS] Background sync successful for updated product', product.id);
+        } else {
+          console.log('[PRODUCTS] Background sync skipped for product', product.id, ':', result.error);
+        }
+      }).catch(e => {
+        console.error('[PRODUCTS] Background sync error for product', product.id, ':', e.message);
+      });
+    });
     
     res.json(product);
   } catch (err) {

@@ -236,33 +236,32 @@ async function printRepairTicket(id) {
     const repair = await api.repairs.getOne(id);
     const businessName = window.businessName || 'Milo Pro';
 
-    let ticketText = '       ' + businessName + '\n';
-    ticketText += '       ORDEN DE SERVICIO\n';
-    ticketText += '============================\n';
+    let ticketText = '               ' + businessName + '\n';
+    ticketText += '          ORDEN DE SERVICIO\n';
+    ticketText += '==========================================\n';
     ticketText += 'Ticket: ' + repair.ticket_number + '\n';
     ticketText += 'Fecha: ' + new Date(repair.created_at).toLocaleString('es-AR') + '\n';
-    ticketText += '----------------------------\n';
+    ticketText += '------------------------------------------\n';
     ticketText += 'CLIENTE:\n' + repair.customer_name + '\n';
     ticketText += 'Tel: ' + (repair.customer_phone || 'Sin telefono') + '\n';
-    ticketText += '============================\n';
+    ticketText += '==========================================\n';
     ticketText += 'DISPOSITIVO:\n';
     ticketText += 'Tipo: ' + repair.device_type + '\n';
-    ticketText += 'Marca: ' + (repair.brand || '-') + '\n';
-    ticketText += 'Modelo: ' + (repair.model || '-') + '\n';
+    ticketText += 'Marca: ' + (repair.brand || '-') + '  Modelo: ' + (repair.model || '-') + '\n';
     ticketText += 'N/S: ' + (repair.serial_number || '-') + '\n';
     ticketText += 'IMEI: ' + (repair.imei || '-') + '\n';
-    ticketText += '============================\n';
+    ticketText += '==========================================\n';
     ticketText += 'Clave: ' + (repair.password || '-') + '\n';
     ticketText += 'Patron: ' + (repair.pattern || '-') + '\n';
-    ticketText += '============================\n';
+    ticketText += '==========================================\n';
     ticketText += 'PROBLEMA:\n' + repair.problem_description + '\n';
-    ticketText += '----------------------------\n';
+    ticketText += '------------------------------------------\n';
     ticketText += 'Accesorios: ' + (repair.accessories || 'Ninguno') + '\n';
-    ticketText += '============================\n';
+    ticketText += '==========================================\n';
     ticketText += 'ESTADO: ' + (STATUSES.find(s => s.key === repair.status)?.label || repair.status) + '\n';
     if (repair.estimated_price) ticketText += 'Presupuesto: ' + app.formatMoney(repair.estimated_price) + '\n';
     if (repair.final_price) ticketText += 'Total: ' + app.formatMoney(repair.final_price) + '\n';
-    ticketText += '============================\n';
+    ticketText += '==========================================\n';
     ticketText += '\n\n\n\n\n';
 
     const printFrame = document.createElement('iframe');
@@ -273,8 +272,8 @@ async function printRepairTicket(id) {
     const frameDoc = printFrame.contentWindow.document;
     frameDoc.open();
     frameDoc.write('<!DOCTYPE html><html><head><title>Orden de Reparacion</title>');
-    frameDoc.write('<style>@page { margin: 0; } body { margin: 0; padding: 5px; font-family: monospace; font-size: 10px; }</style>');
-    frameDoc.write('</head><body><pre style="margin:0;">' + app.escapeHtml(ticketText) + '</pre></body></html>');
+    frameDoc.write('<style>@page { margin: 0; size: 80mm auto; } body { margin: 0; padding: 5px; font-family: monospace; font-size: 11px; width: 80mm; }</style>');
+    frameDoc.write('</head><body><pre style="margin:0;white-space:pre-wrap;word-wrap:break-word;">' + app.escapeHtml(ticketText) + '</pre></body></html>');
     frameDoc.close();
 
     printFrame.contentWindow.focus();

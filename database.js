@@ -134,6 +134,20 @@ async function initializeDatabase() {
       phone TEXT,
       email TEXT,
       address TEXT,
+      contact TEXT,
+      city TEXT,
+      province TEXT,
+      country TEXT,
+      tax_id TEXT,
+      iva_condition TEXT DEFAULT 'Consumidor Final',
+      instagram TEXT,
+      transport TEXT,
+      credit_limit REAL DEFAULT 0,
+      zone TEXT,
+      discount_percent REAL DEFAULT 0,
+      seller TEXT,
+      price_list TEXT DEFAULT '1',
+      billing_conditions TEXT,
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -144,6 +158,9 @@ async function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer_id INTEGER,
       user_id INTEGER NOT NULL,
+      receipt_type TEXT DEFAULT 'C',
+      point_of_sale TEXT DEFAULT '001',
+      receipt_number INTEGER DEFAULT 1,
       total REAL NOT NULL,
       payment_method TEXT DEFAULT 'cash',
       notes TEXT,
@@ -229,6 +246,80 @@ async function initializeDatabase() {
   
   try {
     db.run('ALTER TABLE products ADD COLUMN image_url TEXT');
+  } catch (e) {
+    // Column may already exist
+  }
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN contact TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN city TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN province TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN country TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN tax_id TEXT');
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE customers ADD COLUMN iva_condition TEXT DEFAULT 'Consumidor Final'");
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN instagram TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN transport TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN credit_limit REAL DEFAULT 0');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN zone TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN discount_percent REAL DEFAULT 0');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN seller TEXT');
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE customers ADD COLUMN price_list TEXT DEFAULT '1'");
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN billing_conditions TEXT');
+  } catch (e) {}
+
+  try {
+    db.run("ALTER TABLE sales ADD COLUMN receipt_type TEXT DEFAULT 'C'");
+  } catch (e) {
+    // Column may already exist
+  }
+
+  try {
+    db.run("ALTER TABLE sales ADD COLUMN point_of_sale TEXT DEFAULT '001'");
+  } catch (e) {
+    // Column may already exist
+  }
+
+  try {
+    db.run('ALTER TABLE sales ADD COLUMN receipt_number INTEGER DEFAULT 1');
   } catch (e) {
     // Column may already exist
   }

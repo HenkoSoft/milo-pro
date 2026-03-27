@@ -7,9 +7,33 @@ const {
 } = require('../services/woocommerce-sync');
 
 const router = express.Router();
+const ALLOWED_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'];
 
 function getUniqueProductIds(items) {
   return [...new Set(items.map((item) => item.product_id))];
+}
+
+function normalizeReceiptType(value) {
+  const normalized = String(value || 'C').trim().toUpperCase();
+  return ALLOWED_RECEIPT_TYPES.includes(normalized) ? normalized : 'C';
+}
+
+function normalizePointOfSale(value) {
+  const digits = String(value || '001').replace(/\D/g, '');
+  return (digits || '001').padStart(3, '0').slice(-3);
+}
+
+function getNextReceiptNumber(receiptType, pointOfSale) {
+  const next = get(
+    `
+      SELECT COALESCE(MAX(receipt_number), 0) + 1 as next_number
+      FROM sales
+      WHERE receipt_type = ? AND point_of_sale = ?
+    `,
+    [receiptType, pointOfSale]
+  );
+
+  return next && next.next_number ? Number(next.next_number) : 1;
 }
 
 async function syncSnapshotsOrThrow(snapshots, action) {
@@ -140,6 +164,18 @@ router.get('/today', authenticate, (req, res) => {
   });
 });
 
+router.get('/next-number', authenticate, (req, res) => {
+  const receiptType = normalizeReceiptType(req.query.receiptType);
+  const pointOfSale = normalizePointOfSale(req.query.pointOfSale);
+  const nextNumber = getNextReceiptNumber(receiptType, pointOfSale);
+
+  res.json({
+    receipt_type: receiptType,
+    point_of_sale: pointOfSale,
+    receipt_number: nextNumber
+  });
+});
+
 router.get('/:id', authenticate, (req, res) => {
   const sale = get(
     `
@@ -170,7 +206,7 @@ router.get('/:id', authenticate, (req, res) => {
 });
 
 router.post('/', authenticate, async (req, res) => {
-  const { customer_id, items, payment_method, notes } = req.body;
+  const { customer_id, items, payment_method, notes, receipt_type, point_of_sale } = req.body;
 
   if (!items || items.length === 0) {
     return res.status(400).json({ error: 'No items in sale' });
@@ -180,6 +216,8 @@ router.post('/', authenticate, async (req, res) => {
   const customerVal = customer_id === undefined ? null : customer_id;
   const paymentVal = payment_method === undefined ? 'cash' : payment_method;
   const notesVal = notes === undefined ? null : notes;
+  const receiptType = normalizeReceiptType(receipt_type);
+  const pointOfSale = normalizePointOfSale(point_of_sale);
 
   try {
     const productSnapshotsBeforeSale = new Map();
@@ -206,12 +244,14 @@ router.post('/', authenticate, async (req, res) => {
         }
       });
 
+      const receiptNumber = getNextReceiptNumber(receiptType, pointOfSale);
+
       const saleResult = run(
         `
-          INSERT INTO sales (customer_id, user_id, total, payment_method, notes)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO sales (customer_id, user_id, receipt_type, point_of_sale, receipt_number, total, payment_method, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
-        [customerVal, req.user.id, total, paymentVal, notesVal]
+        [customerVal, req.user.id, receiptType, pointOfSale, receiptNumber, total, paymentVal, notesVal]
       );
 
       const saleId = saleResult.lastInsertRowid;

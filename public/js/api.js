@@ -75,6 +75,7 @@ const api = {
     getAll: (params) => request('/sales' + buildQuery(params)),
     getOne: (id) => request('/sales/' + id),
     getToday: () => request('/sales/today'),
+    nextNumber: (params) => request('/sales/next-number' + buildQuery(params)),
     create: (sale) => request('/sales', { method: 'POST', body: JSON.stringify(sale) }),
     delete: (id) => request('/sales/' + id, { method: 'DELETE' })
   },

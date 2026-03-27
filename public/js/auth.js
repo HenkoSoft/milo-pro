@@ -62,7 +62,10 @@ function showApp() {
   document.getElementById('user-role').textContent = currentUser.role === 'admin' ? 'Administrador' : 'Técnico';
   
   if (currentUser.role === 'admin') {
-    document.getElementById('admin-nav').style.display = 'flex';
+    const adminGroup = document.getElementById('admin-group');
+    const adminNav = document.getElementById('admin-nav');
+    if (adminGroup) adminGroup.style.display = 'block';
+    if (adminNav) adminNav.style.display = 'flex';
   }
 }
 

@@ -16,11 +16,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
-  document.getElementById('logout-btn').addEventListener('click', () => auth.logout());
-  document.getElementById('logout-btn-sidebar').addEventListener('click', (e) => {
-    e.preventDefault();
-    auth.logout();
-  });
+  // Only add event listener to existing logout button
+  const logoutBtnSidebar = document.getElementById('logout-btn-sidebar');
+  if (logoutBtnSidebar) {
+    logoutBtnSidebar.addEventListener('click', (e) => {
+      e.preventDefault();
+      auth.logout();
+    });
+  }
   
   document.querySelectorAll('.nav-item').forEach(el => {
     el.addEventListener('click', (e) => {
