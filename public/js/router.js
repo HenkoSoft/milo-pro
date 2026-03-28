@@ -9,6 +9,8 @@ function getPages() {
   const customersRender = typeof renderCustomers === 'function' ? renderCustomers : () => {};
   const repairsRender = typeof renderRepairs === 'function' ? renderRepairs : () => {};
   const reportsRender = typeof renderReports === 'function' ? renderReports : () => {};
+  const toolsRender = typeof renderTools === 'function' ? renderTools : () => {};
+  const helpRender = typeof renderHelp === 'function' ? renderHelp : () => {};
   const usersRender = typeof renderUsers === 'function' ? renderUsers : () => {};
   const merchandiseRender = typeof renderMerchandiseEntry === 'function' ? renderMerchandiseEntry : () => {};
   const ncProveedorRender = typeof renderNcProveedor === 'function' ? renderNcProveedor : () => {};
@@ -102,8 +104,14 @@ function getPages() {
     'admin-config-mail': { title: 'Mail', icon: '⚙️', render: adminSectionRender('config-mail') },
     'admin-reset-data': { title: 'Borrar datos iniciales', icon: '⚙️', render: adminSectionRender('reset-data') },
     'admin-troubleshoot': { title: 'Solucionar Problemas', icon: '⚙️', render: adminSectionRender('troubleshoot') },
-    tools: { title: 'Herramientas', icon: '🔨', render: () => renderPlaceholder('Herramientas') },
-    help: { title: 'Ayuda', icon: '❓', render: () => renderPlaceholder('Ayuda') },
+    tools: { title: 'Herramientas', icon: '🔨', render: () => toolsRender('sync') },
+    'tools-sync': { title: 'Sincronizar articulos', icon: '🔨', render: () => toolsRender('sync') },
+    'tools-offline-prices': { title: 'Consultar precios offline', icon: '🔨', render: () => toolsRender('offline-prices') },
+    'tools-sync-status': { title: 'Estado de sincronizacion', icon: '🔨', render: () => toolsRender('sync-status') },
+    help: { title: 'Guia de uso', icon: '❓', render: () => helpRender('guide') },
+    'help-guide': { title: 'Guia de uso', icon: '❓', render: () => helpRender('guide') },
+    'help-buy': { title: 'Como comprar', icon: '❓', render: () => helpRender('buy') },
+    'help-support': { title: 'Soporte tecnico', icon: '❓', render: () => helpRender('support') },
     users: { title: 'Usuarios', icon: '👤', render: usersRender },
     settings: { title: 'Configuracion', icon: '⚙️', render: settingsRender }
   };
@@ -134,6 +142,8 @@ function navigate(page) {
   const cajaChildPages = ['cash', 'cash-expenses', 'cash-withdrawals', 'cash-day'];
   const reportesChildPages = ['reports', 'reports-sales', 'reports-purchases', 'reports-customers', 'reports-delivery-notes', 'reports-accounts', 'reports-ranking', 'reports-cash', 'reports-excel'];
   const adminChildPages = ['admin', 'admin-users', 'admin-users-connected', 'admin-aux-tables', 'admin-config-general', 'admin-config-documents', 'admin-config-mail', 'admin-reset-data', 'admin-troubleshoot'];
+  const toolsChildPages = ['tools', 'tools-sync', 'tools-offline-prices', 'tools-sync-status'];
+  const helpChildPages = ['help', 'help-guide', 'help-buy', 'help-support'];
 
   if (comprasChildPages.includes(page)) {
     document.getElementById('compras-group')?.classList.add('open');
@@ -155,6 +165,13 @@ function navigate(page) {
   }
   if (adminChildPages.includes(page)) {
     document.getElementById('admin-group')?.classList.add('open');
+  }
+
+  if (toolsChildPages.includes(page)) {
+    document.querySelector('.nav-item[data-page="tools"]')?.classList.add('active');
+  }
+  if (helpChildPages.includes(page)) {
+    document.querySelector('.nav-item[data-page="help"]')?.classList.add('active');
   }
 
   document.getElementById('page-title').innerHTML = '<span id="page-icon" style="margin-right: 8px;"></span>' + pages[page].title;
