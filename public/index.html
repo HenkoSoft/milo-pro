@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Milo Pro - Sistema de GestiÃ³n</title>
+  <title>Milo Pro - Sistema de Gesti&oacute;n</title>
   <link rel="stylesheet" href="/css/styles.css?v=11">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <div class="login-container">
       <div class="login-header">
         <h1>Milo Pro</h1>
-        <p>Sistema de GestiÃ³n</p>
+        <p>Sistema de Gesti&oacute;n</p>
       </div>
       <form id="login-form">
         <div class="form-group">
@@ -19,10 +19,10 @@
           <input type="text" id="username" name="username" required>
         </div>
         <div class="form-group">
-          <label for="password">ContraseÃ±a</label>
+          <label for="password">Contrase&ntilde;a</label>
           <input type="password" id="password" name="password" required>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Iniciar SesiÃ³n</button>
+        <button type="submit" class="btn btn-primary btn-block">Iniciar Sesi&oacute;n</button>
         <div id="login-error" class="error-message"></div>
       </form>
     </div>
@@ -393,12 +393,12 @@
           
           <div style="margin-bottom:16px;">
             <label for="supplier-search" style="display:block;font-weight:600;margin-bottom:6px;">Buscar:</label>
-            <input type="text" id="supplier-search" placeholder="Ejemplo bÃºsqueda..." onkeyup="filterSuppliers()" style="width:100%;max-width:360px;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;">
+            <input type="text" id="supplier-search" placeholder="Ejemplo b&uacute;squeda..." onkeyup="filterSuppliers()" style="width:100%;max-width:360px;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;">
           </div>
           
           <div style="margin-top: 15px;">
-            <button class="btn btn-secondary" onclick="exportSuppliers()">ðŸ“¤ Exportar</button>
-            <button class="btn btn-secondary" onclick="printSuppliersPDF()">ðŸ“„ Imprimir PDF</button>
+            <button class="btn btn-secondary" onclick="exportSuppliers()">Exportar</button>
+            <button class="btn btn-secondary" onclick="printSuppliersPDF()">Imprimir PDF</button>
           </div>
           
           <div id="suppliers-table-container"></div>
@@ -427,10 +427,10 @@
       <table class="products-table">
         <thead>
           <tr>
-            <th>CÃ³digo</th>
-            <th>RazÃ³n Social</th>
+            <th>C&oacute;digo</th>
+            <th>Raz&oacute;n Social</th>
             <th>Contacto</th>
-            <th>TelÃ©fono</th>
+            <th>Tel&eacute;fono</th>
             <th>CUIT</th>
             <th>Acciones</th>
           </tr>
@@ -449,9 +449,9 @@
               <td>${s.tax_id || ''}</td>
               <td>
                 <div class="btn-group">
-                  <button class="btn btn-action btn-view" onclick="viewSupplier(${s.id})">ðŸ‘ï¸</button>
-                  <button class="btn btn-action btn-edit" onclick="editSupplier(${s.id})">âœï¸</button>
-                  <button class="btn btn-action btn-delete" onclick="deleteSupplier(${s.id})">âŒ</button>
+                  <button class="btn btn-action btn-view" onclick="viewSupplier(${s.id})">Ver</button>
+                  <button class="btn btn-action btn-edit" onclick="editSupplier(${s.id})">Editar</button>
+                  <button class="btn btn-action btn-delete" onclick="deleteSupplier(${s.id})">Borrar</button>
                 </div>
               </td>
             </tr>
@@ -500,16 +500,16 @@
       <div class="modal" style="max-width: 600px;">
         <div class="modal-header">
           <h3>Nuevo Proveedor</h3>
-          <button type="button" class="btn-close" onclick="app.closeModal()">Ã—</button>
+          <button type="button" class="btn-close" onclick="app.closeModal()">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label for="supplier-name">RazÃ³n Social *</label>
+            <label for="supplier-name">Raz&oacute;n Social *</label>
             <input type="text" id="supplier-name" required>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="supplier-phone">TelÃ©fono</label>
+              <label for="supplier-phone">Tel&eacute;fono</label>
               <input type="text" id="supplier-phone">
             </div>
             <div class="form-group">
@@ -558,13 +558,13 @@
       <div class="modal" style="max-width: 600px;">
         <div class="modal-header">
           <h3>Proveedor: ${s.name}</h3>
-          <button type="button" class="btn-close" onclick="app.closeModal()">Ã—</button>
+          <button type="button" class="btn-close" onclick="app.closeModal()">&times;</button>
         </div>
         <div class="modal-body">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            <div><strong>CÃ³digo:</strong> ${s.id}</div>
+            <div><strong>C&oacute;digo:</strong> ${s.id}</div>
             <div><strong>CUIT:</strong> ${s.tax_id || '-'}</div>
-            <div><strong>TelÃ©fono:</strong> ${s.phone || '-'}</div>
+            <div><strong>Tel&eacute;fono:</strong> ${s.phone || '-'}</div>
             <div><strong>Email:</strong> ${s.email || '-'}</div>
           </div>
         </div>
@@ -583,17 +583,17 @@
       <div class="modal" style="max-width: 600px;">
         <div class="modal-header">
           <h3>Editar Proveedor</h3>
-          <button type="button" class="btn-close" onclick="app.closeModal()">Ã—</button>
+          <button type="button" class="btn-close" onclick="app.closeModal()">&times;</button>
         </div>
         <div class="modal-body">
           <input type="hidden" id="edit-id" value="${s.id}">
           <div class="form-group">
-            <label for="edit-name">RazÃ³n Social *</label>
+            <label for="edit-name">Raz&oacute;n Social *</label>
             <input type="text" id="edit-name" value="${s.name}" required>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="edit-phone">TelÃ©fono</label>
+              <label for="edit-phone">Tel&eacute;fono</label>
               <input type="text" id="edit-phone" value="${s.phone || ''}">
             </div>
             <div class="form-group">
@@ -636,7 +636,7 @@
   }
   
   async function deleteSupplier(id) {
-    if (!confirm('Â¿EstÃ¡ seguro de que desea eliminar este proveedor?')) return;
+    if (!confirm('\u00BFEst\u00E1 seguro de que desea eliminar este proveedor?')) return;
     
     try {
       await api.purchases.deleteSupplier(id);
@@ -650,9 +650,9 @@
   
   function exportSuppliers() {
     const data = allSuppliersList.map(s => ({
-      cÃ³digo: s.id,
-      razÃ³nsocial: s.name,
-      telÃ©fono: s.phone,
+      codigo: s.id,
+      razonSocial: s.name,
+      telefono: s.phone,
       email: s.email,
       cuit: s.tax_id
     }));
@@ -687,9 +687,9 @@
         <table>
           <thead>
             <tr>
-              <th>CÃ³digo</th>
-              <th>RazÃ³n Social</th>
-              <th>TelÃ©fono</th>
+              <th>C&oacute;digo</th>
+              <th>Raz&oacute;n Social</th>
+              <th>Tel&eacute;fono</th>
               <th>Email</th>
               <th>CUIT</th>
             </tr>

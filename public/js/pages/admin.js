@@ -85,6 +85,18 @@ function adminBuildOptions(items, selectedValue, placeholder = 'Seleccionar') {
   return html;
 }
 
+function adminBuildPasswordField(id, label, required) {
+  return `
+    <div class="form-group">
+      <label>${label}</label>
+      <div style="position:relative;">
+        <input id="${id}" type="password" value="" autocomplete="new-password" ${required ? 'required' : ''} style="padding-right:44px;">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAdminPasswordVisibility('${id}', this)" aria-label="Mostrar contrasena" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);min-width:32px;padding:4px 8px;">Ver</button>
+      </div>
+    </div>
+  `;
+}
+
 function loadAdminStore(key, fallback) {
   try {
     const value = JSON.parse(localStorage.getItem(key) || 'null');
@@ -368,19 +380,18 @@ function showAdminUserModal(userId = null) {
       <div class="modal-header admin-modal-header">
         <div>
           <h3>${user ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
-          <p class="admin-modal-subtitle">Formulario en dos columnas con el mismo criterio visual del resto del sistema.</p>
         </div>
         <button type="button" class="modal-close" onclick="closeModal()">&times;</button>
       </div>
-      <form onsubmit="event.preventDefault(); saveAdminUser(${user ? user.id : 'null'})">
+      <form autocomplete="off" onsubmit="event.preventDefault(); saveAdminUser(${user ? user.id : 'null'})">
         <div class="modal-body admin-modal-body">
           <div class="admin-form-grid">
-            <div class="form-group"><label>Usuario</label><input id="admin-user-username" type="text" value="${adminEscapeAttr(user ? user.username : '')}" required></div>
+            <div class="form-group"><label>Usuario</label><input id="admin-user-username" type="text" value="${adminEscapeAttr(user ? user.username : '')}" autocomplete="off" autocapitalize="off" spellcheck="false" required></div>
             <div class="form-group"><label>Nombre completo</label><input id="admin-user-name" type="text" value="${adminEscapeAttr(user ? user.name : '')}" required></div>
             <div class="form-group"><label>Email</label><input id="admin-user-email" type="email" value="${adminEscapeAttr(user ? user.email : '')}"></div>
             <div class="form-group"><label>Rol</label><select id="admin-user-role">${adminBuildOptions(ADMIN_ROLE_OPTIONS, user ? user.role : 'technician', '')}</select></div>
-            <div class="form-group"><label>Contraseña</label><input id="admin-user-password" type="password" ${user ? '' : 'required'}></div>
-            <div class="form-group"><label>Confirmar contraseña</label><input id="admin-user-password-confirm" type="password" ${user ? '' : 'required'}></div>
+            ${adminBuildPasswordField('admin-user-password', 'Contrase&ntilde;a', !user)}
+            ${adminBuildPasswordField('admin-user-password-confirm', 'Confirmar contrase&ntilde;a', !user)}
             <div class="form-group admin-field-span-2">
               <label class="admin-switch-row">
                 <input id="admin-user-active" type="checkbox" ${!user || user.active ? 'checked' : ''}>
@@ -396,6 +407,26 @@ function showAdminUserModal(userId = null) {
       </form>
     </div>
   `);
+
+  if (!user) {
+    window.setTimeout(() => {
+      const usernameInput = document.getElementById('admin-user-username');
+      const passwordInput = document.getElementById('admin-user-password');
+      const confirmInput = document.getElementById('admin-user-password-confirm');
+      if (usernameInput) usernameInput.value = '';
+      if (passwordInput) passwordInput.value = '';
+      if (confirmInput) confirmInput.value = '';
+    }, 0);
+  }
+}
+
+function toggleAdminPasswordVisibility(inputId, button) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  button.textContent = isHidden ? 'Ocultar' : 'Ver';
+  button.setAttribute('aria-label', isHidden ? 'Ocultar contrasena' : 'Mostrar contrasena');
 }
 
 async function saveAdminUser(userId) {
