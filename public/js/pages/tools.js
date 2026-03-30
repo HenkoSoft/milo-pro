@@ -402,14 +402,31 @@ function renderToolsSection() {
   `;
 }
 
+function restoreToolsSearchFocus(selectionStart, selectionEnd) {
+  if (toolsUiState.activeSection !== 'offline-prices') return;
+  const input = document.querySelector('.tools-search-group input');
+  if (!input) return;
+  input.focus();
+  if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') {
+    input.setSelectionRange(selectionStart, selectionEnd);
+  }
+}
+
 function selectToolsSection(sectionId) {
   toolsUiState.activeSection = TOOLS_SECTIONS.some((section) => section.id === sectionId) ? sectionId : 'sync';
   window.location.hash = getToolsRoute(toolsUiState.activeSection);
 }
 
 function updateToolsSearch(value) {
+  const activeInput = document.activeElement;
+  const shouldRestoreFocus = activeInput && activeInput.matches('.tools-search-group input');
+  const selectionStart = shouldRestoreFocus ? activeInput.selectionStart : null;
+  const selectionEnd = shouldRestoreFocus ? activeInput.selectionEnd : null;
   toolsUiState.search = value || '';
   renderToolsSection();
+  if (shouldRestoreFocus) {
+    restoreToolsSearchFocus(selectionStart, selectionEnd);
+  }
 }
 
 async function syncToolsArticles() {

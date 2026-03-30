@@ -18,7 +18,10 @@ const PRODUCT_IVA_OPTIONS = [0, 10.5, 21, 27];
 
 const productsUiState = {
   activeSection: 'planilla',
-  modalTab: 'data'
+  modalTab: 'data',
+  planillaSearch: '',
+  planillaCategory: '',
+  planillaStock: ''
 };
 
 function productsEscapeHtml(value) {
@@ -27,6 +30,30 @@ function productsEscapeHtml(value) {
 
 function productsEscapeAttr(value) {
   return app.escapeAttr(value ?? '');
+}
+
+function parseProductDecimal(value) {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatProductDecimal(value, digits = 2) {
+  return parseProductDecimal(value).toFixed(digits);
+}
+
+function roundProductSalePrice(value) {
+  const amount = parseProductDecimal(value);
+  if (amount <= 0) return 0;
+  return Math.ceil(amount / 10) * 10;
+}
+
+function formatProductPercent(value) {
+  const amount = parseProductDecimal(value);
+  return Number.isInteger(amount) ? String(amount) : formatProductDecimal(amount);
 }
 
 function buildOptions(options, selectedValue, placeholder) {
@@ -108,9 +135,9 @@ function renderProductsSection() {
 }
 
 function getFilteredProducts() {
-  const search = ((document.getElementById('product-search') || {}).value || '').trim().toLowerCase();
-  const category = ((document.getElementById('product-category-filter') || {}).value || '').trim();
-  const stock = ((document.getElementById('product-stock-filter') || {}).value || '').trim();
+  const search = String(productsUiState.planillaSearch || '').trim().toLowerCase();
+  const category = String(productsUiState.planillaCategory || '').trim();
+  const stock = String(productsUiState.planillaStock || '').trim();
 
   return productsData.filter((product) => {
     const matchesSearch = !search || [product.sku, product.barcode, product.name, product.description]
@@ -147,21 +174,21 @@ function renderProductsPlanilla() {
       <div class="products-sheet-filters">
         <div class="form-group">
           <label>Buscar</label>
-          <input id="product-search" type="text" placeholder="Codigo o descripcion..." oninput="rerenderProductsPlanilla()">
+          <input id="product-search" type="text" value="${productsEscapeAttr(productsUiState.planillaSearch)}" placeholder="Codigo o descripcion..." oninput="updateProductsPlanillaSearch(this.value)">
         </div>
         <div class="form-group">
           <label>Categoria</label>
-          <select id="product-category-filter" onchange="rerenderProductsPlanilla()">${getCategoryOptions('')}</select>
+          <select id="product-category-filter" onchange="updateProductsPlanillaCategory(this.value)">${getCategoryOptions(productsUiState.planillaCategory)}</select>
         </div>
         <div class="form-group">
           <label>Stock</label>
-          <select id="product-stock-filter" onchange="rerenderProductsPlanilla()">
+          <select id="product-stock-filter" onchange="updateProductsPlanillaStock(this.value)">
             ${buildOptions([
               { value: '', label: 'Todos' },
               { value: 'available', label: 'Disponible' },
               { value: 'low', label: 'Stock bajo' },
               { value: 'out', label: 'Sin stock' }
-            ], '', '')}
+            ], productsUiState.planillaStock, '')}
           </select>
         </div>
       </div>
@@ -175,27 +202,35 @@ function renderProductsPlanilla() {
       <table class="products-sheet-table">
         <thead>
           <tr>
+            <th>Foto</th>
             <th>Codigo</th>
             <th>Cod. Prov.</th>
             <th>Descripcion</th>
             <th>Proveedor</th>
             <th>Categoria</th>
             <th>Stock</th>
+            <th>Costo</th>
             <th>Lista 1</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           ${filtered.length === 0 ? `
-            <tr><td colspan="8" class="products-sheet-empty">No hay articulos para mostrar.</td></tr>
+            <tr><td colspan="10" class="products-sheet-empty">No hay articulos para mostrar.</td></tr>
           ` : filtered.map((product) => `
             <tr>
+              <td>
+                ${app.safeImageUrl(product.image_url)
+                  ? `<img src="${app.safeImageUrl(product.image_url)}" class="products-sheet-thumb" alt="${productsEscapeAttr(product.name || 'Articulo')}">`
+                  : '<div class="products-sheet-thumb products-sheet-thumb--empty">Sin foto</div>'}
+              </td>
               <td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td>
               <td>${productsEscapeHtml(product.barcode || '-')}</td>
               <td><strong>${productsEscapeHtml(product.name)}</strong></td>
               <td>${productsEscapeHtml(product.supplier || '-')}</td>
               <td>${productsEscapeHtml((categoriesData.find((item) => String(item.id) === String(product.category_id)) || {}).name || '-')}</td>
               <td><span class="badge ${Number(product.stock) <= 0 ? 'badge-red' : (Number(product.stock) <= Number(product.min_stock || 0) ? 'badge-yellow' : 'badge-green')}">${productsEscapeHtml(product.stock)}</span></td>
+              <td>${productsEscapeHtml(app.formatMoney(product.purchase_price || 0))}</td>
               <td>${productsEscapeHtml(app.formatMoney(product.sale_price || 0))}</td>
               <td>
                 <div class="btn-group">
@@ -215,6 +250,38 @@ function renderProductsPlanilla() {
 function rerenderProductsPlanilla() {
   if (productsUiState.activeSection !== 'planilla') return;
   renderProductsSection();
+}
+
+function restoreProductsPlanillaSearchFocus(selectionStart, selectionEnd) {
+  if (productsUiState.activeSection !== 'planilla') return;
+  const input = document.getElementById('product-search');
+  if (!input) return;
+  input.focus();
+  if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') {
+    input.setSelectionRange(selectionStart, selectionEnd);
+  }
+}
+
+function updateProductsPlanillaSearch(value) {
+  const activeInput = document.activeElement;
+  const shouldRestoreFocus = activeInput && activeInput.id === 'product-search';
+  const selectionStart = shouldRestoreFocus ? activeInput.selectionStart : null;
+  const selectionEnd = shouldRestoreFocus ? activeInput.selectionEnd : null;
+  productsUiState.planillaSearch = value || '';
+  rerenderProductsPlanilla();
+  if (shouldRestoreFocus) {
+    restoreProductsPlanillaSearchFocus(selectionStart, selectionEnd);
+  }
+}
+
+function updateProductsPlanillaCategory(value) {
+  productsUiState.planillaCategory = value || '';
+  rerenderProductsPlanilla();
+}
+
+function updateProductsPlanillaStock(value) {
+  productsUiState.planillaStock = value || '';
+  rerenderProductsPlanilla();
 }
 
 function renderProductsModule(sectionId) {
@@ -322,6 +389,12 @@ function buildProductModalHtml(product) {
   const preview = product && app.safeImageUrl(product.image_url)
     ? '<img src="' + app.safeImageUrl(product.image_url) + '" class="products-modal-photo-img" alt="Foto">'
     : '<div class="products-modal-photo-placeholder">Sin imagen</div>';
+  const defaultTax = 21;
+  const baseCost = Number(product && product.purchase_price ? product.purchase_price : 0);
+  const baseSale = Number(product && product.sale_price ? product.sale_price : 0);
+  const inferredMargin = baseCost > 0
+    ? Math.max(0, (((baseSale / (1 + defaultTax / 100)) / baseCost) - 1) * 100)
+    : 35;
 
   return `
     <div class="modal products-modal">
@@ -332,7 +405,7 @@ function buildProductModalHtml(product) {
         </div>
         <button type="button" class="modal-close" onclick="closeProductModal()">&times;</button>
       </div>
-      <form id="product-form" onsubmit="event.preventDefault(); saveProduct()">
+      <form id="product-form" novalidate onsubmit="event.preventDefault(); return false;">
         <input type="hidden" id="product-id" value="${productsEscapeAttr(product ? product.id : '')}">
         <input type="hidden" id="product-image" value="${productsEscapeAttr(product ? (product.image_url || '') : '')}">
         <div class="products-modal-tabs">
@@ -340,6 +413,7 @@ function buildProductModalHtml(product) {
           <button type="button" class="products-modal-tab${productsUiState.modalTab === 'prices' ? ' is-active' : ''}" data-tab="prices" onclick="setProductModalTab('prices')">Listas de precios</button>
         </div>
         <div class="modal-body products-modal-body">
+          <div id="product-form-feedback" class="products-form-feedback" hidden></div>
           <section class="products-modal-panel${productsUiState.modalTab === 'data' ? ' is-active' : ''}" data-panel="data">
             <div class="products-modal-data-layout">
               <div class="products-modal-data-grid">
@@ -365,11 +439,13 @@ function buildProductModalHtml(product) {
           </section>
           <section class="products-modal-panel${productsUiState.modalTab === 'prices' ? ' is-active' : ''}" data-panel="prices">
             <div class="products-price-config-grid">
-              <div class="form-group"><label>Costo</label><input id="product-purchase" type="number" step="0.01" value="${productsEscapeAttr(product ? product.purchase_price : 0)}"></div>
-              <div class="form-group"><label>IVA</label><select id="product-tax">${buildOptions(PRODUCT_IVA_OPTIONS.map((item) => ({ value: item, label: item + '%' })), '21', '')}</select></div>
+              <div class="form-group"><label>Costo</label><input id="product-purchase" type="text" inputmode="decimal" value="${productsEscapeAttr(formatProductDecimal(baseCost))}" onfocus="this.select()" oninput="updateProductPriceCalculation()" onblur="formatProductPriceField('product-purchase')"></div>
+              <div class="form-group"><label>Utilidad %</label><input id="product-margin" type="text" inputmode="decimal" value="${productsEscapeAttr(formatProductPercent(inferredMargin))}" onfocus="this.select()" oninput="updateProductPriceCalculation()" onblur="formatProductPercentField('product-margin')"></div>
+              <div class="form-group"><label>IVA</label><select id="product-tax" onchange="updateProductPriceCalculation()">${buildOptions(PRODUCT_IVA_OPTIONS.map((item) => ({ value: item, label: item + '%' })), String(defaultTax), '')}</select></div>
               <div class="form-group"><label>Impuesto interno (%)</label><input type="number" step="0.01" value="0"></div>
               <div class="products-check-row"><label><input type="checkbox"> Costo en dolares</label></div>
             </div>
+            <div class="products-price-summary" id="product-price-summary"></div>
             <div class="products-sheet-table-wrap">
               <table class="products-sheet-table products-price-table">
                 <thead><tr><th>Lista</th><th>Calculada</th><th>% Ganancia</th><th>Con IVA</th><th>En dolares</th><th>Valor</th></tr></thead>
@@ -377,22 +453,22 @@ function buildProductModalHtml(product) {
                   ${['1','2','3','4','5','6'].map((item, index) => `
                     <tr>
                       <td>Lista ${item}</td>
-                      <td><input type="checkbox" ${index === 0 ? 'checked' : ''}></td>
-                      <td><input class="products-inline-number" type="number" value="${index === 0 ? 35 : 0}"></td>
-                      <td><input type="checkbox" checked></td>
+                      <td><input type="checkbox" ${index === 0 ? 'id="product-calc-enabled" checked onchange="toggleProductPriceMode()"' : ''}></td>
+                      <td><input class="products-inline-number" type="text" inputmode="decimal" ${index === 0 ? `id="product-margin-table" value="${productsEscapeAttr(formatProductPercent(inferredMargin))}" onfocus="this.select()" oninput="syncProductMarginFromTable(this.value)" onblur="formatProductPercentField('product-margin-table')"` : 'value="0"'}></td>
+                      <td><input type="checkbox" ${index === 0 ? 'id="product-include-tax" checked onchange="updateProductPriceCalculation()"' : 'checked'}></td>
                       <td><input type="checkbox"></td>
-                      <td><input class="products-inline-number" type="number" id="${index === 0 ? 'product-sale' : ''}" value="${productsEscapeAttr(index === 0 && product ? product.sale_price : 0)}"></td>
+                      <td><input class="products-inline-number" type="text" inputmode="decimal" ${index === 0 ? `id="product-sale" value="${productsEscapeAttr(formatProductDecimal(baseSale))}" onfocus="selectProductSaleValue()" onblur="formatProductPriceField('product-sale')"` : 'value="0.00"'} ${index === 0 ? 'readonly' : ''}></td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
             </div>
-            <div class="products-help-line">Si la lista esta marcada como calculada, se calcula con costo + % ganancia + IVA opcional. "En dolares" solo aplica cuando la lista es editable.</div>
+            <div class="products-help-line">La Lista 1 se calcula en vivo con costo, utilidad e IVA. Si desmarca "Calculada", puede editar el valor de venta manualmente.</div>
           </section>
         </div>
         <div class="modal-footer products-modal-footer">
           <button class="btn btn-secondary" type="button" onclick="closeProductModal()">Cancelar</button>
-          <button class="btn btn-success" type="submit">Guardar</button>
+          <button class="btn btn-success" id="product-save-button" type="button" onclick="saveProduct()">Guardar</button>
         </div>
       </form>
     </div>
@@ -413,6 +489,7 @@ function showProductModal(id) {
   productsUiState.modalTab = 'data';
   const product = id ? productsData.find((item) => item.id === id) : null;
   app.showModal(buildProductModalHtml(product || null));
+  initializeProductPriceCalculator();
 }
 
 function closeProductModal() {
@@ -436,7 +513,125 @@ function showProductUiNotice(featureName) {
   alert(featureName + ' disponible en esta version como redisenio UI, sin cambiar la logica actual.');
 }
 
+function formatProductPriceField(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  input.value = formatProductDecimal(input.value);
+  if (fieldId !== 'product-sale') updateProductPriceCalculation();
+}
+
+function formatProductPercentField(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  input.value = formatProductPercent(input.value);
+  updateProductPriceCalculation();
+}
+
+function selectProductSaleValue() {
+  const saleInput = document.getElementById('product-sale');
+  if (saleInput && !saleInput.readOnly) saleInput.select();
+}
+
+function syncProductMarginFromTable(value) {
+  const marginInput = document.getElementById('product-margin');
+  if (marginInput) marginInput.value = value;
+  updateProductPriceCalculation();
+}
+
+function toggleProductPriceMode() {
+  const calcEnabled = document.getElementById('product-calc-enabled');
+  const saleInput = document.getElementById('product-sale');
+  if (!calcEnabled || !saleInput) return;
+  saleInput.readOnly = calcEnabled.checked;
+  saleInput.classList.toggle('is-manual', !calcEnabled.checked);
+  if (calcEnabled.checked) updateProductPriceCalculation();
+}
+
+function updateProductPriceCalculation() {
+  const costInput = document.getElementById('product-purchase');
+  const marginInput = document.getElementById('product-margin');
+  const marginTableInput = document.getElementById('product-margin-table');
+  const taxInput = document.getElementById('product-tax');
+  const includeTaxInput = document.getElementById('product-include-tax');
+  const calcEnabled = document.getElementById('product-calc-enabled');
+  const saleInput = document.getElementById('product-sale');
+  const summary = document.getElementById('product-price-summary');
+  if (!costInput || !marginInput || !taxInput || !saleInput) return;
+
+  const cost = parseProductDecimal(costInput.value);
+  const margin = parseProductDecimal(marginInput.value);
+  const tax = parseProductDecimal(taxInput.value);
+  const includeTax = includeTaxInput ? includeTaxInput.checked : true;
+  const netSale = cost * (1 + margin / 100);
+  const rawFinalSale = includeTax ? netSale * (1 + tax / 100) : netSale;
+  const finalSale = roundProductSalePrice(rawFinalSale);
+
+  if (marginTableInput && marginTableInput !== document.activeElement) {
+    marginTableInput.value = formatProductPercent(margin);
+  }
+
+  if (!calcEnabled || calcEnabled.checked) {
+    saleInput.value = formatProductDecimal(finalSale);
+  }
+
+  if (summary) {
+    summary.innerHTML = `
+      <div class="products-price-summary-card">
+        <span>Costo</span>
+        <strong>${productsEscapeHtml(app.formatMoney(cost))}</strong>
+      </div>
+      <div class="products-price-summary-card">
+        <span>Neto con utilidad</span>
+        <strong>${productsEscapeHtml(app.formatMoney(netSale))}</strong>
+      </div>
+      <div class="products-price-summary-card">
+        <span>IVA</span>
+        <strong>${productsEscapeHtml(includeTax ? `${formatProductDecimal(tax)}%` : 'No incluido')}</strong>
+      </div>
+      <div class="products-price-summary-card">
+        <span>Redondeo</span>
+        <strong>${productsEscapeHtml(app.formatMoney(finalSale - rawFinalSale))}</strong>
+      </div>
+      <div class="products-price-summary-card products-price-summary-card--accent">
+        <span>Venta sugerida</span>
+        <strong>${productsEscapeHtml(app.formatMoney(finalSale))}</strong>
+      </div>
+    `;
+  }
+}
+
+function initializeProductPriceCalculator() {
+  toggleProductPriceMode();
+  updateProductPriceCalculation();
+}
+
+function setProductFormFeedback(message, type = 'error') {
+  const feedback = document.getElementById('product-form-feedback');
+  if (!feedback) return;
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = '';
+    feedback.className = 'products-form-feedback';
+    return;
+  }
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.className = 'products-form-feedback products-form-feedback--' + type;
+}
+
+function focusProductField(fieldId, tabId) {
+  if (tabId && productsUiState.modalTab !== tabId) {
+    setProductModalTab(tabId);
+  }
+  const field = document.getElementById(fieldId);
+  if (field) {
+    field.focus();
+    if (typeof field.select === 'function' && field.tagName === 'INPUT') field.select();
+  }
+}
+
 async function saveProduct() {
+  const saveButton = document.getElementById('product-save-button');
   const id = (document.getElementById('product-id') || {}).value || '';
   const data = {
     sku: ((document.getElementById('product-sku') || {}).value || '').trim(),
@@ -445,25 +640,62 @@ async function saveProduct() {
     description: '',
     category_id: ((document.getElementById('product-category') || {}).value || '') || null,
     supplier: ((document.getElementById('product-supplier') || {}).value || '').trim(),
-    purchase_price: Number((document.getElementById('product-purchase') || {}).value || 0),
-    sale_price: Number((document.getElementById('product-sale') || {}).value || 0),
+    purchase_price: parseProductDecimal((document.getElementById('product-purchase') || {}).value || 0),
+    sale_price: parseProductDecimal((document.getElementById('product-sale') || {}).value || 0),
     stock: Number((document.getElementById('product-stock') || {}).value || 0),
     min_stock: Number((document.getElementById('product-min-stock') || {}).value || 2),
     image_url: ((document.getElementById('product-image') || {}).value || '').trim() || null
   };
 
+  setProductFormFeedback('');
+
   if (!data.name) {
-    alert('La descripcion del articulo es obligatoria');
+    setProductFormFeedback('La descripcion del articulo es obligatoria.');
+    focusProductField('product-name', 'data');
+    return;
+  }
+
+  if (data.purchase_price < 0) {
+    setProductFormFeedback('El precio de costo no puede ser negativo.');
+    focusProductField('product-purchase', 'prices');
+    return;
+  }
+
+  if (data.sale_price <= 0) {
+    setProductFormFeedback('El precio de venta debe ser mayor a cero.');
+    focusProductField('product-sale', 'prices');
+    return;
+  }
+
+  if (data.stock < 0) {
+    setProductFormFeedback('El stock no puede ser negativo.');
+    focusProductField('product-stock', 'data');
+    return;
+  }
+
+  if (data.min_stock < 0) {
+    setProductFormFeedback('El stock minimo no puede ser negativo.');
+    focusProductField('product-min-stock', 'data');
     return;
   }
 
   try {
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = 'Guardando...';
+    }
     if (id) await api.products.update(id, data);
     else await api.products.create(data);
+    setProductFormFeedback('Articulo guardado correctamente.', 'success');
     closeProductModal();
     renderProducts();
   } catch (error) {
-    alert(error.message);
+    setProductFormFeedback(error.message || 'No se pudo guardar el articulo.');
+  } finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = 'Guardar';
+    }
   }
 }
 
@@ -488,5 +720,24 @@ async function deleteProduct(id) {
     alert(error.message);
   }
 }
+
+window.renderProducts = renderProducts;
+window.selectProductSection = selectProductSection;
+window.updateProductsPlanillaSearch = updateProductsPlanillaSearch;
+window.updateProductsPlanillaCategory = updateProductsPlanillaCategory;
+window.updateProductsPlanillaStock = updateProductsPlanillaStock;
+window.showProductModal = showProductModal;
+window.closeProductModal = closeProductModal;
+window.changeProductPhoto = changeProductPhoto;
+window.setProductModalTab = setProductModalTab;
+window.formatProductPriceField = formatProductPriceField;
+window.formatProductPercentField = formatProductPercentField;
+window.selectProductSaleValue = selectProductSaleValue;
+window.syncProductMarginFromTable = syncProductMarginFromTable;
+window.toggleProductPriceMode = toggleProductPriceMode;
+window.updateProductPriceCalculation = updateProductPriceCalculation;
+window.saveProduct = saveProduct;
+window.syncProductToWoo = syncProductToWoo;
+window.deleteProduct = deleteProduct;
 
 console.log('Products loaded');
