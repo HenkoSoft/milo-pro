@@ -117,7 +117,8 @@ const api = {
     addDeviceType: (name) => request('/device-options/device-types', { method: 'POST', body: JSON.stringify({ name }) }),
     deleteDeviceType: (id) => request('/device-options/device-types/' + id, { method: 'DELETE' }),
     getBrands: () => request('/device-options/brands'),
-    addBrand: (name) => request('/device-options/brands', { method: 'POST', body: JSON.stringify({ name }) }),
+    addBrand: (data) => request('/device-options/brands', { method: 'POST', body: JSON.stringify(typeof data === 'string' ? { name: data } : data) }),
+    updateBrand: (id, data) => request('/device-options/brands/' + id, { method: 'PUT', body: JSON.stringify(data) }),
     deleteBrand: (id) => request('/device-options/brands/' + id, { method: 'DELETE' }),
     getModels: (brand_id) => {
       const url = '/device-options/models' + (brand_id ? '?brand_id=' + brand_id : '');
@@ -130,9 +131,12 @@ const api = {
   woocommerce: {
     status: () => request('/woocommerce/status'),
     test: () => request('/woocommerce/test'),
+    testConnection: (data) => request('/woocommerce/test-connection', { method: 'POST', body: JSON.stringify(data) }),
     config: (data) => request('/woocommerce/config', { method: 'PUT', body: JSON.stringify(data) }),
     sync: () => request('/woocommerce/sync', { method: 'POST' }),
     syncProduct: (id) => request('/woocommerce/sync-product/' + id, { method: 'POST' }),
+    reconcileProduct: (id) => request('/woocommerce/reconcile-product/' + id, { method: 'POST' }),
+    retryProductImages: (id) => request('/woocommerce/retry-product-images/' + id, { method: 'POST' }),
     logs: () => request('/woocommerce/logs'),
     disconnect: () => request('/woocommerce/disconnect', { method: 'DELETE' })
   },

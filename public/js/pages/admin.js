@@ -118,6 +118,7 @@ function getAdminRoute(sectionId) {
     'config-general': 'admin-config-general',
     'config-documents': 'admin-config-documents',
     'config-mail': 'admin-config-mail',
+    'integrations-woocommerce': 'admin-integrations-woocommerce',
     'reset-data': 'admin-reset-data',
     troubleshoot: 'admin-troubleshoot'
   }[sectionId] || 'admin-users';
@@ -210,6 +211,10 @@ async function renderAdmin(sectionId = 'users') {
       }
     });
 
+    if (adminUiState.activeSection === 'integrations-woocommerce' && typeof window.loadWooIntegrationData === 'function') {
+      await window.loadWooIntegrationData();
+    }
+
     ensureAdminSession();
     saveAdminStore(ADMIN_STORAGE_KEYS.sessions, adminConnectedUsers);
 
@@ -270,6 +275,15 @@ function renderAdminSection() {
   }
   if (adminUiState.activeSection === 'config-mail') {
     panel.innerHTML = renderAdminConfigMailSection();
+    return;
+  }
+  if (adminUiState.activeSection === 'integrations-woocommerce') {
+    panel.innerHTML = typeof window.renderWooIntegrationAdminSection === 'function'
+      ? window.renderWooIntegrationAdminSection()
+      : '<div class="alert alert-warning">La integracion de WooCommerce no esta disponible en este momento.</div>';
+    if (typeof window.toggleAdminWooFrequencyFields === 'function') {
+      window.setTimeout(() => window.toggleAdminWooFrequencyFields(), 0);
+    }
     return;
   }
   if (adminUiState.activeSection === 'reset-data') {
@@ -613,24 +627,26 @@ function getAdminAuxRows() {
 
   if (tableDef.type === 'category') {
     rows = adminCategoriesData.map((category) => {
-      const meta = (adminAuxStore.categoriesMeta || {})[category.id] || {};
       return {
         id: category.id,
         description: category.name,
-        code: category.description || meta.code || '',
-        active: meta.active !== undefined ? !!meta.active : true,
-        parent_id: meta.parent_id || '',
+        code: category.slug || '',
+        notes: category.description || '',
+        active: category.active !== 0,
+        parent_id: category.parent_id || '',
+        depth: category.depth || 0,
+        woocommerce_category_id: category.woocommerce_category_id || '',
         source: 'api'
       };
     });
   } else if (tableDef.type === 'brand') {
     rows = adminBrandsData.map((brand) => {
-      const meta = (adminAuxStore.brandsMeta || {})[brand.id] || {};
       return {
         id: brand.id,
-        description: meta.description || brand.name,
-        code: meta.code || '',
-        active: meta.active !== undefined ? !!meta.active : true,
+        description: brand.name,
+        code: brand.slug || '',
+        active: brand.active !== 0,
+        woocommerce_brand_id: brand.woocommerce_brand_id || '',
         source: 'api'
       };
     });
@@ -740,7 +756,7 @@ function renderAdminAuxTablesSection() {
 
 function renderAdminCategoryTree(rows) {
   if (!rows.length) return '';
-  const meta = adminAuxStore.categoriesMeta || {};
+  const meta = Object.fromEntries(rows.map((row) => [row.id, { parent_id: row.parent_id || '' }]));
   const items = rows.map((row) => {
     const parentId = (meta[row.id] || {}).parent_id || '';
     const parent = rows.find((item) => String(item.id) === String(parentId));
@@ -761,10 +777,9 @@ function showAdminAuxModal(itemId = null) {
   const tableDef = ADMIN_AUX_TABLES[tableKey];
   const rows = getAdminAuxRows();
   const item = itemId ? rows.find((row) => String(row.id) === String(itemId)) : null;
-  const meta = tableKey === 'categories' ? (adminAuxStore.categoriesMeta || {}) : (tableKey === 'brands' ? (adminAuxStore.brandsMeta || {}) : {});
   const categoryParentOptions = adminCategoriesData
     .filter((category) => !item || String(category.id) !== String(item.id))
-    .map((category) => ({ value: category.id, label: category.name }));
+    .map((category) => ({ value: category.id, label: category.full_name || category.name }));
 
   let fieldsHtml = `
     <div class="form-group"><label>Descripcion</label><input id="admin-aux-description" type="text" value="${adminEscapeAttr(item ? item.description : '')}" required></div>
@@ -778,11 +793,26 @@ function showAdminAuxModal(itemId = null) {
   `;
 
   if (tableDef.type === 'category') {
-    const rowMeta = item ? meta[item.id] || {} : {};
     fieldsHtml = `
       <div class="form-group"><label>Descripcion</label><input id="admin-aux-description" type="text" value="${adminEscapeAttr(item ? item.description : '')}" required></div>
-      <div class="form-group"><label>Codigo opcional</label><input id="admin-aux-code" type="text" value="${adminEscapeAttr(item ? item.code : '')}"></div>
-      <div class="form-group admin-field-span-2"><label>Categoria padre</label><select id="admin-aux-parent">${adminBuildOptions(categoryParentOptions, rowMeta.parent_id || '', 'Sin padre')}</select></div>
+      <div class="form-group"><label>Slug</label><input id="admin-aux-code" type="text" value="${adminEscapeAttr(item ? item.code : '')}"></div>
+      <div class="form-group admin-field-span-2"><label>Categoria padre</label><select id="admin-aux-parent">${adminBuildOptions(categoryParentOptions, item ? item.parent_id || '' : '', 'Sin padre')}</select></div>
+      <div class="form-group admin-field-span-2"><label>Descripcion interna</label><input id="admin-aux-notes" type="text" value="${adminEscapeAttr(item ? item.notes || '' : '')}"></div>
+      <div class="form-group"><label>ID WooCommerce</label><input id="admin-aux-woo-id" type="number" min="1" value="${adminEscapeAttr(item ? item.woocommerce_category_id || '' : '')}"></div>
+      <div class="form-group admin-field-span-2">
+        <label class="admin-switch-row">
+          <input id="admin-aux-active" type="checkbox" ${(item ? item.active : true) ? 'checked' : ''}>
+          <span>Registro activo</span>
+        </label>
+      </div>
+    `;
+  }
+
+  if (tableDef.type === 'brand') {
+    fieldsHtml = `
+      <div class="form-group"><label>Descripcion</label><input id="admin-aux-description" type="text" value="${adminEscapeAttr(item ? item.description : '')}" required></div>
+      <div class="form-group"><label>Slug</label><input id="admin-aux-code" type="text" value="${adminEscapeAttr(item ? item.code : '')}"></div>
+      <div class="form-group"><label>ID WooCommerce</label><input id="admin-aux-woo-id" type="number" min="1" value="${adminEscapeAttr(item ? item.woocommerce_brand_id || '' : '')}"></div>
       <div class="form-group admin-field-span-2">
         <label class="admin-switch-row">
           <input id="admin-aux-active" type="checkbox" ${(item ? item.active : true) ? 'checked' : ''}>
@@ -871,21 +901,29 @@ async function saveAdminAuxItem(itemId) {
       const code = (document.getElementById('admin-aux-code').value || '').trim();
       const active = document.getElementById('admin-aux-active').checked;
       const parent_id = document.getElementById('admin-aux-parent').value || '';
+      const notes = (document.getElementById('admin-aux-notes').value || '').trim();
+      const woocommerce_category_id = (document.getElementById('admin-aux-woo-id').value || '').trim();
       if (!description) throw new Error('Ingrese una descripcion.');
 
       if (itemId) {
-        await api.categories.update(itemId, { name: description, description: code });
-        if (!adminAuxStore.categoriesMeta) adminAuxStore.categoriesMeta = {};
-        adminAuxStore.categoriesMeta[itemId] = {
-          ...(adminAuxStore.categoriesMeta[itemId] || {}),
-          parent_id,
-          code,
-          active
-        };
+        await api.categories.update(itemId, {
+          name: description,
+          slug: code,
+          description: notes,
+          parent_id: parent_id || null,
+          active,
+          woocommerce_category_id: woocommerce_category_id || null
+        });
       } else {
-        await api.categories.create({ name: description, description: code });
+        await api.categories.create({
+          name: description,
+          slug: code,
+          description: notes,
+          parent_id: parent_id || null,
+          active,
+          woocommerce_category_id: woocommerce_category_id || null
+        });
       }
-      saveAdminStore(ADMIN_STORAGE_KEYS.aux, adminAuxStore);
       closeModal();
       renderAdmin(adminUiState.activeSection);
       return;
@@ -895,21 +933,24 @@ async function saveAdminAuxItem(itemId) {
       const description = (document.getElementById('admin-aux-description').value || '').trim();
       const code = (document.getElementById('admin-aux-code').value || '').trim();
       const active = document.getElementById('admin-aux-active').checked;
+      const woocommerce_brand_id = (document.getElementById('admin-aux-woo-id').value || '').trim();
       if (!description) throw new Error('Ingrese una descripcion.');
 
       if (itemId) {
-        if (!adminAuxStore.brandsMeta) adminAuxStore.brandsMeta = {};
-        adminAuxStore.brandsMeta[itemId] = {
-          ...(adminAuxStore.brandsMeta[itemId] || {}),
-          description,
-          code,
-          active
-        };
+        await api.deviceOptions.updateBrand(itemId, {
+          name: description,
+          slug: code,
+          active,
+          woocommerce_brand_id: woocommerce_brand_id || null
+        });
       } else {
-        await api.deviceOptions.addBrand(description);
-        if (!adminAuxStore.brandsMeta) adminAuxStore.brandsMeta = {};
+        await api.deviceOptions.addBrand({
+          name: description,
+          slug: code,
+          active,
+          woocommerce_brand_id: woocommerce_brand_id || null
+        });
       }
-      saveAdminStore(ADMIN_STORAGE_KEYS.aux, adminAuxStore);
       closeModal();
       renderAdmin(adminUiState.activeSection);
       return;
@@ -967,15 +1008,11 @@ async function deleteAdminAuxItem(itemId) {
   try {
     if (tableDef.type === 'category') {
       await api.categories.delete(itemId);
-      if (adminAuxStore.categoriesMeta) delete adminAuxStore.categoriesMeta[itemId];
-      saveAdminStore(ADMIN_STORAGE_KEYS.aux, adminAuxStore);
       renderAdmin(adminUiState.activeSection);
       return;
     }
     if (tableDef.type === 'brand') {
       await api.deviceOptions.deleteBrand(itemId);
-      if (adminAuxStore.brandsMeta) delete adminAuxStore.brandsMeta[itemId];
-      saveAdminStore(ADMIN_STORAGE_KEYS.aux, adminAuxStore);
       renderAdmin(adminUiState.activeSection);
       return;
     }

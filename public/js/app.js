@@ -90,6 +90,7 @@ function escapeAttr(value) {
 function safeImageUrl(value) {
   const url = String(value ?? '').trim();
   if (!url) return '';
+  if (/^data:image\//i.test(url)) return escapeAttr(url);
   if (url.startsWith('/') || /^https?:\/\//i.test(url)) return escapeAttr(url);
   return '';
 }

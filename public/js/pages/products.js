@@ -1,6 +1,7 @@
 let productsData = [];
 let categoriesData = [];
 let suppliersData = [];
+let brandsData = [];
 
 const PRODUCT_SECTIONS = [
   { id: 'planilla', label: 'Planilla' },
@@ -21,7 +22,10 @@ const productsUiState = {
   modalTab: 'data',
   planillaSearch: '',
   planillaCategory: '',
-  planillaStock: ''
+  planillaStock: '',
+  modalImages: [],
+  dragImageIndex: null,
+  modalImageUrlsDraft: ''
 };
 
 function productsEscapeHtml(value) {
@@ -74,7 +78,15 @@ function getSupplierNames() {
 }
 
 function getCategoryOptions(selectedValue) {
-  return buildOptions(categoriesData.map((item) => ({ value: item.id, label: item.name })), selectedValue, 'Seleccionar categoria');
+  return buildOptions(
+    categoriesData.map((item) => ({ value: item.id, label: item.full_name || item.name })),
+    selectedValue,
+    'Seleccionar categoria'
+  );
+}
+
+function getBrandOptions(selectedValue) {
+  return buildOptions(brandsData.map((item) => ({ value: item.id, label: item.name })), selectedValue, 'Seleccionar marca');
 }
 
 async function renderProducts(sectionId = 'planilla') {
@@ -83,15 +95,17 @@ async function renderProducts(sectionId = 'planilla') {
   productsUiState.activeSection = sectionId;
 
   try {
-    const [products, categories, suppliers] = await Promise.all([
+    const [products, categories, suppliers, brands] = await Promise.all([
       api.products.getAll({}),
       api.categories.getAll(),
-      api.purchases && api.purchases.getSuppliers ? api.purchases.getSuppliers().catch(() => []) : Promise.resolve([])
+      api.purchases && api.purchases.getSuppliers ? api.purchases.getSuppliers().catch(() => []) : Promise.resolve([]),
+      api.deviceOptions && api.deviceOptions.getBrands ? api.deviceOptions.getBrands().catch(() => []) : Promise.resolve([])
     ]);
 
     productsData = products;
     categoriesData = categories;
     suppliersData = suppliers;
+    brandsData = Array.isArray(brands) ? brands : [];
 
     content.innerHTML = renderProductsShell();
     renderProductsSection();
@@ -140,9 +154,10 @@ function getFilteredProducts() {
   const stock = String(productsUiState.planillaStock || '').trim();
 
   return productsData.filter((product) => {
-    const matchesSearch = !search || [product.sku, product.barcode, product.name, product.description]
+    const matchesSearch = !search || [product.sku, product.barcode, product.name, product.description, product.brand_name, product.color]
       .some((value) => String(value || '').toLowerCase().includes(search));
-    const matchesCategory = !category || String(product.category_id || '') === category;
+    const categoryIds = Array.isArray(product.category_ids) ? product.category_ids.map((item) => String(item)) : [String(product.category_id || '')];
+    const matchesCategory = !category || categoryIds.includes(category);
 
     let matchesStock = true;
     if (stock === 'low') matchesStock = Number(product.stock) > 0 && Number(product.stock) <= Number(product.min_stock || 0);
@@ -206,8 +221,12 @@ function renderProductsPlanilla() {
             <th>Codigo</th>
             <th>Cod. Prov.</th>
             <th>Descripcion</th>
+            <th>Marca</th>
+            <th>Color</th>
             <th>Proveedor</th>
             <th>Categoria</th>
+            <th>Sync</th>
+            <th>Woo ID</th>
             <th>Stock</th>
             <th>Costo</th>
             <th>Lista 1</th>
@@ -216,7 +235,7 @@ function renderProductsPlanilla() {
         </thead>
         <tbody>
           ${filtered.length === 0 ? `
-            <tr><td colspan="10" class="products-sheet-empty">No hay articulos para mostrar.</td></tr>
+            <tr><td colspan="14" class="products-sheet-empty">No hay articulos para mostrar.</td></tr>
           ` : filtered.map((product) => `
             <tr>
               <td>
@@ -227,8 +246,12 @@ function renderProductsPlanilla() {
               <td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td>
               <td>${productsEscapeHtml(product.barcode || '-')}</td>
               <td><strong>${productsEscapeHtml(product.name)}</strong></td>
+              <td>${productsEscapeHtml(product.brand_name || '-')}</td>
+              <td>${productsEscapeHtml(product.color || '-')}</td>
               <td>${productsEscapeHtml(product.supplier || '-')}</td>
-              <td>${productsEscapeHtml((categoriesData.find((item) => String(item.id) === String(product.category_id)) || {}).name || '-')}</td>
+              <td>${productsEscapeHtml((product.category_names || []).join(', ') || product.category_name || (categoriesData.find((item) => String(item.id) === String(product.category_id)) || {}).name || '-')}</td>
+              <td><span class="badge ${product.sync_status === 'error' ? 'badge-red' : (product.sync_status === 'synced' ? 'badge-green' : 'badge-yellow')}">${productsEscapeHtml(product.sync_status || 'pending')}</span></td>
+              <td>${productsEscapeHtml(product.woocommerce_product_id || product.woocommerce_id || '-')}</td>
               <td><span class="badge ${Number(product.stock) <= 0 ? 'badge-red' : (Number(product.stock) <= Number(product.min_stock || 0) ? 'badge-yellow' : 'badge-green')}">${productsEscapeHtml(product.stock)}</span></td>
               <td>${productsEscapeHtml(app.formatMoney(product.purchase_price || 0))}</td>
               <td>${productsEscapeHtml(app.formatMoney(product.sale_price || 0))}</td>
@@ -236,6 +259,8 @@ function renderProductsPlanilla() {
                 <div class="btn-group">
                   <button class="btn btn-sm btn-secondary" type="button" onclick="showProductModal(${product.id})">Editar</button>
                   <button class="btn btn-sm btn-info" type="button" onclick="syncProductToWoo(${product.id})">Sync</button>
+                  <button class="btn btn-sm btn-secondary" type="button" onclick="retryProductImagesToWoo(${product.id})">Img</button>
+                  <button class="btn btn-sm btn-secondary" type="button" onclick="reconcileProductToWoo(${product.id})">SKU</button>
                   <button class="btn btn-sm btn-danger" type="button" onclick="deleteProduct(${product.id})">Eliminar</button>
                 </div>
               </td>
@@ -383,9 +408,82 @@ function renderProductsModule(sectionId) {
   `;
 }
 
+function buildProductModalImageState(product) {
+  const images = product && Array.isArray(product.images) && product.images.length > 0
+    ? product.images
+    : (product && product.image_url ? [{ url_publica: product.image_url, es_principal: 1, orden: 0, origen: 'url' }] : []);
+
+  return images.map((item, index) => ({
+    id: item.id || null,
+    nombre_archivo: item.nombre_archivo || null,
+    ruta_local: item.ruta_local || item.url_local || null,
+    url_publica: item.url_publica || item.url_remote || item.url_local || null,
+    url_local: item.url_local || item.ruta_local || null,
+    url_remote: item.url_remote || null,
+    woocommerce_media_id: item.woocommerce_media_id || null,
+    es_principal: Number(item.es_principal || 0) === 1 || index === 0,
+    orden: Number.isFinite(Number(item.orden)) ? Number(item.orden) : index,
+    optimizada: !!item.optimizada,
+    origen: item.origen || (item.ruta_local || (item.url_publica || '').startsWith('/productos/') ? 'local' : 'url'),
+    upload_data: null,
+    preview_url: item.url_publica || item.url_remote || item.url_local || ''
+  }));
+}
+
+function renderProductImageManager() {
+  const images = (productsUiState.modalImages || [])
+    .slice()
+    .sort((a, b) => Number(a.orden || 0) - Number(b.orden || 0));
+
+  const manualUrlsText = productsUiState.modalImageUrlsDraft || images
+    .filter((item) => item.origen === 'url' && !item.upload_data && /^https?:\/\//i.test(item.url_publica || item.url_remote || ''))
+    .map((item) => item.url_publica || item.url_remote || '')
+    .join('\n');
+
+  return `
+    <div class="products-image-manager">
+      <input id="product-image-upload" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple hidden onchange="handleProductImagePickerChange(event)">
+      <div class="products-image-dropzone" ondragover="handleProductImageDragOver(event)" ondrop="handleProductImageDrop(event)">
+        <strong>Subir imagenes</strong>
+        <span>Arrastra archivos aqui o selecciona desde tu PC. Se optimizan automaticamente a WEBP 1200x1200.</span>
+        <div class="products-image-dropzone-actions">
+          <button class="btn btn-secondary" type="button" onclick="openProductImagePicker()">Seleccionar archivos</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>URLs manuales opcionales</label>
+        <textarea id="product-image-urls" rows="3" placeholder="Una URL por linea" oninput="updateProductImageUrlsDraft(this.value)">${productsEscapeHtml(manualUrlsText)}</textarea>
+      </div>
+      <div class="products-image-gallery">
+        ${images.length === 0 ? '<div class="products-sheet-empty">Todavia no hay imagenes cargadas.</div>' : images.map((image, index) => `
+          <article class="products-image-card${image.es_principal ? ' is-primary' : ''}" draggable="true" ondragstart="startProductImageReorder(${index})" ondragover="allowProductImageReorder(event)" ondrop="dropProductImageReorder(${index})">
+            <div class="products-image-card-media">
+              ${(image.preview_url && app.safeImageUrl(image.preview_url))
+                ? `<img src="${app.safeImageUrl(image.preview_url)}" alt="Imagen ${index + 1}">`
+                : '<div class="products-modal-photo-placeholder">Sin preview</div>'}
+            </div>
+            <div class="products-image-card-meta">
+              <strong>${productsEscapeHtml(image.nombre_archivo || `Imagen ${index + 1}`)}</strong>
+              <span>${productsEscapeHtml(image.optimizada || image.upload_data || image.origen === 'local' ? 'Optimizada automaticamente' : 'URL externa')}</span>
+            </div>
+            <div class="products-image-card-actions">
+              <button class="btn btn-sm ${image.es_principal ? 'btn-success' : 'btn-secondary'}" type="button" onclick="setProductPrimaryImage(${index})">${image.es_principal ? 'Principal' : 'Hacer principal'}</button>
+              <button class="btn btn-sm btn-secondary" type="button" onclick="moveProductImage(${index}, -1)" ${index === 0 ? 'disabled' : ''}>Subir</button>
+              <button class="btn btn-sm btn-secondary" type="button" onclick="moveProductImage(${index}, 1)" ${index === images.length - 1 ? 'disabled' : ''}>Bajar</button>
+              <button class="btn btn-sm btn-danger" type="button" onclick="removeProductImage(${index})">Eliminar</button>
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 function buildProductModalHtml(product) {
   const supplierOptions = buildOptions(getSupplierNames(), product ? product.supplier : '', 'Seleccionar proveedor');
-  const categoryOptions = getCategoryOptions(product ? product.category_id : '');
+  const categoryOptions = getCategoryOptions(product ? (product.category_primary_id || product.category_id) : '');
+  const categoryIds = product && Array.isArray(product.category_ids) ? product.category_ids.map((item) => String(item)) : [];
+  const brandOptions = getBrandOptions(product ? product.brand_id : '');
   const preview = product && app.safeImageUrl(product.image_url)
     ? '<img src="' + app.safeImageUrl(product.image_url) + '" class="products-modal-photo-img" alt="Foto">'
     : '<div class="products-modal-photo-placeholder">Sin imagen</div>';
@@ -421,19 +519,33 @@ function buildProductModalHtml(product) {
                 <div class="form-group"><label>Cod. Prov.</label><input id="product-barcode" type="text" value="${productsEscapeAttr(product ? product.barcode : '')}"></div>
                 <div class="form-group products-field-span-2"><label>Descripcion</label><input id="product-name" type="text" value="${productsEscapeAttr(product ? product.name : '')}" required></div>
                 <div class="form-group"><label>Rubro</label><div class="products-input-combo"><select>${buildOptions([], '', 'Seleccionar rubro')}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de rubro')">+</button></div></div>
-                <div class="form-group"><label>Marca</label><div class="products-input-combo"><select>${buildOptions([], '', 'Seleccionar marca')}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de marca')">+</button></div></div>
+                <div class="products-woo-attributes-card products-field-span-2">
+                  <div class="products-woo-attributes-head">
+                    <strong>Atributos WooCommerce</strong>
+                    <span>Marca y Color ayudan a que el producto se publique completo y se encuentre mejor en WooCommerce.</span>
+                  </div>
+                  <div class="products-woo-attributes-grid">
+                    <div class="form-group"><label>Marca</label><div class="products-input-combo"><select id="product-brand">${brandOptions}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de marca')">+</button></div></div>
+                    <div class="form-group"><label>Color</label><input id="product-color" type="text" value="${productsEscapeAttr(product ? (product.color || '') : '')}" placeholder="Ej: Negro"></div>
+                  </div>
+                </div>
                 <div class="form-group"><label>Ubicacion</label><input type="text"></div>
                 <div class="form-group"><label>Unidad</label><div class="products-input-combo"><select>${buildOptions(PRODUCT_UNITS, 'Unidad', 'Seleccionar unidad')}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de unidad')">+</button></div></div>
                 <div class="form-group"><label>Proveedor</label><select id="product-supplier">${supplierOptions}</select></div>
-                <div class="form-group"><label>Categoria</label><select id="product-category">${categoryOptions}</select><div class="products-help-inline">Gestiona el arbol en Administracion -> Categorias</div></div>
+                <div class="form-group"><label>Categoria principal</label><select id="product-category">${categoryOptions}</select><div class="products-help-inline">Gestiona el arbol en Administracion -> Categorias</div></div>
+                <div class="form-group products-field-span-2"><label>Categorias adicionales</label><select id="product-category-multi" multiple size="6">${categoriesData.map((item) => `<option value="${productsEscapeAttr(item.id)}"${categoryIds.includes(String(item.id)) ? ' selected' : ''}>${productsEscapeHtml(item.full_name || item.name)}</option>`).join('')}</select><div class="products-help-inline">Puede elegir varias categorias. La principal tambien queda dentro de esta relacion.</div></div>
+                <div class="form-group products-field-span-2"><label>Descripcion corta</label><input id="product-short-description" type="text" value="${productsEscapeAttr(product ? (product.short_description || '') : '')}"></div>
                 <div class="form-group"><label>Stock</label><input id="product-stock" type="number" value="${productsEscapeAttr(product ? product.stock : 0)}"></div>
                 <div class="form-group"><label>Stock minimo</label><input id="product-min-stock" type="number" value="${productsEscapeAttr(product ? product.min_stock : 2)}"></div>
+                <div class="form-group"><label>Estado sync</label><input type="text" value="${productsEscapeAttr(product ? (product.sync_status || 'pending') : 'pending')}" readonly></div>
+                <div class="form-group"><label>ID WooCommerce</label><input type="text" value="${productsEscapeAttr(product ? (product.woocommerce_product_id || product.woocommerce_id || '') : '')}" readonly></div>
                 <div class="products-check-row products-field-span-2"><label><input type="checkbox"> Promocion</label><label><input type="checkbox"> Servicio</label></div>
               </div>
               <aside class="products-modal-photo-card">
                 <div class="products-modal-photo-title">Foto del producto</div>
                 <div id="product-image-preview" class="products-modal-photo-frame">${preview}</div>
                 <button class="btn btn-secondary" type="button" onclick="changeProductPhoto()">Cambiar foto</button>
+                <div id="product-image-manager-slot" style="margin-top:12px;">${renderProductImageManager()}</div>
               </aside>
             </div>
           </section>
@@ -488,24 +600,208 @@ function setProductModalTab(tabId) {
 function showProductModal(id) {
   productsUiState.modalTab = 'data';
   const product = id ? productsData.find((item) => item.id === id) : null;
+  productsUiState.modalImages = buildProductModalImageState(product || null);
+  productsUiState.dragImageIndex = null;
+  productsUiState.modalImageUrlsDraft = (product && Array.isArray(product.images) ? product.images : [])
+    .map((item) => item.url_remote || '')
+    .filter((item) => /^https?:\/\//i.test(item))
+    .join('\n');
   app.showModal(buildProductModalHtml(product || null));
   initializeProductPriceCalculator();
+  refreshProductImageUi();
 }
 
 function closeProductModal() {
   app.closeModal();
 }
 
+function sortModalImages() {
+  const images = (productsUiState.modalImages || []).slice().sort((a, b) => Number(a.orden || 0) - Number(b.orden || 0));
+  const primaryIndex = images.findIndex((item) => item.es_principal);
+  productsUiState.modalImages = images.map((item, index) => ({
+    ...item,
+    orden: index,
+    es_principal: primaryIndex >= 0 ? index === primaryIndex : index === 0
+  }));
+  if (productsUiState.modalImages.length > 0 && !productsUiState.modalImages.some((item) => item.es_principal)) {
+    productsUiState.modalImages[0].es_principal = true;
+  }
+}
+
+function refreshProductImageUi() {
+  const urlsField = document.getElementById('product-image-urls');
+  if (urlsField) {
+    productsUiState.modalImageUrlsDraft = urlsField.value || '';
+  }
+  sortModalImages();
+  const slot = document.getElementById('product-image-manager-slot');
+  if (slot) {
+    slot.innerHTML = renderProductImageManager();
+  }
+
+  const primaryImage = (productsUiState.modalImages || []).find((item) => item.es_principal) || (productsUiState.modalImages || [])[0] || null;
+  const input = document.getElementById('product-image');
+  if (input) {
+    input.value = primaryImage ? (primaryImage.url_publica || primaryImage.url_remote || primaryImage.url_local || '') : '';
+  }
+  const preview = document.getElementById('product-image-preview');
+  if (preview) {
+    const imageUrl = primaryImage ? app.safeImageUrl(primaryImage.preview_url || primaryImage.url_publica || primaryImage.url_remote || primaryImage.url_local || '') : '';
+    preview.innerHTML = imageUrl ? '<img src="' + imageUrl + '" class="products-modal-photo-img" alt="Foto">' : '<div class="products-modal-photo-placeholder">Sin imagen</div>';
+  }
+}
+
+function updateProductImageUrlsDraft(value) {
+  productsUiState.modalImageUrlsDraft = value || '';
+}
+
+function openProductImagePicker() {
+  const input = document.getElementById('product-image-upload');
+  if (input) input.click();
+}
+
+async function appendFilesToProductImages(files) {
+  const list = Array.from(files || []);
+  for (const file of list) {
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+      setProductFormFeedback('Formato no permitido. Use JPG, PNG o WEBP.');
+      continue;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setProductFormFeedback('La imagen "' + file.name + '" supera el maximo permitido de 10MB.');
+      continue;
+    }
+
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+      reader.readAsDataURL(file);
+    }).catch((error) => {
+      setProductFormFeedback(error.message || 'No se pudo leer la imagen.');
+      return '';
+    });
+
+    if (!dataUrl) continue;
+
+    productsUiState.modalImages.push({
+      id: null,
+      nombre_archivo: file.name,
+      ruta_local: null,
+      url_publica: null,
+      url_local: null,
+      url_remote: null,
+      woocommerce_media_id: null,
+      es_principal: productsUiState.modalImages.length === 0,
+      orden: productsUiState.modalImages.length,
+      optimizada: true,
+      origen: 'upload',
+      upload_data: dataUrl,
+      preview_url: dataUrl
+    });
+  }
+  refreshProductImageUi();
+}
+
+function handleProductImagePickerChange(event) {
+  appendFilesToProductImages(event && event.target ? event.target.files : []);
+  if (event && event.target) event.target.value = '';
+}
+
+function handleProductImageDragOver(event) {
+  event.preventDefault();
+}
+
+function handleProductImageDrop(event) {
+  event.preventDefault();
+  appendFilesToProductImages(event.dataTransfer ? event.dataTransfer.files : []);
+}
+
+function setProductPrimaryImage(index) {
+  productsUiState.modalImages = (productsUiState.modalImages || []).map((item, itemIndex) => ({
+    ...item,
+    es_principal: itemIndex === index
+  }));
+  refreshProductImageUi();
+}
+
+function moveProductImage(index, delta) {
+  const images = (productsUiState.modalImages || []).slice();
+  const target = index + delta;
+  if (target < 0 || target >= images.length) return;
+  const temp = images[index];
+  images[index] = images[target];
+  images[target] = temp;
+  productsUiState.modalImages = images.map((item, itemIndex) => ({ ...item, orden: itemIndex }));
+  refreshProductImageUi();
+}
+
+function removeProductImage(index) {
+  productsUiState.modalImages = (productsUiState.modalImages || []).filter((_, itemIndex) => itemIndex !== index);
+  refreshProductImageUi();
+}
+
+function startProductImageReorder(index) {
+  productsUiState.dragImageIndex = index;
+}
+
+function allowProductImageReorder(event) {
+  event.preventDefault();
+}
+
+function dropProductImageReorder(targetIndex) {
+  const sourceIndex = Number(productsUiState.dragImageIndex);
+  if (!Number.isFinite(sourceIndex) || sourceIndex === targetIndex) return;
+  const images = (productsUiState.modalImages || []).slice();
+  const [moved] = images.splice(sourceIndex, 1);
+  images.splice(targetIndex, 0, moved);
+  productsUiState.modalImages = images.map((item, index) => ({ ...item, orden: index }));
+  productsUiState.dragImageIndex = null;
+  refreshProductImageUi();
+}
+
 function changeProductPhoto() {
   const input = document.getElementById('product-image');
+  const textarea = document.getElementById('product-image-urls');
   const current = input ? input.value : '';
   const next = prompt('Ingresa la URL de la foto del producto', current || '');
   if (next === null || !input) return;
-  input.value = next.trim();
-  const preview = document.getElementById('product-image-preview');
-  if (preview) {
-    const imageUrl = app.safeImageUrl(next.trim());
-    preview.innerHTML = imageUrl ? '<img src="' + imageUrl + '" class="products-modal-photo-img" alt="Foto">' : '<div class="products-modal-photo-placeholder">Sin imagen</div>';
+  const url = next.trim();
+  input.value = url;
+  if (url) {
+    const existingIndex = (productsUiState.modalImages || []).findIndex((item) => (item.url_publica || item.url_remote || '') === url);
+    if (existingIndex >= 0) {
+      setProductPrimaryImage(existingIndex);
+    } else {
+      productsUiState.modalImages.unshift({
+        id: null,
+        nombre_archivo: null,
+        ruta_local: null,
+        url_publica: url,
+        url_local: null,
+        url_remote: url,
+        woocommerce_media_id: null,
+        es_principal: true,
+        orden: 0,
+        optimizada: false,
+        origen: 'url',
+        upload_data: null,
+        preview_url: url
+      });
+      productsUiState.modalImages = productsUiState.modalImages.map((item, index) => ({
+        ...item,
+        es_principal: index === 0,
+        orden: index
+      }));
+      refreshProductImageUi();
+    }
+  }
+  if (textarea) {
+    const manualUrls = (productsUiState.modalImages || [])
+      .filter((item) => item.origen === 'url' && /^https?:\/\//i.test(item.url_publica || item.url_remote || ''))
+      .map((item) => item.url_publica || item.url_remote || '');
+    textarea.value = manualUrls.join('\n');
+    productsUiState.modalImageUrlsDraft = textarea.value;
   }
 }
 
@@ -633,18 +929,71 @@ function focusProductField(fieldId, tabId) {
 async function saveProduct() {
   const saveButton = document.getElementById('product-save-button');
   const id = (document.getElementById('product-id') || {}).value || '';
+  const primaryCategoryId = ((document.getElementById('product-category') || {}).value || '') || null;
+  const categoryMulti = document.getElementById('product-category-multi');
+  const selectedExtraCategories = categoryMulti
+    ? Array.from(categoryMulti.selectedOptions || []).map((option) => option.value)
+    : [];
+  const imageUrls = String((document.getElementById('product-image-urls') || {}).value || '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const modalImages = (productsUiState.modalImages || []).map((item) => ({ ...item }));
+  const existingUrls = new Set(modalImages.map((item) => item.url_publica || item.url_remote || item.preview_url || '').filter(Boolean));
+  imageUrls.forEach((url) => {
+    if (!existingUrls.has(url)) {
+      modalImages.push({
+        id: null,
+        nombre_archivo: null,
+        ruta_local: null,
+        url_publica: url,
+        url_local: null,
+        url_remote: url,
+        woocommerce_media_id: null,
+        es_principal: modalImages.length === 0,
+        orden: modalImages.length,
+        optimizada: false,
+        origen: 'url',
+        upload_data: null,
+        preview_url: url
+      });
+    }
+  });
+  const normalizedModalImages = modalImages.map((item, index) => ({
+    ...item,
+    es_principal: item.es_principal || index === 0,
+    orden: index
+  }));
+  const primaryModalImage = normalizedModalImages.find((item) => item.es_principal) || normalizedModalImages[0] || null;
   const data = {
     sku: ((document.getElementById('product-sku') || {}).value || '').trim(),
     barcode: ((document.getElementById('product-barcode') || {}).value || '').trim(),
     name: ((document.getElementById('product-name') || {}).value || '').trim(),
     description: '',
-    category_id: ((document.getElementById('product-category') || {}).value || '') || null,
+    short_description: ((document.getElementById('product-short-description') || {}).value || '').trim(),
+    color: ((document.getElementById('product-color') || {}).value || '').trim(),
+    category_id: primaryCategoryId,
+    category_primary_id: primaryCategoryId,
+    category_ids: [...new Set([primaryCategoryId, ...selectedExtraCategories].filter(Boolean))],
+    brand_id: ((document.getElementById('product-brand') || {}).value || '') || null,
     supplier: ((document.getElementById('product-supplier') || {}).value || '').trim(),
     purchase_price: parseProductDecimal((document.getElementById('product-purchase') || {}).value || 0),
     sale_price: parseProductDecimal((document.getElementById('product-sale') || {}).value || 0),
     stock: Number((document.getElementById('product-stock') || {}).value || 0),
     min_stock: Number((document.getElementById('product-min-stock') || {}).value || 2),
-    image_url: ((document.getElementById('product-image') || {}).value || '').trim() || null
+    image_url: ((document.getElementById('product-image') || {}).value || '').trim() || (primaryModalImage ? (primaryModalImage.url_publica || primaryModalImage.url_remote || primaryModalImage.preview_url || '') : '') || imageUrls[0] || null,
+    images: normalizedModalImages.map((item, index) => ({
+      id: item.id || null,
+      nombre_archivo: item.nombre_archivo || null,
+      ruta_local: item.ruta_local || null,
+      url_publica: item.url_publica || null,
+      url_local: item.url_local || null,
+      url_remote: item.url_remote || null,
+      woocommerce_media_id: item.woocommerce_media_id || null,
+      es_principal: item.es_principal || index === 0,
+      orden: index,
+      upload_data: item.upload_data || null
+    }))
   };
 
   setProductFormFeedback('');
@@ -652,6 +1001,18 @@ async function saveProduct() {
   if (!data.name) {
     setProductFormFeedback('La descripcion del articulo es obligatoria.');
     focusProductField('product-name', 'data');
+    return;
+  }
+
+  if (!data.brand_id) {
+    setProductFormFeedback('La marca es obligatoria para publicar el articulo correctamente en WooCommerce.');
+    focusProductField('product-brand', 'data');
+    return;
+  }
+
+  if (!data.color) {
+    setProductFormFeedback('El color es obligatorio para publicar el articulo correctamente en WooCommerce.');
+    focusProductField('product-color', 'data');
     return;
   }
 
@@ -684,8 +1045,24 @@ async function saveProduct() {
       saveButton.disabled = true;
       saveButton.textContent = 'Guardando...';
     }
-    if (id) await api.products.update(id, data);
-    else await api.products.create(data);
+    const response = id ? await api.products.update(id, data) : await api.products.create(data);
+    const syncWarning = response && response.sync_warning ? String(response.sync_warning) : '';
+    if (syncWarning) {
+      const skuDuplicate = /sku/i.test(syncWarning) && /duplic|tabla de b[uú]squeda|search/i.test(syncWarning);
+      setProductFormFeedback(
+        skuDuplicate
+          ? 'El articulo se guardo en la app, pero no se publico en WooCommerce porque el SKU ya existe. Cambia el SKU y vuelve a sincronizar.'
+          : 'El articulo se guardo en la app, pero WooCommerce devolvio un problema: ' + syncWarning,
+        'error'
+      );
+      await renderProducts();
+      return;
+    }
+    if (normalizedModalImages.length > 0 && (!response || !Array.isArray(response.images) || response.images.length === 0)) {
+      setProductFormFeedback('El articulo se guardo, pero las imagenes no quedaron asociadas. Reinicia la app y vuelve a intentar la carga.', 'error');
+      await renderProducts();
+      return;
+    }
     setProductFormFeedback('Articulo guardado correctamente.', 'success');
     closeProductModal();
     renderProducts();
@@ -709,12 +1086,37 @@ async function syncProductToWoo(id) {
   }
 }
 
+async function retryProductImagesToWoo(id) {
+  try {
+    await api.woocommerce.retryProductImages(id);
+    alert('Se reintentaron las imagenes del articulo en WooCommerce');
+    renderProducts();
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
+async function reconcileProductToWoo(id) {
+  try {
+    const result = await api.woocommerce.reconcileProduct(id);
+    alert(result && result.reconciled_by_sku
+      ? 'Articulo reconciliado por SKU y sincronizado en WooCommerce'
+      : 'Articulo sincronizado en WooCommerce');
+    renderProducts();
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
 async function deleteProduct(id) {
   const product = productsData.find((item) => item.id === id);
   if (!confirm('Eliminar el articulo "' + (product ? product.name : '') + '"?')) return;
 
   try {
-    await api.products.delete(id);
+    const result = await api.products.delete(id);
+    if (result && result.remote_delete_warning) {
+      alert('El producto se elimino en la app, pero WooCommerce no permitio borrarlo: ' + result.remote_delete_warning);
+    }
     renderProducts();
   } catch (error) {
     alert(error.message);
@@ -729,6 +1131,17 @@ window.updateProductsPlanillaStock = updateProductsPlanillaStock;
 window.showProductModal = showProductModal;
 window.closeProductModal = closeProductModal;
 window.changeProductPhoto = changeProductPhoto;
+window.openProductImagePicker = openProductImagePicker;
+window.handleProductImagePickerChange = handleProductImagePickerChange;
+window.handleProductImageDragOver = handleProductImageDragOver;
+window.handleProductImageDrop = handleProductImageDrop;
+window.updateProductImageUrlsDraft = updateProductImageUrlsDraft;
+window.setProductPrimaryImage = setProductPrimaryImage;
+window.moveProductImage = moveProductImage;
+window.removeProductImage = removeProductImage;
+window.startProductImageReorder = startProductImageReorder;
+window.allowProductImageReorder = allowProductImageReorder;
+window.dropProductImageReorder = dropProductImageReorder;
 window.setProductModalTab = setProductModalTab;
 window.formatProductPriceField = formatProductPriceField;
 window.formatProductPercentField = formatProductPercentField;
@@ -738,6 +1151,8 @@ window.toggleProductPriceMode = toggleProductPriceMode;
 window.updateProductPriceCalculation = updateProductPriceCalculation;
 window.saveProduct = saveProduct;
 window.syncProductToWoo = syncProductToWoo;
+window.retryProductImagesToWoo = retryProductImagesToWoo;
+window.reconcileProductToWoo = reconcileProductToWoo;
 window.deleteProduct = deleteProduct;
 
 console.log('Products loaded');

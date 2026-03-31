@@ -102,7 +102,11 @@ async function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      slug TEXT,
       description TEXT,
+      parent_id INTEGER,
+      woocommerce_category_id INTEGER,
+      active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -114,16 +118,26 @@ async function initializeDatabase() {
       barcode TEXT,
       name TEXT NOT NULL,
       description TEXT,
+      short_description TEXT,
+      color TEXT,
       category_id INTEGER,
+      category_primary_id INTEGER,
+      brand_id INTEGER,
       supplier TEXT,
       purchase_price REAL DEFAULT 0,
       sale_price REAL DEFAULT 0,
       stock INTEGER DEFAULT 0,
       min_stock INTEGER DEFAULT 2,
       woocommerce_id INTEGER,
+      woocommerce_product_id INTEGER,
       image_url TEXT,
+      sync_status TEXT DEFAULT 'pending',
+      last_sync_at DATETIME,
+      active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (category_id) REFERENCES categories(id)
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES categories(id),
+      FOREIGN KEY (brand_id) REFERENCES brands(id)
     )
   `);
   
@@ -237,7 +251,21 @@ async function initializeDatabase() {
       store_url TEXT,
       consumer_key TEXT,
       consumer_secret TEXT,
-      sync_direction TEXT DEFAULT 'both',
+      wp_username TEXT,
+      wp_app_password TEXT,
+      api_version TEXT DEFAULT 'wc/v3',
+      sync_direction TEXT DEFAULT 'export',
+      sync_products INTEGER DEFAULT 1,
+      sync_customers INTEGER DEFAULT 0,
+      sync_orders INTEGER DEFAULT 0,
+      sync_stock INTEGER DEFAULT 1,
+      sync_prices INTEGER DEFAULT 1,
+      sync_mode TEXT DEFAULT 'manual',
+      sync_interval_minutes INTEGER DEFAULT 60,
+      tax_mode TEXT DEFAULT 'woocommerce',
+      category_mode TEXT DEFAULT 'milo',
+      conflict_priority TEXT DEFAULT 'milo',
+      order_status_map TEXT DEFAULT '{"pending":"pendiente","processing":"procesando","completed":"completado","cancelled":"cancelado","refunded":"reintegrado","failed":"fallido"}',
       last_sync DATETIME,
       auto_sync INTEGER DEFAULT 0,
       active INTEGER DEFAULT 1
@@ -249,6 +277,43 @@ async function initializeDatabase() {
   } catch (e) {
     // Column may already exist
   }
+
+  try {
+    db.run('ALTER TABLE products ADD COLUMN brand_id INTEGER');
+  } catch (e) {
+    // Column may already exist
+  }
+  try { db.run('ALTER TABLE categories ADD COLUMN slug TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE categories ADD COLUMN parent_id INTEGER'); } catch (e) {}
+  try { db.run('ALTER TABLE categories ADD COLUMN woocommerce_category_id INTEGER'); } catch (e) {}
+  try { db.run('ALTER TABLE categories ADD COLUMN active INTEGER DEFAULT 1'); } catch (e) {}
+  try { db.run('ALTER TABLE categories ADD COLUMN updated_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE brands ADD COLUMN slug TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE brands ADD COLUMN woocommerce_brand_id INTEGER'); } catch (e) {}
+  try { db.run('ALTER TABLE brands ADD COLUMN updated_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN short_description TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN color TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN category_primary_id INTEGER'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN woocommerce_product_id INTEGER'); } catch (e) {}
+  try { db.run("ALTER TABLE products ADD COLUMN sync_status TEXT DEFAULT 'pending'"); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN last_sync_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN active INTEGER DEFAULT 1'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN updated_at DATETIME'); } catch (e) {}
+
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN api_version TEXT DEFAULT 'wc/v3'"); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN wp_username TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN wp_app_password TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_products INTEGER DEFAULT 1'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_customers INTEGER DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_orders INTEGER DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_stock INTEGER DEFAULT 1'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_prices INTEGER DEFAULT 1'); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN sync_mode TEXT DEFAULT 'manual'"); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_interval_minutes INTEGER DEFAULT 60'); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN tax_mode TEXT DEFAULT 'woocommerce'"); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN category_mode TEXT DEFAULT 'milo'"); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN conflict_priority TEXT DEFAULT 'milo'"); } catch (e) {}
+  try { db.run(`ALTER TABLE woocommerce_sync ADD COLUMN order_status_map TEXT DEFAULT '{"pending":"pendiente","processing":"procesando","completed":"completado","cancelled":"cancelado","refunded":"reintegrado","failed":"fallido"}'`); } catch (e) {}
 
   try {
     db.run('ALTER TABLE customers ADD COLUMN contact TEXT');
@@ -335,6 +400,40 @@ async function initializeDatabase() {
       synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS product_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      category_id INTEGER NOT NULL,
+      es_principal INTEGER DEFAULT 0,
+      orden INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(product_id, category_id),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS product_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      nombre_archivo TEXT,
+      ruta_local TEXT,
+      url_publica TEXT,
+      url_local TEXT,
+      url_remote TEXT,
+      woocommerce_media_id INTEGER,
+      orden INTEGER DEFAULT 0,
+      es_principal INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    )
+  `);
+  try { db.run('ALTER TABLE product_images ADD COLUMN nombre_archivo TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE product_images ADD COLUMN ruta_local TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE product_images ADD COLUMN url_publica TEXT'); } catch (e) {}
   
   const settingsCount = get('SELECT COUNT(*) as count FROM settings');
   if (!settingsCount || settingsCount.count === 0) {
@@ -353,9 +452,17 @@ async function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS brands (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
-      active INTEGER DEFAULT 1
+      slug TEXT,
+      woocommerce_brand_id INTEGER,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  try { db.run('ALTER TABLE brands ADD COLUMN created_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE brands ADD COLUMN slug TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE brands ADD COLUMN woocommerce_brand_id INTEGER'); } catch (e) {}
+  try { db.run('ALTER TABLE brands ADD COLUMN updated_at DATETIME'); } catch (e) {}
   
   db.run(`
     CREATE TABLE IF NOT EXISTS device_models (
@@ -533,6 +640,73 @@ async function initializeDatabase() {
     const defaultBrands = ['Apple', 'Samsung', 'Huawei', 'Xiaomi', 'Motorola', 'Nokia', 'LG', 'Sony', 'Lenovo', 'Dell', 'HP', 'Asus', 'Acer', 'Microsoft', 'Nintendo', 'Otro'];
     defaultBrands.forEach(b => run('INSERT INTO brands (name) VALUES (?)', [b]));
   }
+
+  const categoryRows = all('SELECT id, name, slug, updated_at FROM categories');
+  categoryRows.forEach((category) => {
+    const nextSlug = String(category.slug || category.name || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `categoria-${category.id}`;
+    run(
+      'UPDATE categories SET slug = COALESCE(NULLIF(slug, \'\'), ?), active = COALESCE(active, 1), updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP) WHERE id = ?',
+      [nextSlug, category.id]
+    );
+  });
+
+  const brandRows = all('SELECT id, name, slug, updated_at FROM brands');
+  brandRows.forEach((brand) => {
+    const nextSlug = String(brand.slug || brand.name || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `marca-${brand.id}`;
+    run(
+      'UPDATE brands SET slug = COALESCE(NULLIF(slug, \'\'), ?), active = COALESCE(active, 1), updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP) WHERE id = ?',
+      [nextSlug, brand.id]
+    );
+  });
+
+  const legacyProducts = all('SELECT id, category_id, category_primary_id, image_url, woocommerce_id, woocommerce_product_id, sync_status, active, updated_at FROM products');
+  legacyProducts.forEach((product) => {
+    const primaryCategoryId = product.category_primary_id || product.category_id || null;
+    run(
+      `UPDATE products
+       SET category_primary_id = COALESCE(category_primary_id, category_id),
+           woocommerce_product_id = COALESCE(woocommerce_product_id, woocommerce_id),
+           sync_status = COALESCE(sync_status, 'pending'),
+           active = COALESCE(active, 1),
+           updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)
+       WHERE id = ?`,
+      [product.id]
+    );
+
+    if (primaryCategoryId) {
+      const pivot = get('SELECT id FROM product_categories WHERE product_id = ? AND category_id = ?', [product.id, primaryCategoryId]);
+      if (!pivot) {
+        run(
+          'INSERT INTO product_categories (product_id, category_id, es_principal, orden) VALUES (?, ?, 1, 0)',
+          [product.id, primaryCategoryId]
+        );
+      } else {
+        run('UPDATE product_categories SET es_principal = 1, orden = 0 WHERE id = ?', [pivot.id]);
+      }
+    }
+
+    if (product.image_url) {
+      const image = get('SELECT id FROM product_images WHERE product_id = ? AND (url_remote = ? OR url_local = ?)', [product.id, product.image_url, product.image_url]);
+      if (!image) {
+        run(
+          'INSERT INTO product_images (product_id, url_local, url_remote, orden, es_principal) VALUES (?, ?, ?, 0, 1)',
+          [product.id, null, product.image_url]
+        );
+      }
+    }
+  });
   
   const modelCount = get('SELECT COUNT(*) as count FROM device_models');
   if (!modelCount || modelCount.count === 0) {

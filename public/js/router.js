@@ -102,6 +102,7 @@ function getPages() {
     'admin-config-general': { title: 'Datos Generales', icon: '⚙️', render: adminSectionRender('config-general') },
     'admin-config-documents': { title: 'Configuracion de Comprobantes', icon: '⚙️', render: adminSectionRender('config-documents') },
     'admin-config-mail': { title: 'Mail', icon: '⚙️', render: adminSectionRender('config-mail') },
+    'admin-integrations-woocommerce': { title: 'WooCommerce', icon: '⚙️', render: adminSectionRender('integrations-woocommerce') },
     'admin-reset-data': { title: 'Borrar datos iniciales', icon: '⚙️', render: adminSectionRender('reset-data') },
     'admin-troubleshoot': { title: 'Solucionar Problemas', icon: '⚙️', render: adminSectionRender('troubleshoot') },
     tools: { title: 'Herramientas', icon: '🔨', render: () => toolsRender('sync') },
@@ -113,7 +114,7 @@ function getPages() {
     'help-buy': { title: 'Como comprar', icon: '❓', render: () => helpRender('buy') },
     'help-support': { title: 'Soporte tecnico', icon: '❓', render: () => helpRender('support') },
     users: { title: 'Usuarios', icon: '👤', render: usersRender },
-    settings: { title: 'Configuracion', icon: '⚙️', render: settingsRender }
+    settings: { title: 'WooCommerce', icon: '⚙️', render: settingsRender }
   };
 }
 
@@ -141,7 +142,7 @@ function navigate(page) {
   const vendedoresChildPages = ['sellers', 'sellers-commissions', 'sellers-payments', 'sellers-sales-report'];
   const cajaChildPages = ['cash', 'cash-expenses', 'cash-withdrawals', 'cash-day'];
   const reportesChildPages = ['reports', 'reports-sales', 'reports-purchases', 'reports-customers', 'reports-delivery-notes', 'reports-accounts', 'reports-ranking', 'reports-cash', 'reports-excel'];
-  const adminChildPages = ['admin', 'admin-users', 'admin-users-connected', 'admin-aux-tables', 'admin-config-general', 'admin-config-documents', 'admin-config-mail', 'admin-reset-data', 'admin-troubleshoot'];
+  const adminChildPages = ['admin', 'admin-users', 'admin-users-connected', 'admin-aux-tables', 'admin-config-general', 'admin-config-documents', 'admin-config-mail', 'admin-integrations-woocommerce', 'admin-reset-data', 'admin-troubleshoot'];
   const toolsChildPages = ['tools', 'tools-sync', 'tools-offline-prices', 'tools-sync-status'];
   const helpChildPages = ['help', 'help-guide', 'help-buy', 'help-support'];
 
@@ -165,6 +166,9 @@ function navigate(page) {
   }
   if (adminChildPages.includes(page)) {
     document.getElementById('admin-group')?.classList.add('open');
+  }
+  if (page === 'admin-integrations-woocommerce') {
+    document.getElementById('admin-integrations-group')?.classList.add('open');
   }
 
   if (toolsChildPages.includes(page)) {

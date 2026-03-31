@@ -36,12 +36,44 @@ router.get('/brands', authenticate, (req, res) => {
 
 router.post('/brands', authenticate, (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const { name } = req.body;
+  const { name, slug, active, woocommerce_brand_id } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name required' });
   try {
-    const result = run('INSERT INTO brands (name) VALUES (?)', [name]);
+    const result = run(
+      'INSERT INTO brands (name, slug, active, woocommerce_brand_id) VALUES (?, ?, ?, ?)',
+      [
+        name,
+        slug || String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        active === false || active === 0 ? 0 : 1,
+        woocommerce_brand_id || null
+      ]
+    );
     saveDatabase();
-    res.json({ id: result.lastInsertRowid, name });
+    res.json(get('SELECT * FROM brands WHERE id = ?', [result.lastInsertRowid]));
+  } catch (err) {
+    res.status(400).json({ error: 'Already exists' });
+  }
+});
+
+router.put('/brands/:id', authenticate, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const { name, active, woocommerce_brand_id } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  try {
+    run(
+      `UPDATE brands
+       SET name = ?, slug = ?, active = ?, woocommerce_brand_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        name,
+        String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        active === false || active === 0 ? 0 : 1,
+        woocommerce_brand_id || null,
+        req.params.id
+      ]
+    );
+    saveDatabase();
+    res.json(get('SELECT * FROM brands WHERE id = ?', [req.params.id]));
   } catch (err) {
     res.status(400).json({ error: 'Already exists' });
   }
