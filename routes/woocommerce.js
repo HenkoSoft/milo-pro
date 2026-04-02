@@ -1,6 +1,7 @@
 const express = require('express');
 const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
+const { buildAutomaticProductSku, getNextAutomaticProductSku } = require('../services/product-sku');
 const {
   ensureLocalBrand,
   ensureLocalCategoriesFromWooProduct,
@@ -107,6 +108,9 @@ function getExistingLocalProduct(wooProduct) {
   if (!existing) {
     existing = get('SELECT * FROM products WHERE sku = ?', [`WOO-${wooProduct.id}`]);
   }
+  if (!existing) {
+    existing = get('SELECT * FROM products WHERE sku = ?', [buildAutomaticProductSku(wooProduct.id)]);
+  }
   return existing;
 }
 
@@ -139,7 +143,7 @@ async function upsertWooProductIntoLocal(wooProduct, action) {
   const price = parseWooPrice(wooProduct);
   const images = getWooProductImages(wooProduct);
   const imageUrl = images[0] ? images[0].url_remote : null;
-  const sku = wooProduct.sku || `WOO-${wooProduct.id}`;
+  const importedSku = String(wooProduct.sku || '').trim();
   const localCategories = await ensureLocalCategoriesFromWooProduct(wooProduct);
   const primaryCategory = localCategories[0] || null;
   const primaryBrand = getWooPrimaryBrand(wooProduct);
@@ -153,6 +157,9 @@ async function upsertWooProductIntoLocal(wooProduct, action) {
   const localWins = localCatalogWins(config);
 
   if (existing) {
+    const sku = localWins
+      ? (existing.sku || importedSku || getNextAutomaticProductSku(all('SELECT sku FROM products')))
+      : (importedSku || existing.sku || getNextAutomaticProductSku(all('SELECT sku FROM products')));
     const nextCategoryId = localWins ? (existing.category_id || localCategoryId || null) : (localCategoryId || existing.category_id || null);
     const nextBrandId = localWins ? (existing.brand_id || localBrandId || null) : (localBrandId || existing.brand_id || null);
     const nextName = localWins ? (existing.name || wooProduct.name || '') : (wooProduct.name || existing.name || '');
@@ -203,7 +210,7 @@ async function upsertWooProductIntoLocal(wooProduct, action) {
   const result = run(
     `INSERT INTO products (sku, name, description, short_description, color, category_id, category_primary_id, brand_id, sale_price, stock, image_url, woocommerce_id, woocommerce_product_id, sync_status, last_sync_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', CURRENT_TIMESTAMP)`,
-    [sku, wooProduct.name, wooProduct.description || '', shortDescription, primaryColor || null, localCategoryId, localCategoryId, localBrandId, price, stock, imageUrl, wooProduct.id, wooProduct.id]
+    [importedSku || getNextAutomaticProductSku(all('SELECT sku FROM products')), wooProduct.name, wooProduct.description || '', shortDescription, primaryColor || null, localCategoryId, localCategoryId, localBrandId, price, stock, imageUrl, wooProduct.id, wooProduct.id]
   );
   syncProductCategories(result.lastInsertRowid, localCategoryIds, localCategoryId);
   syncProductImages(result.lastInsertRowid, images);

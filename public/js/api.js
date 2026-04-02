@@ -59,6 +59,7 @@ const api = {
   },
   products: {
     getAll: (params) => request('/products' + buildQuery(params)),
+    nextSku: () => request('/products/next-sku/value'),
     getOne: (id) => request('/products/' + id),
     create: (product) => request('/products', { method: 'POST', body: JSON.stringify(product) }),
     update: (id, product) => request('/products/' + id, { method: 'PUT', body: JSON.stringify(product) }),

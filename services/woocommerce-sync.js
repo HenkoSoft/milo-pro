@@ -1,7 +1,7 @@
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
-const { get, run, saveDatabase } = require('../database');
+const { get, run, all, saveDatabase } = require('../database');
 const {
   ensureBrandRecord,
   ensureCategoryRecord,
@@ -17,6 +17,7 @@ const {
   getProductImages,
   normalizeCatalogText
 } = require('./catalog');
+const { getNextAutomaticProductSku } = require('./product-sku');
 
 function getActiveWooConfig() {
   return get('SELECT * FROM woocommerce_sync WHERE id = 1 AND active = 1');
@@ -482,7 +483,7 @@ async function ensureWooBrand(config, brandName, brandId = null) {
 
 async function buildWooProductPayload(product, config = getActiveWooConfig()) {
   const snapshot = product && product.id ? (getProductById(product.id) || product) : product;
-  const sku = snapshot.sku || `TF-${snapshot.id}`;
+  const sku = snapshot.sku || getNextAutomaticProductSku(all('SELECT sku FROM products'));
   const stockQuantity = normalizeStock(snapshot.stock);
   const payload = {
     name: snapshot.name || `Producto ${snapshot.id}`,

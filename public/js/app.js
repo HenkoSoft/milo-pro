@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function showModal(content) {
   const container = document.getElementById('modal-container');
-  container.innerHTML = '<div class="modal-overlay" onclick="if(event.target === this) this.remove()">' + content + '</div>';
+  container.innerHTML = '<div class="modal-overlay">' + content + '</div>';
 }
 
 function closeModal() {
@@ -60,10 +60,11 @@ function closeModal() {
 }
 
 function formatMoney(amount) {
-  const num = parseFloat(amount) || 0;
-  const parts = num.toFixed(2).split('.');
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return '$ ' + parts.join(',');
+  const num = Number.parseFloat(amount) || 0;
+  return '$ ' + new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(num);
 }
 
 function formatDate(date) {
@@ -95,7 +96,100 @@ function safeImageUrl(value) {
   return '';
 }
 
-window.app = { showModal, closeModal, formatMoney, formatDate, formatDateTime, escapeHtml, escapeAttr, safeImageUrl };
+function parseLocaleNumber(value, fallback = 0) {
+  const raw = String(value ?? '')
+    .trim()
+    .replace(/\s+/g, '');
+  if (!raw) return fallback;
+
+  const lastComma = raw.lastIndexOf(',');
+  const lastDot = raw.lastIndexOf('.');
+  let normalized = raw;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    if (lastComma > lastDot) {
+      normalized = raw.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = raw.replace(/,/g, '');
+    }
+  } else if (lastComma >= 0) {
+    normalized = raw.replace(/\./g, '').replace(',', '.');
+  } else {
+    const dotMatches = raw.match(/\./g) || [];
+    if (dotMatches.length > 1) {
+      const parts = raw.split('.');
+      const decimalPart = parts.pop();
+      normalized = parts.join('') + '.' + decimalPart;
+    }
+  }
+
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseIntegerInputValue(value, fallback = 0) {
+  const normalized = String(value ?? '').replace(/[^\d-]/g, '');
+  const parsed = Number.parseInt(normalized, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function sanitizeNumericInput(input, options = {}) {
+  if (!input) return '';
+  const decimals = Number.isFinite(Number(options.decimals)) ? Math.max(0, Number(options.decimals)) : 0;
+  const allowNegative = !!options.allowNegative;
+  const rawValue = String(input.value ?? '');
+  const normalized = rawValue.replace(',', '.');
+  let result = '';
+  let hasDecimalSeparator = false;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    if (char >= '0' && char <= '9') {
+      result += char;
+      continue;
+    }
+    if (char === '-' && allowNegative && result.length === 0) {
+      result += char;
+      continue;
+    }
+    if (char === '.' && decimals > 0 && !hasDecimalSeparator) {
+      result += char;
+      hasDecimalSeparator = true;
+    }
+  }
+
+  if (hasDecimalSeparator) {
+    const parts = result.split('.');
+    const integerPart = parts.shift() || '';
+    const decimalPart = parts.join('').slice(0, decimals);
+    result = integerPart + '.' + decimalPart;
+  }
+
+  input.value = result;
+  return result;
+}
+
+function formatDecimalInputValue(value, decimals = 2) {
+  return new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(parseLocaleNumber(value, 0));
+}
+
+window.app = {
+  showModal,
+  closeModal,
+  formatMoney,
+  formatDate,
+  formatDateTime,
+  escapeHtml,
+  escapeAttr,
+  safeImageUrl,
+  parseLocaleNumber,
+  parseIntegerInputValue,
+  sanitizeNumericInput,
+  formatDecimalInputValue
+};
 console.log('App loaded');
 
 function toggleMenu(groupId) {

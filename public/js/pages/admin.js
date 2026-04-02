@@ -1111,7 +1111,7 @@ function renderAdminConfigDocumentsSection() {
       <div class="admin-form-grid">
         <div class="form-group"><label>Formato numeracion</label><input id="admin-doc-numbering-format" type="text" value="${adminEscapeAttr(config.numbering_format || '')}"></div>
         <div class="form-group"><label>Prefijos</label><input id="admin-doc-prefixes" type="text" value="${adminEscapeAttr(config.prefixes || '')}"></div>
-        <div class="form-group"><label>Decimales permitidos</label><input id="admin-doc-decimals" type="number" min="0" max="6" value="${adminEscapeAttr(config.decimals ?? 2)}"></div>
+        <div class="form-group"><label>Decimales permitidos</label><input id="admin-doc-decimals" type="text" inputmode="numeric" value="${adminEscapeAttr(config.decimals ?? 2)}" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 0 })" onblur="this.value = this.value === '' ? '2' : String(Math.min(6, app.parseIntegerInputValue(this.value, 2)))"></div>
         <div class="form-group admin-field-span-2">
           <label class="admin-switch-row"><input id="admin-doc-control-stock" type="checkbox" ${config.control_stock !== false ? 'checked' : ''}><span>Control de stock</span></label>
         </div>
@@ -1133,7 +1133,7 @@ function saveAdminDocumentsConfig() {
   adminConfigStore.documents = {
     numbering_format: document.getElementById('admin-doc-numbering-format').value,
     prefixes: document.getElementById('admin-doc-prefixes').value,
-    decimals: Number(document.getElementById('admin-doc-decimals').value || 2),
+    decimals: Math.min(6, app.parseIntegerInputValue(document.getElementById('admin-doc-decimals').value, 2)),
     control_stock: document.getElementById('admin-doc-control-stock').checked,
     allow_negative_stock: document.getElementById('admin-doc-negative-stock').checked,
     control_min_price: document.getElementById('admin-doc-min-price').checked

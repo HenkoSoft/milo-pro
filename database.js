@@ -2,6 +2,7 @@ const initSqlJs = require('sql.js');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs2 = require('fs');
+const { buildAutomaticProductSku } = require('./services/product-sku');
 
 let db = null;
 const DATABASE_FILENAME = 'milo-pro.db';
@@ -241,7 +242,8 @@ async function initializeDatabase() {
       business_address TEXT,
       business_phone TEXT,
       business_email TEXT,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      sku_sequence_migrated INTEGER DEFAULT 0
     )
   `);
   
@@ -299,6 +301,7 @@ async function initializeDatabase() {
   try { db.run('ALTER TABLE products ADD COLUMN last_sync_at DATETIME'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN active INTEGER DEFAULT 1'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN updated_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE settings ADD COLUMN sku_sequence_migrated INTEGER DEFAULT 0'); } catch (e) {}
 
   try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN api_version TEXT DEFAULT 'wc/v3'"); } catch (e) {}
   try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN wp_username TEXT'); } catch (e) {}
@@ -438,6 +441,19 @@ async function initializeDatabase() {
   const settingsCount = get('SELECT COUNT(*) as count FROM settings');
   if (!settingsCount || settingsCount.count === 0) {
     run('INSERT INTO settings (id, business_name) VALUES (1, ?)', ['Milo Pro']);
+  }
+
+  const settings = get('SELECT sku_sequence_migrated FROM settings WHERE id = 1');
+  if (!settings || Number(settings.sku_sequence_migrated || 0) !== 1) {
+    const products = all('SELECT id FROM products ORDER BY id ASC');
+    products.forEach((product, index) => {
+      run('UPDATE products SET sku = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [`__SKU_MIG_${product.id}__`, product.id]);
+    });
+    products.forEach((product, index) => {
+      const nextSku = buildAutomaticProductSku(index + 1);
+      run('UPDATE products SET sku = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nextSku, product.id]);
+    });
+    run('UPDATE settings SET sku_sequence_migrated = 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1');
   }
   
   db.run(`

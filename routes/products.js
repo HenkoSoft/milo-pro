@@ -1,5 +1,5 @@
 const express = require('express');
-const { get, run, saveDatabase } = require('../database');
+const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
 const {
   deleteProductFromWooCommerce,
@@ -8,6 +8,7 @@ const {
   syncProductSnapshotToWooCommerce
 } = require('../services/woocommerce-sync');
 const { processProductImages } = require('../services/product-images');
+const { getNextAutomaticProductSku } = require('../services/product-sku');
 const {
   getProductById,
   getProductImages,
@@ -55,10 +56,28 @@ function buildProductsQuery({ search, category, lowStock }) {
 
 function buildProductPayload(body = {}) {
   const primaryCategoryId = body.category_primary_id || body.category_id || null;
-  const categoryIds = toIntegerList([
+  const isGenericUncategorized = (value) => {
+    const normalized = String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    return normalized === 'uncategorized' || normalized === 'sin categoria';
+  };
+  const rawCategoryIds = [
     ...(Array.isArray(body.category_ids) ? body.category_ids : []),
     ...(Array.isArray(body.additional_category_ids) ? body.additional_category_ids : []),
     primaryCategoryId
+  ];
+  const filteredCategoryIds = rawCategoryIds.filter((item) => {
+    if (!primaryCategoryId) return true;
+    if (String(item) === String(primaryCategoryId)) return true;
+    const categoryRecord = item ? get('SELECT name FROM categories WHERE id = ?', [item]) : null;
+    const rawName = categoryRecord ? categoryRecord.name : '';
+    return !isGenericUncategorized(rawName);
+  });
+  const categoryIds = toIntegerList([
+    ...filteredCategoryIds
   ]);
 
   const images = Array.isArray(body.images)
@@ -106,16 +125,12 @@ async function persistProduct(payload, productId = null) {
 
   const wooConfig = getActiveWooConfig();
   if (isWooExportEnabled(wooConfig)) {
-    if (!payload.brand_id) {
-      throw new Error('La marca es obligatoria para publicar el articulo correctamente en WooCommerce.');
-    }
-
-    if (!String(payload.color || '').trim()) {
-      throw new Error('El color es obligatorio para publicar el articulo correctamente en WooCommerce.');
-    }
+    // No bloquear el guardado local por atributos opcionales de catalogo.
   }
 
   if (productId) {
+    const existingProduct = getProductById(productId);
+    const nextSku = payload.sku || (existingProduct && existingProduct.sku) || getNextAutomaticProductSku(all('SELECT sku FROM products'));
     run(
       `UPDATE products
        SET sku = ?, barcode = ?, name = ?, description = ?, short_description = ?, color = ?, category_id = ?, category_primary_id = ?,
@@ -123,7 +138,7 @@ async function persistProduct(payload, productId = null) {
            woocommerce_product_id = ?, image_url = ?, sync_status = ?, active = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
-        payload.sku,
+        nextSku,
         payload.barcode,
         payload.name,
         payload.description,
@@ -146,13 +161,14 @@ async function persistProduct(payload, productId = null) {
       ]
     );
   } else {
+    const nextSku = payload.sku || getNextAutomaticProductSku(all('SELECT sku FROM products'));
     const result = run(
       `INSERT INTO products (
         sku, barcode, name, description, short_description, color, category_id, category_primary_id, brand_id, supplier,
         purchase_price, sale_price, stock, min_stock, woocommerce_id, woocommerce_product_id, image_url, sync_status, active
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        payload.sku,
+        nextSku,
         payload.barcode,
         payload.name,
         payload.description,
@@ -189,6 +205,11 @@ async function persistProduct(payload, productId = null) {
 router.get('/', authenticate, (req, res) => {
   const { query, params } = buildProductsQuery(req.query || {});
   res.json(listProductsWithCatalog(query, params));
+});
+
+router.get('/next-sku/value', authenticate, (req, res) => {
+  const nextSku = getNextAutomaticProductSku(all('SELECT sku FROM products'));
+  res.json({ sku: nextSku });
 });
 
 router.get('/:id', authenticate, (req, res) => {

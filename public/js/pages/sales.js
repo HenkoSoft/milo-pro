@@ -148,7 +148,8 @@ function buildSaleCustomerAddress(customer) {
 }
 
 function getProductById(productId) {
-  return productsForSale.find((product) => product.id === productId) || null;
+  const targetId = String(productId);
+  return productsForSale.find((product) => String(product.id) === targetId) || null;
 }
 
 function getEffectiveUnitPrice(item) {
@@ -226,6 +227,7 @@ function renderSalesSection() {
 
   if (salesUiState.activeSection === 'invoices') {
     panel.innerHTML = renderSalesInvoiceModule();
+    setupSalesInvoiceInteractions();
     renderCart();
     handleSaleCustomerChange();
     syncSalesDatePreview();
@@ -343,128 +345,85 @@ function renderSalesInvoiceModule() {
   const customerSummary = customer ? customer.name + (buildSaleCustomerAddress(customer) ? ' - ' + buildSaleCustomerAddress(customer) : '') : 'Consumidor final';
 
   return `
-    <div class="sales-module-head">
-      <div>
-        <p class="sales-module-kicker">Facturacion</p>
-        <h2>Facturas</h2>
-        <p>Formulario principal orientado a carga agil de comprobantes, cliente e items.</p>
-      </div>
-      <div class="sales-module-actions">
-        <button class="btn btn-secondary" type="button" onclick="cancelSale()">Limpiar</button>
-        <button class="btn btn-primary" type="button" onclick="refreshSaleDocumentPreview()">Actualizar nro</button>
-      </div>
-    </div>
-
-    <div class="sales-workspace">
-      <div class="sales-panel-stack">
-        <div class="sales-doc-strip">
-          <div class="sales-strip-item"><span>Tipo</span><strong id="sale-strip-type">${salesEscapeHtml(draft.receiptType)}</strong></div>
-          <div class="sales-strip-item"><span>P. venta</span><strong id="sale-strip-pos">${salesEscapeHtml(draft.pointOfSale)}</strong></div>
-          <div class="sales-strip-item"><span>Comprobante</span><strong id="sale-strip-number">${salesEscapeHtml(salesFormatInvoiceNumber(nextInvoiceNumber))}</strong></div>
-          <div class="sales-strip-item"><span>Fecha</span><strong id="sale-date-label">${salesEscapeHtml(salesFormatDate(new Date(draft.date + 'T00:00:00')))}</strong></div>
-          <div class="sales-strip-item"><span>Vendedor</span><strong>${salesEscapeHtml(draft.seller || salesGetCurrentSellerName())}</strong></div>
-          <div class="sales-strip-item"><span>Desc.</span><strong id="sale-global-discount">0%</strong></div>
-          <div class="sales-strip-item sales-strip-item--wide"><span>Cliente actual</span><strong id="sale-strip-customer">${salesEscapeHtml(customer ? customer.name : 'Consumidor final')}</strong></div>
+    <div class="sales-invoice-layout">
+      <div class="sales-form-card sales-invoice-compact-card">
+        <div class="sales-section-head">
+          <div></div>
         </div>
-
-        <div class="sales-form-card">
-          <div class="sales-section-head">
-            <div>
-              <p class="sales-section-kicker">Encabezado</p>
-              <h3>Datos del comprobante</h3>
-            </div>
-          </div>
-          <div class="sales-form-grid sales-form-grid--document">
-            <div class="form-group"><label>Nro</label><select><option>Principal</option></select></div>
-            <div class="form-group"><label>P.Venta</label><input id="sale-point-of-sale" type="text" value="${salesEscapeAttr(draft.pointOfSale)}" maxlength="3" inputmode="numeric" onchange="refreshSaleDocumentPreview()" oninput="this.value=this.value.replace(/[^0-9]/g, '').slice(0,3)"></div>
-            <div class="form-group"><label>Nro comprobante</label><input id="sale-invoice-number" type="text" value="${salesEscapeAttr(salesFormatInvoiceNumber(nextInvoiceNumber))}" readonly></div>
-            <div class="form-group"><label>Tipo</label><select id="sale-receipt-type" onchange="refreshSaleDocumentPreview()">${salesBuildOptions(SALES_RECEIPT_TYPES, draft.receiptType, '')}</select></div>
-            <div class="form-group"><label>Fecha</label><input id="sale-date" type="date" value="${salesEscapeAttr(draft.date)}" onchange="syncSalesDatePreview()"></div>
-            <div class="form-group"><label>Lista de precios</label><div class="sales-inline-combo"><select id="sale-price-list">${salesBuildOptions(SALES_PRICE_LISTS, draft.priceList, '')}</select><button class="sales-addon-button sales-addon-button--wide" type="button" onclick="showSalesUiNotice('Cambio rapido de lista')">CL</button></div></div>
-            <div class="form-group"><label>Descuento %</label><input id="sale-global-discount-input" type="number" value="0.00" readonly></div>
-            <div class="form-group"><label>Vendedor</label><select id="sale-seller">${salesBuildOptions(sellerOptions, draft.seller, '')}</select></div>
-          </div>
+        <div class="sales-compact-grid">
+          <div class="form-group"><label>Nro.</label><select><option>Principal</option></select></div>
+          <div class="form-group"><label>P.Venta</label><input id="sale-point-of-sale" type="text" value="${salesEscapeAttr(draft.pointOfSale)}" maxlength="3" inputmode="numeric" onchange="refreshSaleDocumentPreview()" oninput="this.value=this.value.replace(/[^0-9]/g, '').slice(0,3)"></div>
+          <div class="form-group"><label>Nro.</label><input id="sale-invoice-number" type="text" value="${salesEscapeAttr(salesFormatInvoiceNumber(nextInvoiceNumber))}" readonly></div>
+          <div class="form-group"><label>Tipo</label><select id="sale-receipt-type" onchange="refreshSaleDocumentPreview()">${salesBuildOptions(SALES_RECEIPT_TYPES, draft.receiptType, '')}</select></div>
+          <div class="form-group"><label>Fecha</label><input id="sale-date" type="date" value="${salesEscapeAttr(draft.date)}" onchange="syncSalesDatePreview()"></div>
+          <div class="form-group"><label>Lista</label><select id="sale-price-list">${salesBuildOptions(SALES_PRICE_LISTS, draft.priceList, '')}</select></div>
+          <div class="form-group"><label>Desc.</label><input id="sale-global-discount-input" type="number" value="0.00" readonly></div>
+          <div class="form-group sales-field-span-2"><label>Vendedor</label><select id="sale-seller">${salesBuildOptions(sellerOptions, draft.seller, '')}</select></div>
+          <div class="form-group"><label>Codigo Cliente</label><input id="sale-customer-code" type="text" value="${salesEscapeAttr(customer ? customer.id : '')}" placeholder="Automatico" readonly></div>
+          <div class="form-group sales-field-span-3"><label>Nombre</label><select id="sale-customer" onchange="handleSaleCustomerChange()"><option value="">Consumidor final</option>${customersForSale.map((item) => '<option value="' + item.id + '"' + (String(draft.customerId) === String(item.id) ? ' selected' : '') + '>' + salesEscapeHtml(item.name) + '</option>').join('')}</select></div>
+          <div class="form-group"><label>CUIT</label><input id="sale-customer-tax-id" type="text" value="${salesEscapeAttr(draft.taxId)}" placeholder="CUIT o DNI"></div>
+          <div class="form-group"><label>Condicion IVA</label><select id="sale-customer-iva-condition">${salesBuildOptions(SALES_IVA_CONDITIONS, draft.ivaCondition, 'Seleccione...')}</select></div>
+          <div class="form-group sales-field-span-4"><label>Direccion</label><input id="sale-customer-address" type="text" value="${salesEscapeAttr(draft.address)}" placeholder="Direccion del cliente"></div>
+          <div class="form-group sales-field-span-2"><label>Obs:</label><input id="sale-observations" type="text" value="${salesEscapeAttr(draft.observations)}" placeholder="Observaciones del comprobante"></div>
+          <div class="form-group"><label>O.C:</label><input id="sale-oc" type="text" value="${salesEscapeAttr(draft.oc)}" placeholder="Orden de compra"></div>
+          <div class="form-group"><label>Rem:</label><input id="sale-remito" type="text" value="${salesEscapeAttr(draft.remito)}" placeholder="Referencia"></div>
         </div>
-
-        <div class="sales-form-card">
-          <div class="sales-section-head">
-            <div>
-              <p class="sales-section-kicker">Cliente</p>
-              <h3>Datos del cliente</h3>
-            </div>
-            <div class="sales-shortcut-badge">F3</div>
-          </div>
-          <div class="sales-form-grid sales-form-grid--customer">
-            <div class="form-group"><label>Codigo cliente</label><div class="sales-inline-combo"><input id="sale-customer-code" type="text" value="${salesEscapeAttr(customer ? customer.id : '')}" placeholder="Automatico" readonly><button class="sales-addon-button sales-addon-button--wide" type="button" onclick="focusSaleCustomerSelector()">Buscar</button></div></div>
-            <div class="form-group sales-field-span-2"><label>Nombre</label><select id="sale-customer" onchange="handleSaleCustomerChange()"><option value="">Consumidor final</option>${customersForSale.map((item) => '<option value="' + item.id + '"' + (String(draft.customerId) === String(item.id) ? ' selected' : '') + '>' + salesEscapeHtml(item.name) + '</option>').join('')}</select></div>
-            <div class="form-group"><label>CUIT</label><input id="sale-customer-tax-id" type="text" value="${salesEscapeAttr(draft.taxId)}" placeholder="CUIT o DNI"></div>
-            <div class="form-group"><label>Condicion IVA</label><select id="sale-customer-iva-condition">${salesBuildOptions(SALES_IVA_CONDITIONS, draft.ivaCondition, '')}</select></div>
-            <div class="form-group sales-field-span-3"><label>Direccion</label><input id="sale-customer-address" type="text" value="${salesEscapeAttr(draft.address)}" placeholder="Direccion del cliente"></div>
-            <div class="form-group sales-field-span-2"><label>Obs</label><input id="sale-observations" type="text" value="${salesEscapeAttr(draft.observations)}" placeholder="Observaciones del comprobante"></div>
-            <div class="form-group"><label>O.C.</label><input id="sale-oc" type="text" value="${salesEscapeAttr(draft.oc)}" placeholder="Orden de compra"></div>
-            <div class="form-group"><label>Rem</label><input id="sale-remito" type="text" value="${salesEscapeAttr(draft.remito)}" placeholder="Referencia"></div>
-          </div>
-          <div class="sales-customer-summary" id="sale-customer-summary">${salesEscapeHtml(customerSummary)}</div>
-          <input id="sale-payment" type="hidden" value="cash">
+        <div class="sales-customer-summary" id="sale-customer-summary">${salesEscapeHtml(customerSummary)}</div>
+        <div class="sales-live-metrics" hidden aria-hidden="true">
+          <strong id="sale-strip-type">${salesEscapeHtml(draft.receiptType)}</strong>
+          <strong id="sale-strip-pos">${salesEscapeHtml(draft.pointOfSale)}</strong>
+          <strong id="sale-date-label">${salesEscapeHtml(salesFormatDate(new Date(draft.date + 'T00:00:00')))}</strong>
+          <strong id="sale-strip-customer">${salesEscapeHtml(customer ? customer.name : 'Consumidor final')}</strong>
+          <strong id="sale-global-discount">0%</strong>
         </div>
-
-        <div class="sales-form-card">
-          <div class="sales-section-head">
-            <div>
-              <p class="sales-section-kicker">Items</p>
-              <h3>Carga de articulos</h3>
-            </div>
-            <div class="sales-shortcut-badge">F5</div>
-          </div>
-          <div class="sales-article-toolbar">
-            <div class="form-group sales-article-search-group">
-              <label>Codigo articulo</label>
-              <div class="sales-inline-combo">
-                <input id="sale-item-search" type="text" placeholder="Buscar por codigo o descripcion" oninput="filterPosProducts()" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); quickAddSaleProduct(); }">
-                <button class="sales-addon-button sales-addon-button--wide" type="button" onclick="quickAddSaleProduct()">Buscar</button>
-              </div>
-            </div>
-          </div>
-          <div class="sales-search-meta" id="sales-search-meta">Escribe un codigo o descripcion y presiona Enter para agregar.</div>
-          <div class="sales-search-results" id="sales-search-results" hidden></div>
-          <div class="sales-lines-table-wrap">
-            <table class="sales-lines-table">
-              <thead>
-                <tr>
-                  <th>Cant.</th>
-                  <th>Codigo</th>
-                  <th>Descripcion</th>
-                  <th>Precio unitario</th>
-                  <th>Desc %</th>
-                  <th>Total</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody id="sales-lines-body"></tbody>
-            </table>
-          </div>
-        </div>
+        <input id="sale-payment" type="hidden" value="cash">
       </div>
 
-      <aside class="sales-side-stack">
-        <div class="sales-summary-card">
-          <div id="sales-sync-banner"></div>
-          <div class="sales-summary-row"><span>Neto</span><strong id="sales-neto">$ 0,00</strong></div>
-          <div class="sales-summary-row"><span>Descuento</span><strong id="sales-descuento">$ 0,00</strong></div>
-          <div class="sales-summary-row"><span>Subtotal</span><strong id="sales-subtotal">$ 0,00</strong></div>
-          <div class="sales-summary-row"><span>IVA</span><strong id="sales-iva">$ 0,00</strong></div>
-          <div class="sales-summary-total"><span>Total</span><strong id="cart-total">$ 0,00</strong></div>
-          <div class="sales-summary-note">Panel de totales alineado para cierre rapido del comprobante.</div>
+      <div class="sales-form-card sales-items-card">
+        <div class="sales-section-head">
+          <div></div>
         </div>
-        <div class="sales-shortcuts-card">
-          <h3>Atajos visibles</h3>
-          <div class="sales-shortcuts-list">${['*', '/', '+', '-', 'D', 'F3', 'F5'].map((shortcut) => `<span class="sales-shortcut-chip">${salesEscapeHtml(shortcut)}</span>`).join('')}</div>
+        <div class="sales-article-toolbar sales-article-toolbar--compact">
+          <div class="form-group sales-article-search-group">
+            <label>Codigo Articulo</label>
+            <div class="sales-inline-combo">
+              <input id="sale-item-search" type="text" placeholder="Buscar por codigo o descripcion" oninput="filterPosProducts()" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); quickAddSaleProduct(); }">
+              <button class="sales-addon-button sales-addon-button--wide" type="button" onclick="quickAddSaleProduct()">Buscar</button>
+            </div>
+          </div>
         </div>
-        <div class="sales-footer-actions">
-          <button class="btn btn-secondary" type="button" onclick="showSalesUiNotice('Traer comprobante')">Traer</button>
-          <button class="btn btn-success" type="button" onclick="processSale()">Guardar factura</button>
+        <div class="sales-search-meta" id="sales-search-meta">Escribe un codigo o descripcion y presiona Enter para agregar.</div>
+        <div class="sales-search-results" id="sales-search-results" hidden></div>
+        <div class="sales-lines-table-wrap">
+          <table class="sales-lines-table">
+            <thead>
+              <tr>
+                <th>Cant.</th>
+                <th>Codigo</th>
+                <th>Descripcion</th>
+                <th>Precio Unit.</th>
+                <th>Desc. %</th>
+                <th>Total</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="sales-lines-body"></tbody>
+          </table>
         </div>
-      </aside>
+        <div class="sales-summary-inline">
+          <div class="sales-summary-card sales-summary-card--full">
+            <div id="sales-sync-banner"></div>
+            <div class="sales-summary-row"><span>Neto</span><strong id="sales-neto">$ 0,00</strong></div>
+            <div class="sales-summary-row"><span>Descuento</span><strong id="sales-descuento">$ 0,00</strong></div>
+            <div class="sales-summary-row"><span>Subtotal</span><strong id="sales-subtotal">$ 0,00</strong></div>
+            <div class="sales-summary-row"><span>IVA</span><strong id="sales-iva">$ 0,00</strong></div>
+            <div class="sales-summary-total"><span>Total</span><strong id="cart-total">$ 0,00</strong></div>
+          </div>
+        </div>
+        <div class="sales-primary-action">
+          <button class="btn btn-success" type="button" onclick="processSale()">Facturar</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -820,9 +779,10 @@ function quickAddSaleProduct() {
 function renderSaleSearchResult(product) {
   const code = product.sku || ('ART-' + product.id);
   const price = app.formatMoney(Number(product.sale_price) || 0);
+  const productIndex = productsForSale.findIndex((item) => String(item.id) === String(product.id));
 
   return '' +
-    '<button class="sales-search-result" type="button" onclick="addSaleSearchProduct(' + product.id + ')">' +
+    '<button class="sales-search-result" type="button" data-product-index="' + productIndex + '">' +
     '<span class="sales-search-result-main">' +
     '<span class="sales-search-result-code">' + salesEscapeHtml(code) + '</span>' +
     '<span class="sales-search-result-name">' + salesEscapeHtml(product.name) + '</span>' +
@@ -834,8 +794,23 @@ function renderSaleSearchResult(product) {
     '</button>';
 }
 
+function setupSalesInvoiceInteractions() {
+  const results = document.getElementById('sales-search-results');
+  if (!results || results.dataset.bound === 'true') return;
+
+  results.addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-product-index]');
+    if (!trigger) return;
+    event.preventDefault();
+    addSaleSearchProductByIndex(trigger.getAttribute('data-product-index'));
+  });
+
+  results.dataset.bound = 'true';
+}
+
 function addSaleSearchProduct(productId) {
-  addToCart(productId);
+  const product = getProductById(productId);
+  addProductToCart(product);
   const searchInput = document.getElementById('sale-item-search');
   if (searchInput) {
     searchInput.value = '';
@@ -844,25 +819,47 @@ function addSaleSearchProduct(productId) {
   }
 }
 
-function addToCart(productId) {
-  const product = getProductById(productId);
-  if (!product || product.stock <= 0) return;
-  const existing = cart.find((item) => item.product_id === productId);
+function addSaleSearchProductByIndex(productIndex) {
+  const index = Number(productIndex);
+  const product = Number.isInteger(index) ? productsForSale[index] : null;
+  addProductToCart(product);
+  const searchInput = document.getElementById('sale-item-search');
+  if (searchInput) {
+    searchInput.value = '';
+    filterPosProducts();
+    searchInput.focus();
+  }
+}
+
+function addProductToCart(product) {
+  if (!product) {
+    alert('No se pudo resolver el articulo seleccionado');
+    return;
+  }
+  if (Number(product.stock) <= 0) {
+    alert('El articulo no tiene stock disponible');
+    return;
+  }
+
+  const targetId = String(product.id);
+  const existing = cart.find((item) => String(item.product_id) === targetId);
   if (existing) {
-    if (existing.quantity < product.stock) existing.quantity += 1;
+    if (existing.quantity < Number(product.stock)) existing.quantity += 1;
   } else {
-    cart.push({ product_id: productId, code: product.sku || ('ART-' + product.id), name: product.name, price: Number(product.sale_price) || 0, quantity: 1, discount: 0 });
+    cart.push({ product_id: product.id, code: product.sku || ('ART-' + product.id), name: product.name, price: Number(product.sale_price) || 0, quantity: 1, discount: 0 });
   }
   renderCart();
 }
 
 function removeFromCart(productId) {
-  cart = cart.filter((item) => item.product_id !== productId);
+  const targetId = String(productId);
+  cart = cart.filter((item) => String(item.product_id) !== targetId);
   renderCart();
 }
 
 function updateCartQty(productId, qty) {
-  const item = cart.find((cartItem) => cartItem.product_id === productId);
+  const targetId = String(productId);
+  const item = cart.find((cartItem) => String(cartItem.product_id) === targetId);
   if (!item) return;
   if (qty <= 0) {
     removeFromCart(productId);
@@ -874,7 +871,8 @@ function updateCartQty(productId, qty) {
 }
 
 function updateCartPrice(productId, newPrice) {
-  const item = cart.find((cartItem) => cartItem.product_id === productId);
+  const targetId = String(productId);
+  const item = cart.find((cartItem) => String(cartItem.product_id) === targetId);
   if (!item) return;
   const price = Number.parseFloat(newPrice);
   if (!Number.isFinite(price) || price <= 0) {
@@ -887,7 +885,8 @@ function updateCartPrice(productId, newPrice) {
 }
 
 function updateCartDiscount(productId, newDiscount) {
-  const item = cart.find((cartItem) => cartItem.product_id === productId);
+  const targetId = String(productId);
+  const item = cart.find((cartItem) => String(cartItem.product_id) === targetId);
   if (!item) return;
   const discount = Number.parseFloat(newDiscount);
   if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
@@ -976,13 +975,13 @@ function renderCart() {
         '<tr>' +
         '<td><div class="sales-qty-control">' +
         '<button type="button" onclick="updateCartQty(' + item.product_id + ', ' + (item.quantity - 1) + ')">-</button>' +
-        '<input class="sales-qty-input" type="number" min="1" inputmode="numeric" value="' + item.quantity + '" onfocus="this.select()" onkeydown="if(event.key === \'Enter\'){ this.blur(); }" onchange="updateCartQty(' + item.product_id + ', Number(this.value))">' +
+        '<input class="sales-qty-input" type="text" inputmode="numeric" value="' + item.quantity + '" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 0 })" onkeydown="if(event.key === \'Enter\'){ this.blur(); }" onchange="updateCartQty(' + item.product_id + ', app.parseIntegerInputValue(this.value, 1))" onblur="this.value = String(Math.max(1, app.parseIntegerInputValue(this.value, 1)))">' +
         '<button type="button" onclick="updateCartQty(' + item.product_id + ', ' + (item.quantity + 1) + ')">+</button>' +
         '</div></td>' +
         '<td class="sales-line-code">' + salesEscapeHtml(item.code) + '</td>' +
         '<td><div class="sales-line-name">' + salesEscapeHtml(item.name) + '</div></td>' +
-        '<td><input class="sales-line-input sales-line-input--price" type="number" min="0.01" step="0.01" inputmode="decimal" value="' + Number(item.price).toFixed(2) + '" onfocus="this.select()" onkeydown="if(event.key === \'Enter\'){ this.blur(); }" onchange="updateCartPrice(' + item.product_id + ', this.value)"></td>' +
-        '<td><input class="sales-line-input sales-line-input--discount" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="' + Number(item.discount || 0).toFixed(2) + '" onfocus="this.select()" onkeydown="if(event.key === \'Enter\'){ this.blur(); }" onchange="updateCartDiscount(' + item.product_id + ', this.value)"></td>' +
+        '<td><input class="sales-line-input sales-line-input--price" type="text" inputmode="decimal" value="' + app.formatDecimalInputValue(item.price, 2) + '" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 2 })" onkeydown="if(event.key === \'Enter\'){ this.blur(); }" onchange="updateCartPrice(' + item.product_id + ', this.value)" onblur="this.value = app.formatDecimalInputValue(Math.max(0.01, app.parseLocaleNumber(this.value, 0.01)), 2)"></td>' +
+        '<td><input class="sales-line-input sales-line-input--discount" type="text" inputmode="decimal" value="' + app.formatDecimalInputValue(item.discount || 0, 2) + '" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 2 })" onkeydown="if(event.key === \'Enter\'){ this.blur(); }" onchange="updateCartDiscount(' + item.product_id + ', this.value)" onblur="this.value = app.formatDecimalInputValue(Math.min(100, Math.max(0, app.parseLocaleNumber(this.value, 0))), 2)"></td>' +
         '<td class="sales-line-total">' + app.formatMoney(subtotal) + '</td>' +
         '<td><button class="btn btn-sm btn-danger" type="button" onclick="removeFromCart(' + item.product_id + ')">Quitar</button></td>' +
         '</tr>';

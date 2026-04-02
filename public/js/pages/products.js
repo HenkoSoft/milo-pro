@@ -24,8 +24,7 @@ const productsUiState = {
   planillaCategory: '',
   planillaStock: '',
   modalImages: [],
-  dragImageIndex: null,
-  modalImageUrlsDraft: ''
+  dragImageIndex: null
 };
 
 function productsEscapeHtml(value) {
@@ -37,16 +36,11 @@ function productsEscapeAttr(value) {
 }
 
 function parseProductDecimal(value) {
-  const normalized = String(value ?? '')
-    .trim()
-    .replace(/\s+/g, '')
-    .replace(',', '.');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return app.parseLocaleNumber(value, 0);
 }
 
 function formatProductDecimal(value, digits = 2) {
-  return parseProductDecimal(value).toFixed(digits);
+  return app.formatDecimalInputValue(parseProductDecimal(value), digits);
 }
 
 function roundProductSalePrice(value) {
@@ -60,6 +54,25 @@ function formatProductPercent(value) {
   return Number.isInteger(amount) ? String(amount) : formatProductDecimal(amount);
 }
 
+function parseProductInteger(value, fallback = 0) {
+  return app.parseIntegerInputValue(value, fallback);
+}
+
+function normalizeProductIntegerField(input, fallback = 0) {
+  if (!input) return;
+  app.sanitizeNumericInput(input, { decimals: 0 });
+  input.value = input.value === '' ? String(fallback) : String(parseProductInteger(input.value, fallback));
+}
+
+function getNextProductSkuPreview() {
+  const maxNumber = productsData.reduce((max, item) => {
+    const match = String((item && item.sku) || '').trim().match(/^ART-(\d+)$/i);
+    const current = match ? Number.parseInt(match[1], 10) : 0;
+    return Number.isFinite(current) && current > max ? current : max;
+  }, 0);
+  return 'ART-' + String(maxNumber + 1).padStart(6, '0');
+}
+
 function buildOptions(options, selectedValue, placeholder) {
   const current = String(selectedValue || '');
   let html = placeholder ? '<option value="">' + productsEscapeHtml(placeholder) + '</option>' : '';
@@ -69,6 +82,16 @@ function buildOptions(options, selectedValue, placeholder) {
     html += '<option value="' + productsEscapeAttr(value) + '"' + (current === String(value) ? ' selected' : '') + '>' + productsEscapeHtml(label) + '</option>';
   });
   return html;
+}
+
+function isGenericUncategorizedCategory(categoryId) {
+  const category = categoriesData.find((item) => String(item.id) === String(categoryId));
+  const name = String((category && (category.full_name || category.name)) || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  return name === 'uncategorized' || name === 'sin categoria';
 }
 
 function getSupplierNames() {
@@ -218,7 +241,7 @@ function renderProductsPlanilla() {
         <thead>
           <tr>
             <th>Foto</th>
-            <th>Codigo</th>
+            <th>Código / SKU</th>
             <th>Cod. Prov.</th>
             <th>Descripcion</th>
             <th>Marca</th>
@@ -259,8 +282,6 @@ function renderProductsPlanilla() {
                 <div class="btn-group">
                   <button class="btn btn-sm btn-secondary" type="button" onclick="showProductModal(${product.id})">Editar</button>
                   <button class="btn btn-sm btn-info" type="button" onclick="syncProductToWoo(${product.id})">Sync</button>
-                  <button class="btn btn-sm btn-secondary" type="button" onclick="retryProductImagesToWoo(${product.id})">Img</button>
-                  <button class="btn btn-sm btn-secondary" type="button" onclick="reconcileProductToWoo(${product.id})">SKU</button>
                   <button class="btn btn-sm btn-danger" type="button" onclick="deleteProduct(${product.id})">Eliminar</button>
                 </div>
               </td>
@@ -328,7 +349,7 @@ function renderProductsModule(sectionId) {
         <div class="form-group"><label>Categoria</label><select>${getCategoryOptions('')}</select></div>
         <div class="form-group"><label>Lista a actualizar</label><select>${buildOptions(['Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'], 'Lista 1', '')}</select></div>
         <div class="form-group"><label>Tomando como base</label><select>${buildOptions(['Costo', 'Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'], 'Costo', '')}</select></div>
-        <div class="form-group"><label>Valor</label><input type="number" value="0"></div>
+        <div class="form-group"><label>Valor</label><input type="text" inputmode="decimal" value="0" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 2 })" onblur="this.value = this.value === '' ? '0.00' : app.formatDecimalInputValue(this.value, 2)"></div>
         <div class="form-group"><label>Modo</label><div class="products-segmented"><label><input type="radio" checked> %</label><label><input type="radio"> $</label></div></div>
         <div class="form-group"><label>Redondear a</label><select>${buildOptions([0, 1, 5, 10, 50, 100].map((item) => ({ value: item, label: item === 0 ? 'Sin redondeo' : item })), '0', '')}</select></div>
       </div>
@@ -338,7 +359,7 @@ function renderProductsModule(sectionId) {
         <section class="products-split-panel">
           <div class="form-group"><label>Buscar por codigo o descripcion (F1,F2)</label><input type="text" placeholder="Buscar..."></div>
           <div class="products-help-line">Ingrese la cantidad del nuevo stock y pulse Enter.</div>
-          <div class="products-sheet-table-wrap"><table class="products-sheet-table"><thead><tr><th>Codigo</th><th>Descripcion</th><th>Stock actual</th><th>Nuevo stock</th></tr></thead><tbody>${productsData.slice(0, 8).map((product) => `<tr><td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td><td>${productsEscapeHtml(product.name)}</td><td>${productsEscapeHtml(product.stock)}</td><td><input class="products-inline-number" type="number" value="${productsEscapeAttr(product.stock)}"></td></tr>`).join('')}</tbody></table></div>
+          <div class="products-sheet-table-wrap"><table class="products-sheet-table"><thead><tr><th>Codigo</th><th>Descripcion</th><th>Stock actual</th><th>Nuevo stock</th></tr></thead><tbody>${productsData.slice(0, 8).map((product) => `<tr><td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td><td>${productsEscapeHtml(product.name)}</td><td>${productsEscapeHtml(product.stock)}</td><td><input class="products-inline-number" type="text" inputmode="numeric" value="${productsEscapeAttr(product.stock)}" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 0 })" onblur="normalizeProductIntegerField(this, ${parseProductInteger(product.stock, 0)})"></td></tr>`).join('')}</tbody></table></div>
         </section>
         <section class="products-split-panel">
           <div class="products-subtitle">Ajustes a realizar</div>
@@ -435,28 +456,17 @@ function renderProductImageManager() {
     .slice()
     .sort((a, b) => Number(a.orden || 0) - Number(b.orden || 0));
 
-  const manualUrlsText = productsUiState.modalImageUrlsDraft || images
-    .filter((item) => item.origen === 'url' && !item.upload_data && /^https?:\/\//i.test(item.url_publica || item.url_remote || ''))
-    .map((item) => item.url_publica || item.url_remote || '')
-    .join('\n');
-
   return `
     <div class="products-image-manager">
       <input id="product-image-upload" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple hidden onchange="handleProductImagePickerChange(event)">
       <div class="products-image-dropzone" ondragover="handleProductImageDragOver(event)" ondrop="handleProductImageDrop(event)">
-        <strong>Subir imagenes</strong>
-        <span>Arrastra archivos aqui o selecciona desde tu PC. Se optimizan automaticamente a WEBP 1200x1200.</span>
         <div class="products-image-dropzone-actions">
-          <button class="btn btn-secondary" type="button" onclick="openProductImagePicker()">Seleccionar archivos</button>
+          <button class="btn btn-secondary" type="button" onclick="openProductImagePicker()">Seleccionar imagen</button>
         </div>
-      </div>
-      <div class="form-group">
-        <label>URLs manuales opcionales</label>
-        <textarea id="product-image-urls" rows="3" placeholder="Una URL por linea" oninput="updateProductImageUrlsDraft(this.value)">${productsEscapeHtml(manualUrlsText)}</textarea>
       </div>
       <div class="products-image-gallery">
         ${images.length === 0 ? '<div class="products-sheet-empty">Todavia no hay imagenes cargadas.</div>' : images.map((image, index) => `
-          <article class="products-image-card${image.es_principal ? ' is-primary' : ''}" draggable="true" ondragstart="startProductImageReorder(${index})" ondragover="allowProductImageReorder(event)" ondrop="dropProductImageReorder(${index})">
+          <article class="products-image-card${image.es_principal ? ' is-primary' : ''}">
             <div class="products-image-card-media">
               ${(image.preview_url && app.safeImageUrl(image.preview_url))
                 ? `<img src="${app.safeImageUrl(image.preview_url)}" alt="Imagen ${index + 1}">`
@@ -464,12 +474,12 @@ function renderProductImageManager() {
             </div>
             <div class="products-image-card-meta">
               <strong>${productsEscapeHtml(image.nombre_archivo || `Imagen ${index + 1}`)}</strong>
-              <span>${productsEscapeHtml(image.optimizada || image.upload_data || image.origen === 'local' ? 'Optimizada automaticamente' : 'URL externa')}</span>
+              <span>${image.es_principal ? 'Imagen principal' : 'Imagen secundaria'}</span>
             </div>
             <div class="products-image-card-actions">
-              <button class="btn btn-sm ${image.es_principal ? 'btn-success' : 'btn-secondary'}" type="button" onclick="setProductPrimaryImage(${index})">${image.es_principal ? 'Principal' : 'Hacer principal'}</button>
-              <button class="btn btn-sm btn-secondary" type="button" onclick="moveProductImage(${index}, -1)" ${index === 0 ? 'disabled' : ''}>Subir</button>
-              <button class="btn btn-sm btn-secondary" type="button" onclick="moveProductImage(${index}, 1)" ${index === images.length - 1 ? 'disabled' : ''}>Bajar</button>
+              ${image.es_principal
+                ? '<span class="products-image-card-badge">Principal</span>'
+                : `<button class="btn btn-sm btn-secondary" type="button" onclick="setProductPrimaryImage(${index})">Marcar principal</button>`}
               <button class="btn btn-sm btn-danger" type="button" onclick="removeProductImage(${index})">Eliminar</button>
             </div>
           </article>
@@ -490,6 +500,7 @@ function buildProductModalHtml(product) {
   const defaultTax = 21;
   const baseCost = Number(product && product.purchase_price ? product.purchase_price : 0);
   const baseSale = Number(product && product.sale_price ? product.sale_price : 0);
+  const calcEnabledByDefault = !(baseCost <= 0 && baseSale > 0);
   const inferredMargin = baseCost > 0
     ? Math.max(0, (((baseSale / (1 + defaultTax / 100)) / baseCost) - 1) * 100)
     : 35;
@@ -515,14 +526,14 @@ function buildProductModalHtml(product) {
           <section class="products-modal-panel${productsUiState.modalTab === 'data' ? ' is-active' : ''}" data-panel="data">
             <div class="products-modal-data-layout">
               <div class="products-modal-data-grid">
-                <div class="form-group"><label>Codigo</label><input id="product-sku" type="text" value="${productsEscapeAttr(product ? product.sku : '')}"></div>
+                <div class="form-group"><label>Código / SKU</label><input id="product-sku" type="text" value="${productsEscapeAttr(product ? product.sku : '')}" placeholder="Se genera automáticamente si lo deja vacío" oninput="this.dataset.edited = 'true'"></div>
                 <div class="form-group"><label>Cod. Prov.</label><input id="product-barcode" type="text" value="${productsEscapeAttr(product ? product.barcode : '')}"></div>
                 <div class="form-group products-field-span-2"><label>Descripcion</label><input id="product-name" type="text" value="${productsEscapeAttr(product ? product.name : '')}" required></div>
                 <div class="form-group"><label>Rubro</label><div class="products-input-combo"><select>${buildOptions([], '', 'Seleccionar rubro')}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de rubro')">+</button></div></div>
                 <div class="products-woo-attributes-card products-field-span-2">
                   <div class="products-woo-attributes-head">
                     <strong>Atributos WooCommerce</strong>
-                    <span>Marca y Color ayudan a que el producto se publique completo y se encuentre mejor en WooCommerce.</span>
+                    <span>Marca y color son datos opcionales. Si están cargados, ayudan a enriquecer la publicación en WooCommerce.</span>
                   </div>
                   <div class="products-woo-attributes-grid">
                     <div class="form-group"><label>Marca</label><div class="products-input-combo"><select id="product-brand">${brandOptions}</select><button type="button" class="products-addon-button" onclick="showProductUiNotice('Alta de marca')">+</button></div></div>
@@ -535,8 +546,8 @@ function buildProductModalHtml(product) {
                 <div class="form-group"><label>Categoria principal</label><select id="product-category">${categoryOptions}</select><div class="products-help-inline">Gestiona el arbol en Administracion -> Categorias</div></div>
                 <div class="form-group products-field-span-2"><label>Categorias adicionales</label><select id="product-category-multi" multiple size="6">${categoriesData.map((item) => `<option value="${productsEscapeAttr(item.id)}"${categoryIds.includes(String(item.id)) ? ' selected' : ''}>${productsEscapeHtml(item.full_name || item.name)}</option>`).join('')}</select><div class="products-help-inline">Puede elegir varias categorias. La principal tambien queda dentro de esta relacion.</div></div>
                 <div class="form-group products-field-span-2"><label>Descripcion corta</label><input id="product-short-description" type="text" value="${productsEscapeAttr(product ? (product.short_description || '') : '')}"></div>
-                <div class="form-group"><label>Stock</label><input id="product-stock" type="number" value="${productsEscapeAttr(product ? product.stock : 0)}"></div>
-                <div class="form-group"><label>Stock minimo</label><input id="product-min-stock" type="number" value="${productsEscapeAttr(product ? product.min_stock : 2)}"></div>
+                <div class="form-group"><label>Stock</label><input id="product-stock" type="text" inputmode="numeric" value="${productsEscapeAttr(product ? product.stock : 0)}" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 0 })" onblur="normalizeProductIntegerField(this, 0)"></div>
+                <div class="form-group"><label>Stock minimo</label><input id="product-min-stock" type="text" inputmode="numeric" value="${productsEscapeAttr(product ? product.min_stock : 2)}" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 0 })" onblur="normalizeProductIntegerField(this, 2)"></div>
                 <div class="form-group"><label>Estado sync</label><input type="text" value="${productsEscapeAttr(product ? (product.sync_status || 'pending') : 'pending')}" readonly></div>
                 <div class="form-group"><label>ID WooCommerce</label><input type="text" value="${productsEscapeAttr(product ? (product.woocommerce_product_id || product.woocommerce_id || '') : '')}" readonly></div>
                 <div class="products-check-row products-field-span-2"><label><input type="checkbox"> Promocion</label><label><input type="checkbox"> Servicio</label></div>
@@ -544,7 +555,7 @@ function buildProductModalHtml(product) {
               <aside class="products-modal-photo-card">
                 <div class="products-modal-photo-title">Foto del producto</div>
                 <div id="product-image-preview" class="products-modal-photo-frame">${preview}</div>
-                <button class="btn btn-secondary" type="button" onclick="changeProductPhoto()">Cambiar foto</button>
+                <button class="btn btn-secondary" type="button" onclick="changeProductPhoto()">Cargar imagen</button>
                 <div id="product-image-manager-slot" style="margin-top:12px;">${renderProductImageManager()}</div>
               </aside>
             </div>
@@ -554,7 +565,7 @@ function buildProductModalHtml(product) {
               <div class="form-group"><label>Costo</label><input id="product-purchase" type="text" inputmode="decimal" value="${productsEscapeAttr(formatProductDecimal(baseCost))}" onfocus="this.select()" oninput="updateProductPriceCalculation()" onblur="formatProductPriceField('product-purchase')"></div>
               <div class="form-group"><label>Utilidad %</label><input id="product-margin" type="text" inputmode="decimal" value="${productsEscapeAttr(formatProductPercent(inferredMargin))}" onfocus="this.select()" oninput="updateProductPriceCalculation()" onblur="formatProductPercentField('product-margin')"></div>
               <div class="form-group"><label>IVA</label><select id="product-tax" onchange="updateProductPriceCalculation()">${buildOptions(PRODUCT_IVA_OPTIONS.map((item) => ({ value: item, label: item + '%' })), String(defaultTax), '')}</select></div>
-              <div class="form-group"><label>Impuesto interno (%)</label><input type="number" step="0.01" value="0"></div>
+              <div class="form-group"><label>Impuesto interno (%)</label><input type="text" inputmode="decimal" value="0.00" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 2 })" onblur="this.value = this.value === '' ? '0.00' : app.formatDecimalInputValue(this.value, 2)"></div>
               <div class="products-check-row"><label><input type="checkbox"> Costo en dolares</label></div>
             </div>
             <div class="products-price-summary" id="product-price-summary"></div>
@@ -565,17 +576,17 @@ function buildProductModalHtml(product) {
                   ${['1','2','3','4','5','6'].map((item, index) => `
                     <tr>
                       <td>Lista ${item}</td>
-                      <td><input type="checkbox" ${index === 0 ? 'id="product-calc-enabled" checked onchange="toggleProductPriceMode()"' : ''}></td>
+                      <td><input type="checkbox" ${index === 0 ? `id="product-calc-enabled" ${calcEnabledByDefault ? 'checked' : ''} onchange="toggleProductPriceMode()"` : ''}></td>
                       <td><input class="products-inline-number" type="text" inputmode="decimal" ${index === 0 ? `id="product-margin-table" value="${productsEscapeAttr(formatProductPercent(inferredMargin))}" onfocus="this.select()" oninput="syncProductMarginFromTable(this.value)" onblur="formatProductPercentField('product-margin-table')"` : 'value="0"'}></td>
                       <td><input type="checkbox" ${index === 0 ? 'id="product-include-tax" checked onchange="updateProductPriceCalculation()"' : 'checked'}></td>
                       <td><input type="checkbox"></td>
-                      <td><input class="products-inline-number" type="text" inputmode="decimal" ${index === 0 ? `id="product-sale" value="${productsEscapeAttr(formatProductDecimal(baseSale))}" onfocus="selectProductSaleValue()" onblur="formatProductPriceField('product-sale')"` : 'value="0.00"'} ${index === 0 ? 'readonly' : ''}></td>
+                      <td><input class="products-inline-number" type="text" inputmode="decimal" ${index === 0 ? `id="product-sale" value="${productsEscapeAttr(formatProductDecimal(baseSale))}" onfocus="selectProductSaleValue()" onblur="formatProductPriceField('product-sale')"` : 'value="0.00"'} ${index === 0 && calcEnabledByDefault ? 'readonly' : ''}></td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
             </div>
-            <div class="products-help-line">La Lista 1 se calcula en vivo con costo, utilidad e IVA. Si desmarca "Calculada", puede editar el valor de venta manualmente.</div>
+            <div class="products-help-line">La Lista 1 se calcula en vivo con costo, utilidad e IVA. Si el costo es 0 o prefiere fijar el valor manualmente, desmarque "Calculada".</div>
           </section>
         </div>
         <div class="modal-footer products-modal-footer">
@@ -595,18 +606,35 @@ function setProductModalTab(tabId) {
   document.querySelectorAll('.products-modal-panel').forEach((panel) => {
     panel.classList.toggle('is-active', panel.getAttribute('data-panel') === tabId);
   });
+  const modalBody = document.querySelector('.products-modal-body');
+  if (modalBody) {
+    modalBody.scrollTop = 0;
+  }
 }
 
-function showProductModal(id) {
+async function showProductModal(id) {
   productsUiState.modalTab = 'data';
-  const product = id ? productsData.find((item) => item.id === id) : null;
+  const product = id ? productsData.find((item) => item.id === id) : { sku: '', stock: 0, min_stock: 2 };
   productsUiState.modalImages = buildProductModalImageState(product || null);
   productsUiState.dragImageIndex = null;
-  productsUiState.modalImageUrlsDraft = (product && Array.isArray(product.images) ? product.images : [])
-    .map((item) => item.url_remote || '')
-    .filter((item) => /^https?:\/\//i.test(item))
-    .join('\n');
   app.showModal(buildProductModalHtml(product || null));
+  if (!id) {
+    const skuField = document.getElementById('product-sku');
+    const previewSku = getNextProductSkuPreview();
+    if (skuField && !String(skuField.value || '').trim()) {
+      skuField.value = previewSku;
+    }
+    try {
+      const nextSkuResponse = await api.products.nextSku();
+      if (skuField && skuField.dataset.edited !== 'true') {
+        skuField.value = String((nextSkuResponse && nextSkuResponse.sku) || '').trim() || previewSku;
+      }
+    } catch (error) {
+      if (skuField && !String(skuField.value || '').trim()) {
+        skuField.value = previewSku;
+      }
+    }
+  }
   initializeProductPriceCalculator();
   refreshProductImageUi();
 }
@@ -629,10 +657,6 @@ function sortModalImages() {
 }
 
 function refreshProductImageUi() {
-  const urlsField = document.getElementById('product-image-urls');
-  if (urlsField) {
-    productsUiState.modalImageUrlsDraft = urlsField.value || '';
-  }
   sortModalImages();
   const slot = document.getElementById('product-image-manager-slot');
   if (slot) {
@@ -649,10 +673,6 @@ function refreshProductImageUi() {
     const imageUrl = primaryImage ? app.safeImageUrl(primaryImage.preview_url || primaryImage.url_publica || primaryImage.url_remote || primaryImage.url_local || '') : '';
     preview.innerHTML = imageUrl ? '<img src="' + imageUrl + '" class="products-modal-photo-img" alt="Foto">' : '<div class="products-modal-photo-placeholder">Sin imagen</div>';
   }
-}
-
-function updateProductImageUrlsDraft(value) {
-  productsUiState.modalImageUrlsDraft = value || '';
 }
 
 function openProductImagePicker() {
@@ -761,48 +781,7 @@ function dropProductImageReorder(targetIndex) {
 }
 
 function changeProductPhoto() {
-  const input = document.getElementById('product-image');
-  const textarea = document.getElementById('product-image-urls');
-  const current = input ? input.value : '';
-  const next = prompt('Ingresa la URL de la foto del producto', current || '');
-  if (next === null || !input) return;
-  const url = next.trim();
-  input.value = url;
-  if (url) {
-    const existingIndex = (productsUiState.modalImages || []).findIndex((item) => (item.url_publica || item.url_remote || '') === url);
-    if (existingIndex >= 0) {
-      setProductPrimaryImage(existingIndex);
-    } else {
-      productsUiState.modalImages.unshift({
-        id: null,
-        nombre_archivo: null,
-        ruta_local: null,
-        url_publica: url,
-        url_local: null,
-        url_remote: url,
-        woocommerce_media_id: null,
-        es_principal: true,
-        orden: 0,
-        optimizada: false,
-        origen: 'url',
-        upload_data: null,
-        preview_url: url
-      });
-      productsUiState.modalImages = productsUiState.modalImages.map((item, index) => ({
-        ...item,
-        es_principal: index === 0,
-        orden: index
-      }));
-      refreshProductImageUi();
-    }
-  }
-  if (textarea) {
-    const manualUrls = (productsUiState.modalImages || [])
-      .filter((item) => item.origen === 'url' && /^https?:\/\//i.test(item.url_publica || item.url_remote || ''))
-      .map((item) => item.url_publica || item.url_remote || '');
-    textarea.value = manualUrls.join('\n');
-    productsUiState.modalImageUrlsDraft = textarea.value;
-  }
+  openProductImagePicker();
 }
 
 function showProductUiNotice(featureName) {
@@ -934,31 +913,12 @@ async function saveProduct() {
   const selectedExtraCategories = categoryMulti
     ? Array.from(categoryMulti.selectedOptions || []).map((option) => option.value)
     : [];
-  const imageUrls = String((document.getElementById('product-image-urls') || {}).value || '')
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const modalImages = (productsUiState.modalImages || []).map((item) => ({ ...item }));
-  const existingUrls = new Set(modalImages.map((item) => item.url_publica || item.url_remote || item.preview_url || '').filter(Boolean));
-  imageUrls.forEach((url) => {
-    if (!existingUrls.has(url)) {
-      modalImages.push({
-        id: null,
-        nombre_archivo: null,
-        ruta_local: null,
-        url_publica: url,
-        url_local: null,
-        url_remote: url,
-        woocommerce_media_id: null,
-        es_principal: modalImages.length === 0,
-        orden: modalImages.length,
-        optimizada: false,
-        origen: 'url',
-        upload_data: null,
-        preview_url: url
-      });
-    }
+  const cleanedExtraCategories = selectedExtraCategories.filter((categoryId) => {
+    if (!primaryCategoryId) return true;
+    if (String(categoryId) === String(primaryCategoryId)) return true;
+    return !isGenericUncategorizedCategory(categoryId);
   });
+  const modalImages = (productsUiState.modalImages || []).map((item) => ({ ...item }));
   const normalizedModalImages = modalImages.map((item, index) => ({
     ...item,
     es_principal: item.es_principal || index === 0,
@@ -974,14 +934,14 @@ async function saveProduct() {
     color: ((document.getElementById('product-color') || {}).value || '').trim(),
     category_id: primaryCategoryId,
     category_primary_id: primaryCategoryId,
-    category_ids: [...new Set([primaryCategoryId, ...selectedExtraCategories].filter(Boolean))],
+    category_ids: [...new Set([primaryCategoryId, ...cleanedExtraCategories].filter(Boolean))],
     brand_id: ((document.getElementById('product-brand') || {}).value || '') || null,
     supplier: ((document.getElementById('product-supplier') || {}).value || '').trim(),
     purchase_price: parseProductDecimal((document.getElementById('product-purchase') || {}).value || 0),
     sale_price: parseProductDecimal((document.getElementById('product-sale') || {}).value || 0),
-    stock: Number((document.getElementById('product-stock') || {}).value || 0),
-    min_stock: Number((document.getElementById('product-min-stock') || {}).value || 2),
-    image_url: ((document.getElementById('product-image') || {}).value || '').trim() || (primaryModalImage ? (primaryModalImage.url_publica || primaryModalImage.url_remote || primaryModalImage.preview_url || '') : '') || imageUrls[0] || null,
+    stock: parseProductInteger((document.getElementById('product-stock') || {}).value || 0, 0),
+    min_stock: parseProductInteger((document.getElementById('product-min-stock') || {}).value || 2, 2),
+    image_url: ((document.getElementById('product-image') || {}).value || '').trim() || (primaryModalImage ? (primaryModalImage.url_publica || primaryModalImage.url_remote || primaryModalImage.preview_url || '') : '') || null,
     images: normalizedModalImages.map((item, index) => ({
       id: item.id || null,
       nombre_archivo: item.nombre_archivo || null,
@@ -1004,27 +964,9 @@ async function saveProduct() {
     return;
   }
 
-  if (!data.brand_id) {
-    setProductFormFeedback('La marca es obligatoria para publicar el articulo correctamente en WooCommerce.');
-    focusProductField('product-brand', 'data');
-    return;
-  }
-
-  if (!data.color) {
-    setProductFormFeedback('El color es obligatorio para publicar el articulo correctamente en WooCommerce.');
-    focusProductField('product-color', 'data');
-    return;
-  }
-
   if (data.purchase_price < 0) {
     setProductFormFeedback('El precio de costo no puede ser negativo.');
     focusProductField('product-purchase', 'prices');
-    return;
-  }
-
-  if (data.sale_price <= 0) {
-    setProductFormFeedback('El precio de venta debe ser mayor a cero.');
-    focusProductField('product-sale', 'prices');
     return;
   }
 
@@ -1135,7 +1077,6 @@ window.openProductImagePicker = openProductImagePicker;
 window.handleProductImagePickerChange = handleProductImagePickerChange;
 window.handleProductImageDragOver = handleProductImageDragOver;
 window.handleProductImageDrop = handleProductImageDrop;
-window.updateProductImageUrlsDraft = updateProductImageUrlsDraft;
 window.setProductPrimaryImage = setProductPrimaryImage;
 window.moveProductImage = moveProductImage;
 window.removeProductImage = removeProductImage;
@@ -1143,6 +1084,7 @@ window.startProductImageReorder = startProductImageReorder;
 window.allowProductImageReorder = allowProductImageReorder;
 window.dropProductImageReorder = dropProductImageReorder;
 window.setProductModalTab = setProductModalTab;
+window.normalizeProductIntegerField = normalizeProductIntegerField;
 window.formatProductPriceField = formatProductPriceField;
 window.formatProductPercentField = formatProductPercentField;
 window.selectProductSaleValue = selectProductSaleValue;

@@ -1,5 +1,48 @@
 ﻿let currentPage = 'dashboard';
 
+function normalizePageHeading(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function dedupePageContentHeading() {
+  const pageTitle = document.getElementById('page-title');
+  const content = document.getElementById('page-content');
+  if (!pageTitle || !content) return;
+
+  const titleText = normalizePageHeading(pageTitle.textContent);
+  if (!titleText) return;
+
+  const contentHead = content.querySelector('.products-module-head, .sales-module-head, .admin-module-head, .reports-module-head, .cash-module-head, .sellers-module-head, .tools-module-head, .help-module-head');
+  if (!contentHead) return;
+
+  const contentTitle = contentHead.querySelector('h2');
+  const contentKicker = contentHead.querySelector('p');
+  const contentTitleText = contentTitle ? normalizePageHeading(contentTitle.textContent) : '';
+  const contentKickerText = contentKicker ? normalizePageHeading(contentKicker.textContent) : '';
+
+  if (contentTitle) {
+    contentTitle.hidden = contentTitleText === titleText;
+  }
+
+  if (contentKicker) {
+    const kickerIsDuplicate = contentKickerText === titleText
+      || (contentTitleText && (contentTitleText === contentKickerText || contentTitleText.startsWith(contentKickerText + ' ')));
+    contentKicker.hidden = kickerIsDuplicate;
+  }
+}
+
+function schedulePageHeadingDedupe() {
+  dedupePageContentHeading();
+  window.requestAnimationFrame(dedupePageContentHeading);
+  window.setTimeout(dedupePageContentHeading, 120);
+  window.setTimeout(dedupePageContentHeading, 400);
+}
+
 function getPages() {
   const settingsRender = typeof renderSettings === 'function' ? renderSettings : () => {
     document.getElementById('page-content').innerHTML = '<div class="alert alert-warning">Cargando configuracion...</div>';
@@ -132,6 +175,10 @@ function navigate(page) {
   if (!pages || !pages[page]) page = 'dashboard';
   currentPage = page;
 
+  document.querySelectorAll('.nav-group').forEach((group) => {
+    group.classList.remove('open');
+  });
+
   document.querySelectorAll('.nav-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.page === page);
   });
@@ -148,9 +195,6 @@ function navigate(page) {
 
   if (comprasChildPages.includes(page)) {
     document.getElementById('compras-group')?.classList.add('open');
-  }
-  if (articulosChildPages.includes(page)) {
-    document.getElementById('articulos-group')?.classList.add('open');
   }
   if (ventasChildPages.includes(page)) {
     document.getElementById('ventas-group')?.classList.add('open');
@@ -193,6 +237,7 @@ function navigate(page) {
 
   if (typeof renderFunc === 'function') {
     renderFunc();
+    schedulePageHeadingDedupe();
   } else {
     document.getElementById('page-content').innerHTML = '<div class="alert alert-warning">Pagina no disponible</div>';
   }

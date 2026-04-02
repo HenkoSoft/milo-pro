@@ -192,9 +192,9 @@ function updateCreditItemFromProduct() {
 }
 
 function calculateCreditItemSubtotal() {
-  const qty = parseFloat(document.getElementById('credit-item-quantity').value) || 0;
-  const price = parseFloat(document.getElementById('credit-item-price').value) || 0;
-  document.getElementById('credit-item-subtotal').value = (qty * price).toFixed(2);
+  const qty = app.parseLocaleNumber(document.getElementById('credit-item-quantity').value, 0);
+  const price = app.parseLocaleNumber(document.getElementById('credit-item-price').value, 0);
+  document.getElementById('credit-item-subtotal').value = app.formatDecimalInputValue(qty * price, 2);
 }
 
 function searchCreditByCode() {

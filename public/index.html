@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Milo Pro - Sistema de Gesti&oacute;n</title>
-  <link rel="stylesheet" href="/css/styles.css?v=11">
+  <title>Milo Pro - Sistema de Gestión</title>
+  <link rel="stylesheet" href="/css/styles.css?v=13">
 </head>
 <body>
   <div id="login-screen" class="login-screen">
     <div class="login-container">
       <div class="login-header">
         <h1>Milo Pro</h1>
-        <p>Sistema de Gesti&oacute;n</p>
+        <p>Sistema de Gestión</p>
       </div>
       <form id="login-form">
         <div class="form-group">
@@ -19,10 +19,10 @@
           <input type="text" id="username" name="username" required>
         </div>
         <div class="form-group">
-          <label for="password">Contrase&ntilde;a</label>
+          <label for="password">Contraseña</label>
           <input type="password" id="password" name="password" required>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Iniciar Sesi&oacute;n</button>
+        <button type="submit" class="btn btn-primary btn-block">Iniciar Sesión</button>
         <div id="login-error" class="error-message"></div>
       </form>
     </div>
@@ -359,8 +359,8 @@
   <script src="/js/api.js?v=2"></script>
   <script src="/js/auth.js?v=3"></script>
   <script src="/js/pages/dashboard.js?v=2"></script>
-  <script src="/js/pages/products.js?v=3"></script>
-  <script src="/js/pages/sales.js?v=5"></script>
+  <script src="/js/pages/products.js?v=10"></script>
+  <script src="/js/pages/sales.js?v=7"></script>
   <script src="/js/pages/customers.js?v=3"></script>
   <script src="/js/pages/sellers.js?v=1"></script>
   <script src="/js/pages/cash.js?v=1"></script>
@@ -382,7 +382,7 @@
       window.renderSuppliers = renderSuppliers;
     }
   </script>
-  <script src="/js/router.js?v=32"></script>
+  <script src="/js/router.js?v=36"></script>
   
   <script type="text/plain" id="legacy-suppliers-inline-disabled">
   console.log('INLINE SUPPLIERS LOADING');
@@ -406,7 +406,7 @@
           
           <div style="margin-bottom:16px;">
             <label for="supplier-search" style="display:block;font-weight:600;margin-bottom:6px;">Buscar:</label>
-            <input type="text" id="supplier-search" placeholder="Ejemplo b&uacute;squeda..." onkeyup="filterSuppliers()" style="width:100%;max-width:360px;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;">
+            <input type="text" id="supplier-search" placeholder="Ejemplo búsqueda..." onkeyup="filterSuppliers()" style="width:100%;max-width:360px;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;">
           </div>
           
           <div style="margin-top: 15px;">
@@ -440,10 +440,10 @@
       <table class="products-table">
         <thead>
           <tr>
-            <th>C&oacute;digo</th>
-            <th>Raz&oacute;n Social</th>
+            <th>Código</th>
+            <th>Razón Social</th>
             <th>Contacto</th>
-            <th>Tel&eacute;fono</th>
+            <th>Teléfono</th>
             <th>CUIT</th>
             <th>Acciones</th>
           </tr>
@@ -517,12 +517,12 @@
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label for="supplier-name">Raz&oacute;n Social *</label>
+            <label for="supplier-name">Razón Social *</label>
             <input type="text" id="supplier-name" required>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="supplier-phone">Tel&eacute;fono</label>
+              <label for="supplier-phone">Teléfono</label>
               <input type="text" id="supplier-phone">
             </div>
             <div class="form-group">
@@ -575,9 +575,9 @@
         </div>
         <div class="modal-body">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            <div><strong>C&oacute;digo:</strong> ${s.id}</div>
+            <div><strong>Código:</strong> ${s.id}</div>
             <div><strong>CUIT:</strong> ${s.tax_id || '-'}</div>
-            <div><strong>Tel&eacute;fono:</strong> ${s.phone || '-'}</div>
+            <div><strong>Teléfono:</strong> ${s.phone || '-'}</div>
             <div><strong>Email:</strong> ${s.email || '-'}</div>
           </div>
         </div>
@@ -601,12 +601,12 @@
         <div class="modal-body">
           <input type="hidden" id="edit-id" value="${s.id}">
           <div class="form-group">
-            <label for="edit-name">Raz&oacute;n Social *</label>
+            <label for="edit-name">Razón Social *</label>
             <input type="text" id="edit-name" value="${s.name}" required>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="edit-phone">Tel&eacute;fono</label>
+              <label for="edit-phone">Teléfono</label>
               <input type="text" id="edit-phone" value="${s.phone || ''}">
             </div>
             <div class="form-group">
@@ -700,9 +700,9 @@
         <table>
           <thead>
             <tr>
-              <th>C&oacute;digo</th>
-              <th>Raz&oacute;n Social</th>
-              <th>Tel&eacute;fono</th>
+              <th>Código</th>
+              <th>Razón Social</th>
+              <th>Teléfono</th>
               <th>Email</th>
               <th>CUIT</th>
             </tr>
@@ -731,6 +731,6 @@
   console.log('SUPPLIERS LOADED, window.renderSuppliers:', typeof window.renderSuppliers);
   </script>
   
-  <script src="/js/app.js?v=3"></script>
+  <script src="/js/app.js?v=4"></script>
 </body>
 </html>

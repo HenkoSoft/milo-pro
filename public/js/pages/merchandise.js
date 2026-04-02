@@ -236,9 +236,9 @@ function updateItemFromProductSearch() {
 }
 
 function calculateItemSubtotal() {
-  const qty = parseFloat(document.getElementById('item-quantity').value) || 0;
-  const cost = parseFloat(document.getElementById('item-cost').value) || 0;
-  document.getElementById('item-subtotal').value = (qty * cost).toFixed(2);
+  const qty = app.parseLocaleNumber(document.getElementById('item-quantity').value, 0);
+  const cost = app.parseLocaleNumber(document.getElementById('item-cost').value, 0);
+  document.getElementById('item-subtotal').value = app.formatDecimalInputValue(qty * cost, 2);
 }
 
 function handleItemCostFocus(event) {
