@@ -16,6 +16,7 @@ const PRODUCT_SECTIONS = [
 
 const PRODUCT_UNITS = ['Unidad', 'Pack', 'Caja', 'Metro', 'Kg', 'Litro', 'Servicio'];
 const PRODUCT_IVA_OPTIONS = [0, 10.5, 21, 27];
+const PRODUCT_PRICE_LIST_KEYS = ['1', '2', '3', '4', '5', '6'];
 
 const productsUiState = {
   activeSection: 'planilla',
@@ -47,6 +48,22 @@ function roundProductSalePrice(value) {
   const amount = parseProductDecimal(value);
   if (amount <= 0) return 0;
   return Math.ceil(amount / 10) * 10;
+}
+
+function getProductPriceListInputId(prefix, listKey) {
+  return `product-${prefix}-${listKey}`;
+}
+
+function getProductStoredSalePrice(product, listKey) {
+  if (!product) return 0;
+  if (String(listKey) === '1') return Number(product.sale_price || 0);
+  return Number(product[`sale_price_${listKey}`] || 0);
+}
+
+function getProductStoredIncludesTax(product, listKey) {
+  if (!product) return String(listKey) === '1';
+  if (String(listKey) === '1') return Number(product.sale_price_includes_tax ?? 1) === 1;
+  return Number(product[`sale_price_${listKey}_includes_tax`] || 0) === 1;
 }
 
 function formatProductPercent(value) {
@@ -242,10 +259,8 @@ function renderProductsPlanilla() {
           <tr>
             <th>Foto</th>
             <th>Código / SKU</th>
-            <th>Cod. Prov.</th>
             <th>Descripcion</th>
             <th>Marca</th>
-            <th>Color</th>
             <th>Proveedor</th>
             <th>Categoria</th>
             <th>Sync</th>
@@ -253,12 +268,13 @@ function renderProductsPlanilla() {
             <th>Stock</th>
             <th>Costo</th>
             <th>Lista 1</th>
+            <th>Lista 2</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           ${filtered.length === 0 ? `
-            <tr><td colspan="14" class="products-sheet-empty">No hay articulos para mostrar.</td></tr>
+            <tr><td colspan="13" class="products-sheet-empty">No hay articulos para mostrar.</td></tr>
           ` : filtered.map((product) => `
             <tr>
               <td>
@@ -267,10 +283,8 @@ function renderProductsPlanilla() {
                   : '<div class="products-sheet-thumb products-sheet-thumb--empty">Sin foto</div>'}
               </td>
               <td>${productsEscapeHtml(product.sku || 'ART-' + product.id)}</td>
-              <td>${productsEscapeHtml(product.barcode || '-')}</td>
               <td><strong>${productsEscapeHtml(product.name)}</strong></td>
               <td>${productsEscapeHtml(product.brand_name || '-')}</td>
-              <td>${productsEscapeHtml(product.color || '-')}</td>
               <td>${productsEscapeHtml(product.supplier || '-')}</td>
               <td>${productsEscapeHtml((product.category_names || []).join(', ') || product.category_name || (categoriesData.find((item) => String(item.id) === String(product.category_id)) || {}).name || '-')}</td>
               <td><span class="badge ${product.sync_status === 'error' ? 'badge-red' : (product.sync_status === 'synced' ? 'badge-green' : 'badge-yellow')}">${productsEscapeHtml(product.sync_status || 'pending')}</span></td>
@@ -278,6 +292,7 @@ function renderProductsPlanilla() {
               <td><span class="badge ${Number(product.stock) <= 0 ? 'badge-red' : (Number(product.stock) <= Number(product.min_stock || 0) ? 'badge-yellow' : 'badge-green')}">${productsEscapeHtml(product.stock)}</span></td>
               <td>${productsEscapeHtml(app.formatMoney(product.purchase_price || 0))}</td>
               <td>${productsEscapeHtml(app.formatMoney(product.sale_price || 0))}</td>
+              <td>${productsEscapeHtml(app.formatMoney(product.sale_price_2 || 0))}</td>
               <td>
                 <div class="btn-group">
                   <button class="btn btn-sm btn-secondary" type="button" onclick="showProductModal(${product.id})">Editar</button>
@@ -573,16 +588,20 @@ function buildProductModalHtml(product) {
               <table class="products-sheet-table products-price-table">
                 <thead><tr><th>Lista</th><th>Calculada</th><th>% Ganancia</th><th>Con IVA</th><th>En dolares</th><th>Valor</th></tr></thead>
                 <tbody>
-                  ${['1','2','3','4','5','6'].map((item, index) => `
+                  ${PRODUCT_PRICE_LIST_KEYS.map((item, index) => {
+                    const storedPrice = getProductStoredSalePrice(product, item);
+                    const includesTax = getProductStoredIncludesTax(product, item);
+                    return `
                     <tr>
                       <td>Lista ${item}</td>
-                      <td><input type="checkbox" ${index === 0 ? `id="product-calc-enabled" ${calcEnabledByDefault ? 'checked' : ''} onchange="toggleProductPriceMode()"` : ''}></td>
-                      <td><input class="products-inline-number" type="text" inputmode="decimal" ${index === 0 ? `id="product-margin-table" value="${productsEscapeAttr(formatProductPercent(inferredMargin))}" onfocus="this.select()" oninput="syncProductMarginFromTable(this.value)" onblur="formatProductPercentField('product-margin-table')"` : 'value="0"'}></td>
-                      <td><input type="checkbox" ${index === 0 ? 'id="product-include-tax" checked onchange="updateProductPriceCalculation()"' : 'checked'}></td>
+                      <td><input type="checkbox" id="${getProductPriceListInputId('calc-enabled', item)}" ${index === 0 ? (calcEnabledByDefault ? 'checked' : '') : ''} onchange="toggleProductPriceMode('${item}')"></td>
+                      <td><input class="products-inline-number" type="text" inputmode="decimal" id="${getProductPriceListInputId('margin', item)}" value="${productsEscapeAttr(index === 0 ? formatProductPercent(inferredMargin) : '0')}" onfocus="this.select()" oninput="${index === 0 ? "app.sanitizeNumericInput(this, { decimals: 2 }); syncProductMarginFromTable(this.value)" : `app.sanitizeNumericInput(this, { decimals: 2 }); updateProductPriceCalculation('${item}')`}" onblur="formatProductPercentField('${getProductPriceListInputId('margin', item)}')"></td>
+                      <td><input type="checkbox" id="${getProductPriceListInputId('include-tax', item)}" ${includesTax ? 'checked' : ''} onchange="updateProductPriceCalculation('${item}')"></td>
                       <td><input type="checkbox"></td>
-                      <td><input class="products-inline-number" type="text" inputmode="decimal" ${index === 0 ? `id="product-sale" value="${productsEscapeAttr(formatProductDecimal(baseSale))}" onfocus="selectProductSaleValue()" onblur="formatProductPriceField('product-sale')"` : 'value="0.00"'} ${index === 0 && calcEnabledByDefault ? 'readonly' : ''}></td>
+                      <td><input class="products-inline-number" type="text" inputmode="decimal" id="${getProductPriceListInputId('sale', item)}" value="${productsEscapeAttr(formatProductDecimal(index === 0 ? baseSale : storedPrice))}" onfocus="selectProductSaleValue('${item}')" oninput="app.sanitizeNumericInput(this, { decimals: 2 })" onblur="formatProductPriceField('${getProductPriceListInputId('sale', item)}')" ${index === 0 && calcEnabledByDefault ? 'readonly' : ''}></td>
                     </tr>
-                  `).join('')}
+                  `;
+                  }).join('')}
                 </tbody>
               </table>
             </div>
@@ -792,62 +811,91 @@ function formatProductPriceField(fieldId) {
   const input = document.getElementById(fieldId);
   if (!input) return;
   input.value = formatProductDecimal(input.value);
-  if (fieldId !== 'product-sale') updateProductPriceCalculation();
+  if (fieldId.startsWith('product-sale-')) {
+    const listKey = fieldId.replace('product-sale-', '');
+    updateProductPriceCalculation(listKey);
+    return;
+  }
+  updateProductPriceCalculation();
 }
 
 function formatProductPercentField(fieldId) {
   const input = document.getElementById(fieldId);
   if (!input) return;
   input.value = formatProductPercent(input.value);
+  if (fieldId.startsWith('product-margin-')) {
+    const listKey = fieldId.replace('product-margin-', '');
+    updateProductPriceCalculation(listKey);
+    return;
+  }
   updateProductPriceCalculation();
 }
 
-function selectProductSaleValue() {
-  const saleInput = document.getElementById('product-sale');
+function selectProductSaleValue(listKey = '1') {
+  const saleInput = document.getElementById(getProductPriceListInputId('sale', listKey));
   if (saleInput && !saleInput.readOnly) saleInput.select();
 }
 
 function syncProductMarginFromTable(value) {
   const marginInput = document.getElementById('product-margin');
   if (marginInput) marginInput.value = value;
-  updateProductPriceCalculation();
+  updateProductPriceCalculation('1');
 }
 
-function toggleProductPriceMode() {
-  const calcEnabled = document.getElementById('product-calc-enabled');
-  const saleInput = document.getElementById('product-sale');
+function toggleProductPriceMode(listKey = '1') {
+  const calcEnabled = document.getElementById(getProductPriceListInputId('calc-enabled', listKey));
+  const saleInput = document.getElementById(getProductPriceListInputId('sale', listKey));
   if (!calcEnabled || !saleInput) return;
   saleInput.readOnly = calcEnabled.checked;
-  saleInput.classList.toggle('is-manual', !calcEnabled.checked);
-  if (calcEnabled.checked) updateProductPriceCalculation();
+  saleInput.classList.toggle('is-manual', !calcEnabled.checked && parseProductDecimal(saleInput.value) <= 0);
+  if (calcEnabled.checked) updateProductPriceCalculation(listKey);
 }
 
-function updateProductPriceCalculation() {
+function updateProductPriceCalculation(targetListKey = null) {
   const costInput = document.getElementById('product-purchase');
   const marginInput = document.getElementById('product-margin');
-  const marginTableInput = document.getElementById('product-margin-table');
   const taxInput = document.getElementById('product-tax');
-  const includeTaxInput = document.getElementById('product-include-tax');
-  const calcEnabled = document.getElementById('product-calc-enabled');
-  const saleInput = document.getElementById('product-sale');
   const summary = document.getElementById('product-price-summary');
-  if (!costInput || !marginInput || !taxInput || !saleInput) return;
+  if (!costInput || !marginInput || !taxInput) return;
 
   const cost = parseProductDecimal(costInput.value);
-  const margin = parseProductDecimal(marginInput.value);
   const tax = parseProductDecimal(taxInput.value);
-  const includeTax = includeTaxInput ? includeTaxInput.checked : true;
+  const listKeys = targetListKey ? [String(targetListKey)] : PRODUCT_PRICE_LIST_KEYS;
+
+  listKeys.forEach((listKey) => {
+    const marginFieldId = listKey === '1' ? 'product-margin' : getProductPriceListInputId('margin', listKey);
+    const marginRowInput = document.getElementById(getProductPriceListInputId('margin', listKey));
+    const sourceMarginInput = document.getElementById(marginFieldId);
+    const includeTaxInput = document.getElementById(getProductPriceListInputId('include-tax', listKey));
+    const calcEnabled = document.getElementById(getProductPriceListInputId('calc-enabled', listKey));
+    const saleInput = document.getElementById(getProductPriceListInputId('sale', listKey));
+    if (!sourceMarginInput || !marginRowInput || !saleInput) return;
+
+    const margin = parseProductDecimal(sourceMarginInput.value);
+    const includeTax = includeTaxInput ? includeTaxInput.checked : true;
+    const netSale = cost * (1 + margin / 100);
+    const rawFinalSale = includeTax ? netSale * (1 + tax / 100) : netSale;
+    const finalSale = roundProductSalePrice(rawFinalSale);
+
+    if (listKey === '1' && marginRowInput !== document.activeElement) {
+      marginRowInput.value = formatProductPercent(margin);
+    }
+
+    if (listKey !== '1' && sourceMarginInput !== document.activeElement) {
+      sourceMarginInput.value = formatProductPercent(margin);
+    }
+
+    if (!calcEnabled || calcEnabled.checked) {
+      saleInput.value = formatProductDecimal(finalSale);
+    }
+  });
+
+  const includeTax = (document.getElementById(getProductPriceListInputId('include-tax', '1')) || {}).checked !== false;
+  const margin = parseProductDecimal(marginInput.value);
   const netSale = cost * (1 + margin / 100);
   const rawFinalSale = includeTax ? netSale * (1 + tax / 100) : netSale;
   const finalSale = roundProductSalePrice(rawFinalSale);
-
-  if (marginTableInput && marginTableInput !== document.activeElement) {
-    marginTableInput.value = formatProductPercent(margin);
-  }
-
-  if (!calcEnabled || calcEnabled.checked) {
-    saleInput.value = formatProductDecimal(finalSale);
-  }
+  const ivaAmount = includeTax ? Math.max(0, rawFinalSale - netSale) : 0;
 
   if (summary) {
     summary.innerHTML = `
@@ -860,15 +908,15 @@ function updateProductPriceCalculation() {
         <strong>${productsEscapeHtml(app.formatMoney(netSale))}</strong>
       </div>
       <div class="products-price-summary-card">
-        <span>IVA</span>
-        <strong>${productsEscapeHtml(includeTax ? `${formatProductDecimal(tax)}%` : 'No incluido')}</strong>
+        <span>IVA ${includeTax ? `(${productsEscapeHtml(formatProductDecimal(tax))}%)` : ''}</span>
+        <strong>${productsEscapeHtml(includeTax ? app.formatMoney(ivaAmount) : 'No incluido')}</strong>
       </div>
       <div class="products-price-summary-card">
         <span>Redondeo</span>
         <strong>${productsEscapeHtml(app.formatMoney(finalSale - rawFinalSale))}</strong>
       </div>
       <div class="products-price-summary-card products-price-summary-card--accent">
-        <span>Venta sugerida</span>
+        <span>Total final</span>
         <strong>${productsEscapeHtml(app.formatMoney(finalSale))}</strong>
       </div>
     `;
@@ -876,7 +924,7 @@ function updateProductPriceCalculation() {
 }
 
 function initializeProductPriceCalculator() {
-  toggleProductPriceMode();
+  PRODUCT_PRICE_LIST_KEYS.forEach((listKey) => toggleProductPriceMode(listKey));
   updateProductPriceCalculation();
 }
 
@@ -938,7 +986,18 @@ async function saveProduct() {
     brand_id: ((document.getElementById('product-brand') || {}).value || '') || null,
     supplier: ((document.getElementById('product-supplier') || {}).value || '').trim(),
     purchase_price: parseProductDecimal((document.getElementById('product-purchase') || {}).value || 0),
-    sale_price: parseProductDecimal((document.getElementById('product-sale') || {}).value || 0),
+    sale_price: parseProductDecimal((document.getElementById(getProductPriceListInputId('sale', '1')) || {}).value || 0),
+    sale_price_includes_tax: !!((document.getElementById(getProductPriceListInputId('include-tax', '1')) || {}).checked),
+    sale_price_2: parseProductDecimal((document.getElementById(getProductPriceListInputId('sale', '2')) || {}).value || 0),
+    sale_price_2_includes_tax: !!((document.getElementById(getProductPriceListInputId('include-tax', '2')) || {}).checked),
+    sale_price_3: parseProductDecimal((document.getElementById(getProductPriceListInputId('sale', '3')) || {}).value || 0),
+    sale_price_3_includes_tax: !!((document.getElementById(getProductPriceListInputId('include-tax', '3')) || {}).checked),
+    sale_price_4: parseProductDecimal((document.getElementById(getProductPriceListInputId('sale', '4')) || {}).value || 0),
+    sale_price_4_includes_tax: !!((document.getElementById(getProductPriceListInputId('include-tax', '4')) || {}).checked),
+    sale_price_5: parseProductDecimal((document.getElementById(getProductPriceListInputId('sale', '5')) || {}).value || 0),
+    sale_price_5_includes_tax: !!((document.getElementById(getProductPriceListInputId('include-tax', '5')) || {}).checked),
+    sale_price_6: parseProductDecimal((document.getElementById(getProductPriceListInputId('sale', '6')) || {}).value || 0),
+    sale_price_6_includes_tax: !!((document.getElementById(getProductPriceListInputId('include-tax', '6')) || {}).checked),
     stock: parseProductInteger((document.getElementById('product-stock') || {}).value || 0, 0),
     min_stock: parseProductInteger((document.getElementById('product-min-stock') || {}).value || 2, 2),
     image_url: ((document.getElementById('product-image') || {}).value || '').trim() || (primaryModalImage ? (primaryModalImage.url_publica || primaryModalImage.url_remote || primaryModalImage.preview_url || '') : '') || null,

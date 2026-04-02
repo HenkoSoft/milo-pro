@@ -89,7 +89,7 @@ function renderCustomerOptions(options, selectedValue, placeholder) {
 function renderCustomerPriceListOptions(selectedValue) {
   const current = String(selectedValue || '1');
 
-  return ['1', '2', '3', '4'].map((value) => {
+  return ['1', '2', '3', '4', '5', '6'].map((value) => {
     const checked = current === value ? ' checked' : '';
     return '' +
       '<label class="customer-radio-card">' +

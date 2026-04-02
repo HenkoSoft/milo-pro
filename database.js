@@ -127,6 +127,17 @@ async function initializeDatabase() {
       supplier TEXT,
       purchase_price REAL DEFAULT 0,
       sale_price REAL DEFAULT 0,
+      sale_price_includes_tax INTEGER DEFAULT 1,
+      sale_price_2 REAL DEFAULT 0,
+      sale_price_2_includes_tax INTEGER DEFAULT 0,
+      sale_price_3 REAL DEFAULT 0,
+      sale_price_3_includes_tax INTEGER DEFAULT 0,
+      sale_price_4 REAL DEFAULT 0,
+      sale_price_4_includes_tax INTEGER DEFAULT 0,
+      sale_price_5 REAL DEFAULT 0,
+      sale_price_5_includes_tax INTEGER DEFAULT 0,
+      sale_price_6 REAL DEFAULT 0,
+      sale_price_6_includes_tax INTEGER DEFAULT 0,
       stock INTEGER DEFAULT 0,
       min_stock INTEGER DEFAULT 2,
       woocommerce_id INTEGER,
@@ -296,6 +307,17 @@ async function initializeDatabase() {
   try { db.run('ALTER TABLE products ADD COLUMN short_description TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN color TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN category_primary_id INTEGER'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_2 REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_3 REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_4 REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_5 REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_6 REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_includes_tax INTEGER DEFAULT 1'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_2_includes_tax INTEGER DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_3_includes_tax INTEGER DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_4_includes_tax INTEGER DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_5_includes_tax INTEGER DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE products ADD COLUMN sale_price_6_includes_tax INTEGER DEFAULT 0'); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN woocommerce_product_id INTEGER'); } catch (e) {}
   try { db.run("ALTER TABLE products ADD COLUMN sync_status TEXT DEFAULT 'pending'"); } catch (e) {}
   try { db.run('ALTER TABLE products ADD COLUMN last_sync_at DATETIME'); } catch (e) {}

@@ -76,6 +76,19 @@ function getCategoryFullName(categoryId) {
   return trail.map((item) => item.name).join(' / ');
 }
 
+function collapseCategoryIdsToLeaves(categoryIds = []) {
+  const normalizedIds = toIntegerList(categoryIds);
+  if (normalizedIds.length <= 1) return normalizedIds;
+
+  return normalizedIds.filter((categoryId) => {
+    return !normalizedIds.some((otherId) => {
+      if (Number(otherId) === Number(categoryId)) return false;
+      const trail = getCategoryTrail(otherId);
+      return trail.some((item) => Number(item.id) === Number(categoryId));
+    });
+  });
+}
+
 function listCategoriesTree() {
   const categories = getAllCategoriesRaw();
   const childrenMap = new Map();
@@ -192,7 +205,7 @@ function getProductImages(productId) {
 }
 
 function syncProductCategories(productId, categoryIds = [], primaryCategoryId = null) {
-  const normalizedIds = toIntegerList(categoryIds);
+  const normalizedIds = collapseCategoryIdsToLeaves(categoryIds);
   const nextPrimaryId = primaryCategoryId ? Number(primaryCategoryId) : (normalizedIds[0] || null);
   const finalIds = nextPrimaryId && !normalizedIds.includes(nextPrimaryId)
     ? [nextPrimaryId, ...normalizedIds]
@@ -311,6 +324,7 @@ module.exports = {
   getBrandByWooId,
   getCategoryById,
   getCategoryByWooId,
+  collapseCategoryIdsToLeaves,
   getCategoryFullName,
   getCategoryTrail,
   getProductById,

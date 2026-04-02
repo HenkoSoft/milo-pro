@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const { get, run, all, saveDatabase } = require('../database');
 const {
+  collapseCategoryIdsToLeaves,
   ensureBrandRecord,
   ensureCategoryRecord,
   findBrandByName,

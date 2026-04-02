@@ -15,6 +15,7 @@ const {
 } = require('../services/woocommerce-sync');
 const {
   getProductById,
+  collapseCategoryIdsToLeaves,
   syncProductCategories,
   syncProductImages
 } = require('../services/catalog');
@@ -145,10 +146,12 @@ async function upsertWooProductIntoLocal(wooProduct, action) {
   const imageUrl = images[0] ? images[0].url_remote : null;
   const importedSku = String(wooProduct.sku || '').trim();
   const localCategories = await ensureLocalCategoriesFromWooProduct(wooProduct);
-  const primaryCategory = localCategories[0] || null;
   const primaryBrand = getWooPrimaryBrand(wooProduct);
   const primaryColor = getWooPrimaryColor(wooProduct);
-  const localCategoryIds = localCategories.map((item) => item.id);
+  const localCategoryIds = collapseCategoryIdsToLeaves(localCategories.map((item) => item.id));
+  const primaryCategory = localCategoryIds.length > 0
+    ? (localCategories.find((item) => Number(item.id) === Number(localCategoryIds[0])) || null)
+    : null;
   const localCategoryId = primaryCategory ? primaryCategory.id : null;
   const localBrandId = ensureLocalBrand(primaryBrand ? primaryBrand.name : '', { woocommerce_brand_id: primaryBrand && primaryBrand.id ? primaryBrand.id : null });
   const existing = getExistingLocalProduct(wooProduct);

@@ -120,6 +120,11 @@ function parseLocaleNumber(value, fallback = 0) {
       const parts = raw.split('.');
       const decimalPart = parts.pop();
       normalized = parts.join('') + '.' + decimalPart;
+    } else if (dotMatches.length === 1) {
+      const [integerPart, decimalPart = ''] = raw.split('.');
+      if (/^\d{3}$/.test(decimalPart)) {
+        normalized = `${integerPart}${decimalPart}`;
+      }
     }
   }
 

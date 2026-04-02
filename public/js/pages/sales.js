@@ -9,7 +9,7 @@ let lastSaleData = null;
 
 const SALES_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'];
 const SALES_IVA_CONDITIONS = ['Consumidor Final', 'Responsable Inscripto', 'Monotributista', 'Exento'];
-const SALES_PRICE_LISTS = ['Lista 1', 'Lista 2', 'Lista 3', 'Lista 4'];
+const SALES_PRICE_LISTS = ['Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'];
 const SALES_MODULES = [
   { id: 'invoices', label: 'Facturas' },
   { id: 'delivery-notes', label: 'Remitos' },
@@ -30,6 +30,7 @@ function createDefaultSalesDraft() {
     pointOfSale: '001',
     date: salesFormatDateInput(new Date()),
     priceList: 'Lista 1',
+    globalDiscount: '0.00',
     seller: salesGetCurrentSellerName(),
     customerId: '',
     taxId: '',
@@ -49,6 +50,8 @@ const salesUiState = {
   collectionsPage: 1,
   collectionsTab: 'customers',
   selectedCustomerId: null,
+  customerLookupSearch: '',
+  customerLookupPage: 1,
   invoiceDraft: createDefaultSalesDraft()
 };
 
@@ -108,6 +111,66 @@ function salesGetSelectedPointOfSale() {
   return (digits || '001').padStart(3, '0').slice(-3);
 }
 
+function salesGetSelectedPriceList() {
+  const select = document.getElementById('sale-price-list');
+  return select ? String(select.value || 'Lista 1') : String(salesUiState.invoiceDraft.priceList || 'Lista 1');
+}
+
+function salesGetSelectedPriceListKey() {
+  const selected = salesGetSelectedPriceList();
+  const match = selected.match(/(\d+)/);
+  return match ? match[1] : '1';
+}
+
+function salesGetProductPriceByList(product, listKey = salesGetSelectedPriceListKey()) {
+  if (!product) return 0;
+  const normalizedKey = String(listKey || '1');
+  const directPrice = normalizedKey === '1'
+    ? Number(product.sale_price || 0)
+    : Number(product[`sale_price_${normalizedKey}`] || 0);
+  if (directPrice > 0) return directPrice;
+  return Number(product.sale_price || 0);
+}
+
+function salesBuildProductPriceMap(product) {
+  if (!product) return {};
+  return {
+    '1': Number(product.sale_price || 0),
+    '2': Number(product.sale_price_2 || 0),
+    '3': Number(product.sale_price_3 || 0),
+    '4': Number(product.sale_price_4 || 0),
+    '5': Number(product.sale_price_5 || 0),
+    '6': Number(product.sale_price_6 || 0)
+  };
+}
+
+function salesBuildProductIncludesTaxMap(product) {
+  if (!product) return {};
+  return {
+    '1': Number(product.sale_price_includes_tax ?? 1) === 1,
+    '2': Number(product.sale_price_2_includes_tax || 0) === 1,
+    '3': Number(product.sale_price_3_includes_tax || 0) === 1,
+    '4': Number(product.sale_price_4_includes_tax || 0) === 1,
+    '5': Number(product.sale_price_5_includes_tax || 0) === 1,
+    '6': Number(product.sale_price_6_includes_tax || 0) === 1
+  };
+}
+
+function salesGetMappedPriceByList(priceMap, listKey = salesGetSelectedPriceListKey()) {
+  const normalizedKey = String(listKey || '1');
+  const directPrice = Number((priceMap || {})[normalizedKey] || 0);
+  if (directPrice > 0) return directPrice;
+  return Number((priceMap || {})['1'] || 0);
+}
+
+function salesGetMappedIncludesTaxByList(includesTaxMap, listKey = salesGetSelectedPriceListKey()) {
+  const normalizedKey = String(listKey || '1');
+  if (Object.prototype.hasOwnProperty.call(includesTaxMap || {}, normalizedKey)) {
+    return !!includesTaxMap[normalizedKey];
+  }
+  return !!((includesTaxMap || {})['1']);
+}
+
 function salesGetCurrentSellerName() {
   if (typeof currentUser !== 'undefined' && currentUser && currentUser.name) return currentUser.name;
   if (window.auth && window.auth.currentUser && window.auth.currentUser.name) return window.auth.currentUser.name;
@@ -129,6 +192,25 @@ function getDraftSelectedCustomer() {
   const customerId = String(salesUiState.invoiceDraft.customerId || '');
   if (!customerId) return null;
   return customersForSale.find((customer) => String(customer.id) === customerId) || null;
+}
+
+function getSalesCustomerCodeLabel(customer) {
+  if (!customer || customer.id === undefined || customer.id === null) return '';
+  return String(customer.id);
+}
+
+function getSalesCustomerLookupFiltered() {
+  const search = String(salesUiState.customerLookupSearch || '').trim().toLowerCase();
+  if (!search) return [...customersForSale];
+  return customersForSale.filter((customer) => {
+    const haystack = [
+      getSalesCustomerCodeLabel(customer),
+      customer.name,
+      buildSaleCustomerAddress(customer),
+      customer.tax_id
+    ].map((value) => String(value || '').toLowerCase());
+    return haystack.some((value) => value.includes(search));
+  });
 }
 
 function normalizeSaleCustomerIvaCondition(value) {
@@ -154,27 +236,39 @@ function getProductById(productId) {
 
 function getEffectiveUnitPrice(item) {
   const price = Number(item.price) || 0;
-  const discount = Math.max(0, Math.min(100, Number(item.discount) || 0));
-  return Math.max(0, price * (1 - discount / 100));
+  const lineDiscount = Math.max(0, Math.min(100, Number(item.discount) || 0));
+  const globalDiscount = Math.max(0, Math.min(100, Number(salesUiState.invoiceDraft.globalDiscount) || 0));
+  const discountedPrice = price * (1 - lineDiscount / 100) * (1 - globalDiscount / 100);
+  return Math.max(0, discountedPrice);
 }
 
 function getCartItemSubtotal(item) {
   return getEffectiveUnitPrice(item) * item.quantity;
 }
 
+function salesGetIncludedIvaRate() {
+  const receiptType = salesGetSelectedReceiptType();
+  return ['A', 'B', 'C'].includes(String(receiptType || '').toUpperCase()) ? 21 : 0;
+}
+
 function calculateCartTotals() {
-  let neto = 0;
+  let baseTotal = 0;
   let descuento = 0;
+  let iva = 0;
+  const ivaRate = salesGetIncludedIvaRate();
   cart.forEach((item) => {
     const lineBase = (Number(item.price) || 0) * item.quantity;
     const lineTotal = getCartItemSubtotal(item);
-    neto += lineBase;
+    baseTotal += lineBase;
     descuento += lineBase - lineTotal;
+    if (ivaRate > 0 && item.price_includes_tax) {
+      iva += lineTotal - (lineTotal / (1 + ivaRate / 100));
+    }
   });
-  const subtotal = neto - descuento;
-  const iva = 0;
-  const total = subtotal + iva;
-  return { neto, descuento, subtotal, iva, total };
+  const totalConIva = baseTotal - descuento;
+  const subtotal = totalConIva - iva;
+  const neto = subtotal;
+  return { neto, descuento, subtotal, iva, total: totalConIva };
 }
 
 function buildSalesNotes() {
@@ -197,8 +291,8 @@ function captureSalesInvoiceDraft() {
   const fields = {
     receiptType: document.getElementById('sale-receipt-type'),
     pointOfSale: document.getElementById('sale-point-of-sale'),
-    date: document.getElementById('sale-date'),
     priceList: document.getElementById('sale-price-list'),
+    globalDiscount: document.getElementById('sale-global-discount-input'),
     seller: document.getElementById('sale-seller'),
     customerId: document.getElementById('sale-customer'),
     taxId: document.getElementById('sale-customer-tax-id'),
@@ -230,7 +324,6 @@ function renderSalesSection() {
     setupSalesInvoiceInteractions();
     renderCart();
     handleSaleCustomerChange();
-    syncSalesDatePreview();
     refreshSaleDocumentPreview();
     filterPosProducts();
     return;
@@ -325,15 +418,6 @@ function focusSaleItemSearch() {
   if (element) element.focus();
 }
 
-function syncSalesDatePreview() {
-  const input = document.getElementById('sale-date');
-  const label = document.getElementById('sale-date-label');
-  if (!input || !label) return;
-  const formatted = input.value ? salesFormatDate(new Date(input.value + 'T00:00:00')) : salesFormatDate(new Date());
-  label.textContent = formatted;
-  salesUiState.invoiceDraft.date = input.value || salesUiState.invoiceDraft.date;
-}
-
 function showSalesUiNotice(moduleName) {
   alert(moduleName + ': esta accion conserva la UI nueva pero aun no tiene una logica especifica conectada.');
 }
@@ -347,32 +431,41 @@ function renderSalesInvoiceModule() {
   return `
     <div class="sales-invoice-layout">
       <div class="sales-form-card sales-invoice-compact-card">
-        <div class="sales-section-head">
-          <div></div>
-        </div>
-        <div class="sales-compact-grid">
-          <div class="form-group"><label>Nro.</label><select><option>Principal</option></select></div>
-          <div class="form-group"><label>P.Venta</label><input id="sale-point-of-sale" type="text" value="${salesEscapeAttr(draft.pointOfSale)}" maxlength="3" inputmode="numeric" onchange="refreshSaleDocumentPreview()" oninput="this.value=this.value.replace(/[^0-9]/g, '').slice(0,3)"></div>
-          <div class="form-group"><label>Nro.</label><input id="sale-invoice-number" type="text" value="${salesEscapeAttr(salesFormatInvoiceNumber(nextInvoiceNumber))}" readonly></div>
-          <div class="form-group"><label>Tipo</label><select id="sale-receipt-type" onchange="refreshSaleDocumentPreview()">${salesBuildOptions(SALES_RECEIPT_TYPES, draft.receiptType, '')}</select></div>
-          <div class="form-group"><label>Fecha</label><input id="sale-date" type="date" value="${salesEscapeAttr(draft.date)}" onchange="syncSalesDatePreview()"></div>
-          <div class="form-group"><label>Lista</label><select id="sale-price-list">${salesBuildOptions(SALES_PRICE_LISTS, draft.priceList, '')}</select></div>
-          <div class="form-group"><label>Desc.</label><input id="sale-global-discount-input" type="number" value="0.00" readonly></div>
-          <div class="form-group sales-field-span-2"><label>Vendedor</label><select id="sale-seller">${salesBuildOptions(sellerOptions, draft.seller, '')}</select></div>
-          <div class="form-group"><label>Codigo Cliente</label><input id="sale-customer-code" type="text" value="${salesEscapeAttr(customer ? customer.id : '')}" placeholder="Automatico" readonly></div>
-          <div class="form-group sales-field-span-3"><label>Nombre</label><select id="sale-customer" onchange="handleSaleCustomerChange()"><option value="">Consumidor final</option>${customersForSale.map((item) => '<option value="' + item.id + '"' + (String(draft.customerId) === String(item.id) ? ' selected' : '') + '>' + salesEscapeHtml(item.name) + '</option>').join('')}</select></div>
-          <div class="form-group"><label>CUIT</label><input id="sale-customer-tax-id" type="text" value="${salesEscapeAttr(draft.taxId)}" placeholder="CUIT o DNI"></div>
-          <div class="form-group"><label>Condicion IVA</label><select id="sale-customer-iva-condition">${salesBuildOptions(SALES_IVA_CONDITIONS, draft.ivaCondition, 'Seleccione...')}</select></div>
-          <div class="form-group sales-field-span-4"><label>Direccion</label><input id="sale-customer-address" type="text" value="${salesEscapeAttr(draft.address)}" placeholder="Direccion del cliente"></div>
-          <div class="form-group sales-field-span-2"><label>Obs:</label><input id="sale-observations" type="text" value="${salesEscapeAttr(draft.observations)}" placeholder="Observaciones del comprobante"></div>
-          <div class="form-group"><label>O.C:</label><input id="sale-oc" type="text" value="${salesEscapeAttr(draft.oc)}" placeholder="Orden de compra"></div>
-          <div class="form-group"><label>Rem:</label><input id="sale-remito" type="text" value="${salesEscapeAttr(draft.remito)}" placeholder="Referencia"></div>
+        <div class="sales-invoice-sections">
+          <section class="sales-invoice-block">
+            <div class="sales-invoice-block-head">
+              <h3>Datos de la factura</h3>
+            </div>
+            <div class="sales-compact-grid sales-compact-grid--invoice">
+              <div class="form-group"><label>Nro.</label><select id="sale-book-number"><option value="1">1</option><option value="2">2</option></select></div>
+              <div class="form-group"><label>P.Venta</label><input id="sale-point-of-sale" type="text" value="${salesEscapeAttr(draft.pointOfSale)}" maxlength="3" inputmode="numeric" onchange="refreshSaleDocumentPreview()" oninput="this.value=this.value.replace(/[^0-9]/g, '').slice(0,3)"></div>
+              <div class="form-group"><label>Numero</label><input id="sale-invoice-number" type="text" value="${salesEscapeAttr(salesFormatInvoiceNumber(nextInvoiceNumber))}" readonly></div>
+              <div class="form-group"><label>Tipo</label><select id="sale-receipt-type" onchange="refreshSaleDocumentPreview()">${salesBuildOptions(SALES_RECEIPT_TYPES, draft.receiptType, '')}</select></div>
+              <div class="form-group"><label>Lista</label><select id="sale-price-list" onchange="handleSalePriceListChange()">${salesBuildOptions(SALES_PRICE_LISTS, draft.priceList, '')}</select></div>
+              <div class="form-group"><label>Desc.</label><input id="sale-global-discount-input" type="text" inputmode="decimal" value="${salesEscapeAttr(app.formatDecimalInputValue(app.parseLocaleNumber(draft.globalDiscount || 0, 0), 2))}" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 2 })" onkeydown="if(event.key === 'Enter'){ this.blur(); }" onchange="updateGlobalSaleDiscount(this.value)" onblur="this.value = app.formatDecimalInputValue(Math.min(100, Math.max(0, app.parseLocaleNumber(this.value, 0))), 2)"></div>
+              <div class="form-group"><label>Vendedor</label><select id="sale-seller">${salesBuildOptions(sellerOptions, draft.seller, '')}</select></div>
+            </div>
+          </section>
+          <section class="sales-invoice-block">
+            <div class="sales-invoice-block-head">
+              <h3>Datos del comprador</h3>
+            </div>
+            <div class="sales-compact-grid sales-compact-grid--buyer">
+              <div class="form-group"><label>Codigo Cliente</label><div class="sales-inline-combo"><input id="sale-customer-code" type="text" value="${salesEscapeAttr(getSalesCustomerCodeLabel(customer))}" placeholder="Codigo cliente" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); searchSaleCustomerByCode(); }"><button class="sales-addon-button sales-addon-button--wide" type="button" onclick="searchSaleCustomerByCode()">Buscar</button></div></div>
+              <div class="form-group"><label>Nombre</label><select id="sale-customer" onchange="handleSaleCustomerChange()"><option value="">Consumidor final</option>${customersForSale.map((item) => '<option value="' + item.id + '"' + (String(draft.customerId) === String(item.id) ? ' selected' : '') + '>' + salesEscapeHtml(item.name) + '</option>').join('')}</select></div>
+              <div class="form-group"><label>CUIT</label><input id="sale-customer-tax-id" type="text" value="${salesEscapeAttr(draft.taxId)}" placeholder="CUIT o DNI"></div>
+              <div class="form-group"><label>Condicion IVA</label><select id="sale-customer-iva-condition">${salesBuildOptions(SALES_IVA_CONDITIONS, draft.ivaCondition, 'Seleccione...')}</select></div>
+              <div class="form-group"><label>Direccion</label><input id="sale-customer-address" type="text" value="${salesEscapeAttr(draft.address)}" placeholder="Direccion del cliente"></div>
+              <div class="form-group sales-field-span-2"><label>Obs:</label><input id="sale-observations" type="text" value="${salesEscapeAttr(draft.observations)}" placeholder="Observaciones del comprobante"></div>
+              <div class="form-group"><label>O.C:</label><input id="sale-oc" type="text" value="${salesEscapeAttr(draft.oc)}" placeholder="Orden de compra"></div>
+              <div class="form-group"><label>Rem:</label><input id="sale-remito" type="text" value="${salesEscapeAttr(draft.remito)}" placeholder="Referencia"></div>
+            </div>
+          </section>
         </div>
         <div class="sales-customer-summary" id="sale-customer-summary">${salesEscapeHtml(customerSummary)}</div>
         <div class="sales-live-metrics" hidden aria-hidden="true">
           <strong id="sale-strip-type">${salesEscapeHtml(draft.receiptType)}</strong>
           <strong id="sale-strip-pos">${salesEscapeHtml(draft.pointOfSale)}</strong>
-          <strong id="sale-date-label">${salesEscapeHtml(salesFormatDate(new Date(draft.date + 'T00:00:00')))}</strong>
           <strong id="sale-strip-customer">${salesEscapeHtml(customer ? customer.name : 'Consumidor final')}</strong>
           <strong id="sale-global-discount">0%</strong>
         </div>
@@ -380,15 +473,13 @@ function renderSalesInvoiceModule() {
       </div>
 
       <div class="sales-form-card sales-items-card">
-        <div class="sales-section-head">
-          <div></div>
-        </div>
         <div class="sales-article-toolbar sales-article-toolbar--compact">
           <div class="form-group sales-article-search-group">
-            <label>Codigo Articulo</label>
+            <label>Buscar producto para facturar</label>
+            <div class="sales-search-callout">Carga rapida por codigo, SKU o descripcion</div>
             <div class="sales-inline-combo">
-              <input id="sale-item-search" type="text" placeholder="Buscar por codigo o descripcion" oninput="filterPosProducts()" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); quickAddSaleProduct(); }">
-              <button class="sales-addon-button sales-addon-button--wide" type="button" onclick="quickAddSaleProduct()">Buscar</button>
+              <input id="sale-item-search" type="text" placeholder="Ej. modulo a10, ART-000086 o codigo de barras" oninput="filterPosProducts()" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); quickAddSaleProduct(); }">
+              <button class="sales-addon-button sales-addon-button--wide" type="button" onclick="quickAddSaleProduct()">Agregar</button>
             </div>
           </div>
         </div>
@@ -731,7 +822,6 @@ function renderSalesQueryModule(sectionId) {
 function filterPosProducts() {
   const search = (((document.getElementById('sale-item-search') || {}).value) || '').trim().toLowerCase();
   const filtered = productsForSale.filter((product) => {
-    if (product.stock <= 0) return false;
     if (!search) return true;
     return [product.name, product.sku, product.barcode, String(product.id)].some((value) => String(value || '').toLowerCase().includes(search));
   });
@@ -778,18 +868,25 @@ function quickAddSaleProduct() {
 
 function renderSaleSearchResult(product) {
   const code = product.sku || ('ART-' + product.id);
-  const price = app.formatMoney(Number(product.sale_price) || 0);
+  const price = app.formatMoney(salesGetProductPriceByList(product));
   const productIndex = productsForSale.findIndex((item) => String(item.id) === String(product.id));
+  const imageUrl = app.safeImageUrl(product.image_url);
+  const hasStock = Number(product.stock) > 0;
 
   return '' +
-    '<button class="sales-search-result" type="button" data-product-index="' + productIndex + '">' +
+    '<button class="sales-search-result' + (hasStock ? '' : ' is-out-of-stock') + '" type="button" data-product-index="' + productIndex + '">' +
+    '<span class="sales-search-result-thumb">' +
+    (imageUrl
+      ? '<img src="' + imageUrl + '" alt="' + salesEscapeAttr(product.name || 'Articulo') + '">'
+      : '<span class="sales-search-result-thumb-placeholder">Sin foto</span>') +
+    '</span>' +
     '<span class="sales-search-result-main">' +
-    '<span class="sales-search-result-code">' + salesEscapeHtml(code) + '</span>' +
     '<span class="sales-search-result-name">' + salesEscapeHtml(product.name) + '</span>' +
+    '<span class="sales-search-result-code">' + salesEscapeHtml(code) + '</span>' +
     '</span>' +
     '<span class="sales-search-result-side">' +
     '<span class="sales-search-result-price">' + salesEscapeHtml(price) + '</span>' +
-    '<span class="sales-search-result-stock">Stock ' + salesEscapeHtml(product.stock) + '</span>' +
+    '<span class="sales-search-result-stock' + (hasStock ? '' : ' is-empty') + '">' + (hasStock ? 'Stock ' + salesEscapeHtml(product.stock) : 'Sin stock') + '</span>' +
     '</span>' +
     '</button>';
 }
@@ -806,6 +903,128 @@ function setupSalesInvoiceInteractions() {
   });
 
   results.dataset.bound = 'true';
+}
+
+function selectSaleCustomer(customerId) {
+  const customerSelect = document.getElementById('sale-customer');
+  if (customerSelect) customerSelect.value = customerId ? String(customerId) : '';
+  handleSaleCustomerChange();
+}
+
+function renderSalesCustomerLookupModal() {
+  const container = document.getElementById('modal-container');
+  if (!container) return;
+
+  const filtered = getSalesCustomerLookupFiltered();
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.max(1, Math.min(totalPages, salesUiState.customerLookupPage));
+  salesUiState.customerLookupPage = currentPage;
+  const startIndex = (currentPage - 1) * pageSize;
+  const pageItems = filtered.slice(startIndex, startIndex + pageSize);
+
+  const rows = pageItems.length
+    ? pageItems.map((customer) => '' +
+      '<tr>' +
+      '<td>' + salesEscapeHtml(getSalesCustomerCodeLabel(customer)) + '</td>' +
+      '<td>' + salesEscapeHtml(customer.name || '-') + '</td>' +
+      '<td>' + salesEscapeHtml(buildSaleCustomerAddress(customer) || '-') + '</td>' +
+      '<td>' + salesEscapeHtml(customer.tax_id || '-') + '</td>' +
+      '<td><button class="btn btn-sm btn-primary" type="button" onclick="selectSaleCustomerFromModal(\'' + salesEscapeAttr(customer.id) + '\')">Seleccionar</button></td>' +
+      '</tr>').join('')
+    : '<tr><td colspan="5" class="sales-empty-row">No se encontraron clientes para esta busqueda.</td></tr>';
+
+  const pageButtons = Array.from({ length: totalPages }, (_, index) => {
+    const page = index + 1;
+    const activeClass = page === currentPage ? ' is-active' : '';
+    return '<button class="sales-customer-lookup-page' + activeClass + '" type="button" onclick="changeSalesCustomerLookupPage(' + page + ')">' + page + '</button>';
+  }).join('');
+
+  container.innerHTML = '' +
+    '<div class="modal-overlay" onclick="if(event.target === this) closeSalesCustomerLookup()">' +
+    '<div class="modal sales-customer-lookup-modal">' +
+    '<div class="modal-header sales-customer-lookup-header">' +
+    '<div><h3>Buscar Cliente</h3></div>' +
+    '<button type="button" class="modal-close" onclick="closeSalesCustomerLookup()">&times;</button>' +
+    '</div>' +
+    '<div class="modal-body sales-customer-lookup-body">' +
+    '<div class="sales-customer-lookup-toolbar">' +
+    '<div class="sales-customer-lookup-length"><span>Mostrar</span><strong>10</strong><span>registros</span></div>' +
+    '<div class="sales-customer-lookup-search"><label for="sales-customer-lookup-input">Buscar:</label><input id="sales-customer-lookup-input" type="text" value="' + salesEscapeAttr(salesUiState.customerLookupSearch) + '" placeholder="Ejemplo busqueda..." oninput="updateSalesCustomerLookupSearch(this.value)"></div>' +
+    '</div>' +
+    '<div class="sales-lines-table-wrap sales-customer-lookup-table-wrap">' +
+    '<table class="sales-lines-table sales-customer-lookup-table">' +
+    '<thead><tr><th>Codigo</th><th>Nombre</th><th>Direccion</th><th>CUIT</th><th>Accion</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table>' +
+    '</div>' +
+    '<div class="sales-customer-lookup-footer">' +
+    '<span>Mostrando ' + (filtered.length === 0 ? 0 : startIndex + 1) + ' a ' + Math.min(startIndex + pageSize, filtered.length) + ' de ' + filtered.length + ' registros</span>' +
+    '<div class="sales-customer-lookup-pagination">' +
+    '<button class="btn btn-secondary btn-sm" type="button" onclick="changeSalesCustomerLookupPage(' + (currentPage - 1) + ')"' + (currentPage === 1 ? ' disabled' : '') + '>Anterior</button>' +
+    pageButtons +
+    '<button class="btn btn-secondary btn-sm" type="button" onclick="changeSalesCustomerLookupPage(' + (currentPage + 1) + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>Siguiente</button>' +
+    '</div>' +
+    '</div>' +
+    '</div>' +
+    '</div>' +
+    '</div>';
+
+  const input = document.getElementById('sales-customer-lookup-input');
+  if (input) input.focus();
+}
+
+function openSalesCustomerLookup(initialSearch = '') {
+  salesUiState.customerLookupSearch = String(initialSearch || '');
+  salesUiState.customerLookupPage = 1;
+  renderSalesCustomerLookupModal();
+}
+
+function closeSalesCustomerLookup() {
+  const container = document.getElementById('modal-container');
+  if (container) container.innerHTML = '';
+}
+
+function updateSalesCustomerLookupSearch(value) {
+  salesUiState.customerLookupSearch = String(value || '');
+  salesUiState.customerLookupPage = 1;
+  renderSalesCustomerLookupModal();
+}
+
+function changeSalesCustomerLookupPage(page) {
+  const filtered = getSalesCustomerLookupFiltered();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
+  salesUiState.customerLookupPage = Math.max(1, Math.min(totalPages, Number(page) || 1));
+  renderSalesCustomerLookupModal();
+}
+
+function selectSaleCustomerFromModal(customerId) {
+  selectSaleCustomer(customerId);
+  closeSalesCustomerLookup();
+  focusSaleItemSearch();
+}
+
+function searchSaleCustomerByCode() {
+  const input = document.getElementById('sale-customer-code');
+  const rawValue = String((input && input.value) || '').trim();
+  if (!rawValue) {
+    openSalesCustomerLookup('');
+    return;
+  }
+
+  const normalizedDigits = rawValue.replace(/\D/g, '');
+  const exactMatch = customersForSale.find((customer) => {
+    const code = getSalesCustomerCodeLabel(customer);
+    return code === rawValue || (normalizedDigits && code === normalizedDigits);
+  });
+
+  if (exactMatch) {
+    selectSaleCustomer(exactMatch.id);
+    focusSaleItemSearch();
+    return;
+  }
+
+  openSalesCustomerLookup(rawValue);
 }
 
 function addSaleSearchProduct(productId) {
@@ -843,10 +1062,26 @@ function addProductToCart(product) {
 
   const targetId = String(product.id);
   const existing = cart.find((item) => String(item.product_id) === targetId);
+  const selectedPriceList = salesGetSelectedPriceList();
+  const priceMap = salesBuildProductPriceMap(product);
+  const includesTaxMap = salesBuildProductIncludesTaxMap(product);
+  const selectedPrice = salesGetMappedPriceByList(priceMap);
   if (existing) {
     if (existing.quantity < Number(product.stock)) existing.quantity += 1;
   } else {
-    cart.push({ product_id: product.id, code: product.sku || ('ART-' + product.id), name: product.name, price: Number(product.sale_price) || 0, quantity: 1, discount: 0 });
+    cart.push({
+      product_id: product.id,
+      code: product.sku || ('ART-' + product.id),
+      name: product.name,
+      price: selectedPrice,
+      quantity: 1,
+      discount: 0,
+      price_list: selectedPriceList,
+      price_manual: false,
+      price_by_list: priceMap,
+      price_includes_tax_by_list: includesTaxMap,
+      price_includes_tax: salesGetMappedIncludesTaxByList(includesTaxMap)
+    });
   }
   renderCart();
 }
@@ -881,6 +1116,26 @@ function updateCartPrice(productId, newPrice) {
     return;
   }
   item.price = price;
+  item.price_manual = true;
+  renderCart();
+}
+
+function handleSalePriceListChange() {
+  const selectedPriceList = salesGetSelectedPriceList();
+  const selectedPriceListKey = salesGetSelectedPriceListKey();
+  salesUiState.invoiceDraft.priceList = selectedPriceList;
+  cart.forEach((item) => {
+    if (item.price_manual) return;
+    const product = getProductById(item.product_id);
+    if (product) {
+      item.price_by_list = salesBuildProductPriceMap(product);
+      item.price_includes_tax_by_list = salesBuildProductIncludesTaxMap(product);
+    }
+    item.price = salesGetMappedPriceByList(item.price_by_list, selectedPriceListKey);
+    item.price_includes_tax = salesGetMappedIncludesTaxByList(item.price_includes_tax_by_list, selectedPriceListKey);
+    item.price_list = selectedPriceList;
+  });
+  filterPosProducts();
   renderCart();
 }
 
@@ -895,6 +1150,17 @@ function updateCartDiscount(productId, newDiscount) {
     return;
   }
   item.discount = discount;
+  renderCart();
+}
+
+function updateGlobalSaleDiscount(newDiscount) {
+  const discount = app.parseLocaleNumber(newDiscount, 0);
+  if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
+    alert('El descuento debe estar entre 0 y 100');
+    renderCart();
+    return;
+  }
+  salesUiState.invoiceDraft.globalDiscount = discount.toFixed(2);
   renderCart();
 }
 
@@ -915,10 +1181,19 @@ function handleSaleCustomerChange() {
     if (customerTaxId) customerTaxId.value = customer.tax_id || '';
     if (customerAddress) customerAddress.value = buildSaleCustomerAddress(customer);
     if (customerIvaCondition) customerIvaCondition.value = normalizeSaleCustomerIvaCondition(customer.iva_condition);
+    const priceListSelect = document.getElementById('sale-price-list');
+    const customerPriceList = customer.price_list ? `Lista ${customer.price_list}` : '';
+    if (priceListSelect && customerPriceList && SALES_PRICE_LISTS.includes(customerPriceList)) {
+      priceListSelect.value = customerPriceList;
+    }
     salesUiState.invoiceDraft.customerId = String(customer.id || '');
     salesUiState.invoiceDraft.taxId = customer.tax_id || '';
     salesUiState.invoiceDraft.address = buildSaleCustomerAddress(customer);
     salesUiState.invoiceDraft.ivaCondition = normalizeSaleCustomerIvaCondition(customer.iva_condition);
+    if (customerPriceList && SALES_PRICE_LISTS.includes(customerPriceList)) {
+      salesUiState.invoiceDraft.priceList = customerPriceList;
+      handleSalePriceListChange();
+    }
     return;
   }
 
@@ -1003,9 +1278,11 @@ function renderCart() {
   if (subtotalEl) subtotalEl.textContent = app.formatMoney(totals.subtotal);
   if (ivaEl) ivaEl.textContent = app.formatMoney(totals.iva);
 
-  const discountPercent = totals.neto > 0 ? ((totals.descuento / totals.neto) * 100).toFixed(2) : '0.00';
-  if (globalDiscountEl) globalDiscountEl.textContent = discountPercent + '%';
-  if (globalDiscountInput) globalDiscountInput.value = discountPercent;
+  const globalDiscount = Math.max(0, Math.min(100, Number(salesUiState.invoiceDraft.globalDiscount) || 0));
+  if (globalDiscountEl) globalDiscountEl.textContent = app.formatDecimalInputValue(globalDiscount, 2) + '%';
+  if (globalDiscountInput && document.activeElement !== globalDiscountInput) {
+    globalDiscountInput.value = app.formatDecimalInputValue(globalDiscount, 2);
+  }
 }
 
 function cancelSale(clearBanner = true) {
@@ -1024,7 +1301,6 @@ function cancelSale(clearBanner = true) {
   const rem = document.getElementById('sale-remito');
   const pointOfSale = document.getElementById('sale-point-of-sale');
   const receiptType = document.getElementById('sale-receipt-type');
-  const saleDate = document.getElementById('sale-date');
   const syncBanner = document.getElementById('sales-sync-banner');
 
   if (customerSelect) customerSelect.value = '';
@@ -1037,7 +1313,6 @@ function cancelSale(clearBanner = true) {
   if (rem) rem.value = '';
   if (pointOfSale) pointOfSale.value = '001';
   if (receiptType) receiptType.value = 'C';
-  if (saleDate) saleDate.value = salesUiState.invoiceDraft.date;
 
   if (syncBanner && clearBanner) {
     syncBanner.innerHTML = '';
@@ -1046,7 +1321,6 @@ function cancelSale(clearBanner = true) {
 
   handleSaleCustomerChange();
   renderCart();
-  syncSalesDatePreview();
   refreshSaleDocumentPreview();
 }
 
