@@ -1,72 +1,64 @@
-# Backend TypeScript Scaffold
+# Backend TypeScript Runtime
 
-Esta carpeta prepara la migracion progresiva del backend a TypeScript sin reemplazar todavia el runtime actual en JavaScript.
+Esta carpeta ya no es solo un scaffold: ahora contiene la entrada oficial del runtime backend en TypeScript.
 
-Principios de esta fase:
+Estado actual:
 
-- no mover ni renombrar rutas Express existentes
+- `backend/src/server.ts` es la entrada real del backend
+- `server.js` queda como wrapper de compatibilidad que carga `backend/dist/server.js`
+- `npm run build:backend` compila el runtime TypeScript
+- `npm start` y `npm run dev:backend*` ya usan el backend compilado desde TypeScript
+- las rutas y servicios JS existentes siguen preservados mientras avanza la migracion interna por bloques
+
+Principios que se mantienen:
+
 - no cambiar contratos REST existentes
-- no tocar la logica de WooCommerce salvo necesidad clara
-- usar `shared/types` para contratos ya consumidos por frontend y backend
+- no tocar logica de negocio sin necesidad clara
+- seguir migrando backend por bloques pequenos y seguros
+- mantener WooCommerce estable y cubierto por tests
 
-Primer alcance tipado:
+Cobertura tipada ya disponible:
 
-- auth
-- customers
-- settings
-- dashboard
-- categories
-- deviceOptions
-- reports
-- repairs
-- products
-- purchases
-- sales
-- woocommerce (helpers tipados de config, logs, filtros y status)
+- `backend/src/middleware/auth.ts`
+- `backend/src/routes/auth.ts`
+- `backend/src/routes/settings.ts`
+- `backend/src/routes/customers.ts`
+- `backend/src/routes/dashboard.ts`
+- `backend/src/routes/catalog.ts`
+- `backend/src/routes/reports.ts`
+- `backend/src/routes/repairs.ts`
+- `backend/src/routes/products.ts`
+- `backend/src/routes/purchases.ts`
+- `backend/src/routes/sales.ts`
+- `backend/src/routes/woocommerce.ts`
+- `backend/src/services/woo-order-client.ts`
+- `backend/src/services/woo-order-utils.ts`
+- `backend/src/services/woocommerce-sync-utils.ts`
+- `backend/src/services/woocommerce-request.ts`
 
-Piezas ya preparadas:
+WooCommerce consolidado:
 
-- `backend/src/middleware/auth.ts` con helpers tipados para token y rol admin
-- `backend/src/routes/auth.ts` con normalizacion y saneado de contratos de auth
-- `backend/src/routes/settings.ts` con normalizacion de payload y defaults de settings
-- `backend/src/routes/customers.ts` con normalizacion de payloads y detalle tipado de customer
-- `backend/src/routes/dashboard.ts` con builders tipados para stats, alerts y actividad reciente
-- `backend/src/routes/catalog.ts` con helpers tipados de categorias, marcas, tipos y modelos
-- `backend/src/routes/reports.ts` con saneado tipado de agregados y revenue
-- `backend/src/routes/repairs.ts` con normalizacion de payloads y serializacion de reparaciones
-- `backend/src/routes/products.ts` con saneado base para productos
-- `backend/src/routes/purchases.ts` con normalizacion de proveedores, compras, pagos y NC
-- `backend/src/routes/sales.ts` con normalizacion de payloads y serializacion segura de ventas
-- `backend/src/routes/woocommerce.ts` con helpers tipados para configuracion, logs, filtros de importacion y estado de polling
-- `backend/src/services/woo-order-client.ts` con sanitizacion tipada de filtros para fetch paginado de ordenes Woo`r`n- `backend/src/services/woo-order-utils.ts` con helpers tipados de normalizacion y mapeo de ordenes Woo`r`n- `backend/src/services/woocommerce-sync-utils.ts` con helpers tipados de atributos, imagenes y normalizacion basica de productos Woo`r`n- `backend/src/services/woocommerce-request.ts` con contratos tipados para requests remotos a WooCommerce y WordPress
+- `routes/woocommerce.js` como ensamblador principal
+- `services/woocommerce-admin-routes.js`
+- `services/woocommerce-product-routes.js`
+- `services/woocommerce-order-routes.js`
+- `services/woocommerce-polling-routes.js`
+- `services/woocommerce-admin.js`
+- `services/woocommerce-polling.js`
+- `services/woo-order-utils.js`
+- `services/woocommerce-sync-utils.js`
+- `services/woocommerce-request.js`
 
-Comando de validacion:
+Comandos de validacion:
 
+- `npm run build:backend`
 - `npm run typecheck:backend`
+- `npm run check:syntax`
+- `npm test`
 
-Estado consolidado de WooCommerce:
+Interpretacion correcta desde este punto:
 
-- `routes/woocommerce.js` ahora funciona principalmente como ensamblador de modulos
-- `services/woocommerce-admin-routes.js` concentra config, status, test y disconnect
-- `services/woocommerce-product-routes.js` concentra sync de productos, reconcile, logs, reintento de imagenes y webhook de productos
-- `services/woocommerce-order-routes.js` concentra importacion manual, logs y webhooks de ordenes
-- `services/woocommerce-polling-routes.js` concentra polling y cleanup
-- `services/woocommerce-admin.js` concentra normalizacion y saneado de config, logs, status y polling
-- `services/woocommerce-polling.js` concentra el manager de polling
-- `services/woo-order-utils.js` concentra helpers puros de normalizacion y mapeo de ordenes Woo
-- `services/woocommerce-sync-utils.js` concentra helpers puros de transporte, atributos, imagenes y normalizacion basica
-- `services/woocommerce-request.js` concentra requests remotos a WooCommerce y WordPress`r`n- `backend/src/services/woo-order-utils.ts` replica en TypeScript la capa pura de ordenes Woo`r`n- `backend/src/services/woocommerce-sync-utils.ts` replica en TypeScript la capa pura de sync de productos Woo`r`n- `backend/src/services/woocommerce-request.ts` replica en TypeScript la capa de requests remotos de Woo
-
-Cobertura automatica agregada:
-
-- `tests/woo-order-sync.test.js`
-- `tests/woo-order-config.test.js`
-- `tests/woocommerce-routes.test.js`
-
-Siguiente paso recomendado:
-
-- consolidar commits por bloques de migracion y refactor de Woo para facilitar rollback logico
-- si se sigue refactorizando, extraer categorias/atributos o payload de producto desde `services/woocommerce-sync.js` en bloques chicos
-- mantener la estrategia actual: primero helpers puros y tests, despues cualquier cambio mas profundo de sincronizacion
-
-
+- la migracion base al nuevo stack ya esta cerrada
+- el frontend principal ya es React
+- el backend runtime oficial ya arranca desde TypeScript compilado
+- lo pendiente a futuro es modernizacion interna adicional, no una migracion estructural base

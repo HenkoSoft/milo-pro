@@ -4,15 +4,16 @@
   "description": "Mini ERP for repair shop and retail management",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "start:legacy": "set FRONTEND_MODE=legacy&& node server.js",
-    "start:react": "set FRONTEND_MODE=react&& node server.js",
-    "start:auto": "set FRONTEND_MODE=auto&& node server.js",
-    "dev": "node server.js",
-    "dev:backend": "node server.js",
-    "dev:backend:legacy": "set FRONTEND_MODE=legacy&& node server.js",
-    "dev:backend:react": "set FRONTEND_MODE=react&& node server.js",
-    "dev:backend:auto": "set FRONTEND_MODE=auto&& node server.js",
+    "build:backend": "node frontend/node_modules/typescript/bin/tsc -p backend/tsconfig.build.json",
+    "start": "npm run build:backend && node backend/dist/server.js",
+    "start:legacy": "set FRONTEND_MODE=legacy&& npm run build:backend && node backend/dist/server.js",
+    "start:react": "set FRONTEND_MODE=react&& npm run build:backend && node backend/dist/server.js",
+    "start:auto": "set FRONTEND_MODE=auto&& npm run build:backend && node backend/dist/server.js",
+    "dev": "npm run build:backend && node backend/dist/server.js",
+    "dev:backend": "npm run build:backend && node backend/dist/server.js",
+    "dev:backend:legacy": "set FRONTEND_MODE=legacy&& npm run build:backend && node backend/dist/server.js",
+    "dev:backend:react": "set FRONTEND_MODE=react&& npm run build:backend && node backend/dist/server.js",
+    "dev:backend:auto": "set FRONTEND_MODE=auto&& npm run build:backend && node backend/dist/server.js",
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "typecheck:frontend": "npm --prefix frontend run typecheck",
@@ -34,5 +35,3 @@
     "node": ">=20"
   }
 }
-
-
