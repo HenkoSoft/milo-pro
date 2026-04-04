@@ -13,6 +13,16 @@ const {
 const router = express.Router();
 const ALLOWED_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'];
 
+function toNullableString(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value).trim();
+}
+
+function toNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 function getUniqueProductIds(items) {
   return [...new Set(items.map((item) => item.product_id))];
 }
@@ -25,6 +35,73 @@ function normalizeReceiptType(value) {
 function normalizePointOfSale(value) {
   const digits = String(value || '001').replace(/\D/g, '');
   return (digits || '001').padStart(3, '0').slice(-3);
+}
+
+function normalizeSaleItemPayload(item) {
+  const data = item && typeof item === 'object' ? item : {};
+  return {
+    product_id: Number(data.product_id),
+    quantity: toNumber(data.quantity),
+    unit_price: toNumber(data.unit_price)
+  };
+}
+
+function normalizeSalePayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    customer_id: data.customer_id ?? null,
+    payment_method: String(data.payment_method || 'cash').trim() || 'cash',
+    notes: String(data.notes || ''),
+    receipt_type: normalizeReceiptType(data.receipt_type),
+    point_of_sale: normalizePointOfSale(data.point_of_sale),
+    items: Array.isArray(data.items) ? data.items.map(normalizeSaleItemPayload) : []
+  };
+}
+
+function normalizeSaleStatusUpdatePayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    status: String(data.status || '').trim(),
+    note: String(data.note || ''),
+    sync_to_woo: data.sync_to_woo === false ? false : true
+  };
+}
+
+function sanitizeSaleItem(record) {
+  return {
+    ...record,
+    id: record.id === undefined ? undefined : toNumber(record.id),
+    sale_id: record.sale_id === undefined ? undefined : toNumber(record.sale_id),
+    product_id: toNumber(record.product_id),
+    product_name: toNullableString(record.product_name),
+    sku: toNullableString(record.sku),
+    quantity: toNumber(record.quantity),
+    unit_price: toNumber(record.unit_price),
+    subtotal: record.subtotal === undefined ? undefined : toNumber(record.subtotal)
+  };
+}
+
+function sanitizeSale(record, items = []) {
+  if (!record) return null;
+  return {
+    ...record,
+    id: toNumber(record.id),
+    customer_id: record.customer_id === undefined || record.customer_id === null ? null : toNumber(record.customer_id),
+    customer_name: toNullableString(record.customer_name),
+    customer_phone: toNullableString(record.customer_phone),
+    user_name: toNullableString(record.user_name),
+    receipt_type: toNullableString(record.receipt_type),
+    point_of_sale: toNullableString(record.point_of_sale),
+    receipt_number: record.receipt_number === undefined || record.receipt_number === null ? null : toNumber(record.receipt_number),
+    total: toNumber(record.total),
+    payment_method: toNullableString(record.payment_method),
+    notes: toNullableString(record.notes),
+    channel: toNullableString(record.channel),
+    status: toNullableString(record.status),
+    payment_status: toNullableString(record.payment_status),
+    external_status: toNullableString(record.external_status),
+    items
+  };
 }
 
 function getNextReceiptNumber(receiptType, pointOfSale) {
@@ -81,7 +158,9 @@ async function rollbackWooSnapshots(previousSnapshots, action) {
 }
 
 router.get('/', authenticate, (req, res) => {
-  const { startDate, endDate, customerId } = req.query;
+  const startDate = String(req.query.startDate || '').trim();
+  const endDate = String(req.query.endDate || '').trim();
+  const customerId = String(req.query.customerId || '').trim();
 
   let query = `
     SELECT s.*, c.name as customer_name, u.name as user_name
@@ -120,9 +199,9 @@ router.get('/', authenticate, (req, res) => {
         WHERE si.sale_id = ?
       `,
       [sale.id]
-    );
+    ).map((item) => sanitizeSaleItem(item));
 
-    return { ...sale, items };
+    return sanitizeSale(sale, items);
   });
 
   res.json(salesWithItems);
@@ -141,7 +220,7 @@ router.get('/today', authenticate, (req, res) => {
       ORDER BY s.created_at DESC
     `,
     [today]
-  );
+  ).map((sale) => sanitizeSale(sale));
 
   const totalRevenue = get(
     `
@@ -163,8 +242,8 @@ router.get('/today', authenticate, (req, res) => {
 
   res.json({
     sales,
-    totalRevenue: totalRevenue.total,
-    salesCount: salesCount.count
+    totalRevenue: toNumber(totalRevenue.total),
+    salesCount: toNumber(salesCount.count)
   });
 });
 
@@ -179,7 +258,7 @@ router.get('/online-feed', authenticate, (req, res) => {
       ORDER BY s.id DESC
       LIMIT 20
     `
-  );
+  ).map((sale) => sanitizeSale(sale));
 
   res.json(feed);
 });
@@ -220,13 +299,14 @@ router.get('/:id', authenticate, (req, res) => {
       WHERE si.sale_id = ?
     `,
     [sale.id]
-  );
+  ).map((item) => sanitizeSaleItem(item));
 
-  res.json({ ...sale, items });
+  res.json(sanitizeSale(sale, items));
 });
 
 router.post('/', authenticate, async (req, res) => {
-  const { customer_id, items, payment_method, notes, receipt_type, point_of_sale } = req.body;
+  const payload = normalizeSalePayload(req.body);
+  const { customer_id, items, payment_method, notes, receipt_type, point_of_sale } = payload;
 
   if (!items || items.length === 0) {
     return res.status(400).json({ error: 'No items in sale' });
@@ -235,7 +315,7 @@ router.post('/', authenticate, async (req, res) => {
   const total = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const customerVal = customer_id === undefined ? null : customer_id;
   const paymentVal = payment_method === undefined ? 'cash' : payment_method;
-  const notesVal = notes === undefined ? null : notes;
+  const notesVal = notes === undefined || notes === '' ? null : notes;
   const receiptType = normalizeReceiptType(receipt_type);
   const pointOfSale = normalizePointOfSale(point_of_sale);
 
@@ -305,7 +385,7 @@ router.post('/', authenticate, async (req, res) => {
     const { sale, syncResults } = await createSale();
     saveDatabase();
 
-    res.status(201).json({ sale, syncResults });
+    res.status(201).json({ sale: sanitizeSale(sale), syncResults });
   } catch (err) {
     if (err.rollbackSnapshots && err.rollbackSnapshots.length > 0) {
       await rollbackWooSnapshots(err.rollbackSnapshots, 'sale_sync_rollback');
@@ -381,8 +461,8 @@ router.post('/test-sync/:id', authenticate, async (req, res) => {
 });
 
 router.put('/:id/status', authenticate, async (req, res) => {
-  const { status, note, sync_to_woo } = req.body || {};
-  const normalizedStatus = normalizeInternalSaleStatus(status);
+  const payload = normalizeSaleStatusUpdatePayload(req.body || {});
+  const normalizedStatus = normalizeInternalSaleStatus(payload.status);
   const allowedStatuses = ['pending_payment', 'paid', 'ready_for_delivery', 'completed', 'on_hold', 'cancelled', 'refunded', 'payment_failed'];
 
   if (!allowedStatuses.includes(normalizedStatus)) {
@@ -391,10 +471,13 @@ router.put('/:id/status', authenticate, async (req, res) => {
 
   try {
     const result = await updateSaleStatus(req.params.id, normalizedStatus, {
-      note: note || '',
-      syncToWoo: sync_to_woo !== false
+      note: payload.note || '',
+      syncToWoo: payload.sync_to_woo !== false
     });
-    res.json(result);
+    res.json({
+      ...result,
+      sale: result.sale ? sanitizeSale(result.sale) : result.sale
+    });
   } catch (err) {
     res.status(400).json({ error: err.message || 'Sale status update failed' });
   }

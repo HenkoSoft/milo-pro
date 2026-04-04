@@ -11,7 +11,6 @@ const { processProductImages } = require('../services/product-images');
 const { getNextAutomaticProductSku } = require('../services/product-sku');
 const {
   getProductById,
-  getProductImages,
   listProductsWithCatalog,
   syncProductCategories,
   syncProductImages,
@@ -20,12 +19,43 @@ const {
 
 const router = express.Router();
 
+function toNullableString(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value).trim();
+}
+
+function toNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function sanitizeProductSummary(product) {
+  if (!product) return null;
+  return {
+    ...product,
+    id: Number(product.id || 0),
+    sku: toNullableString(product.sku),
+    barcode: toNullableString(product.barcode),
+    name: String(product.name || ''),
+    description: toNullableString(product.description),
+    short_description: toNullableString(product.short_description),
+    color: toNullableString(product.color),
+    purchase_price: toNumber(product.purchase_price),
+    sale_price: toNumber(product.sale_price),
+    stock: toNumber(product.stock),
+    min_stock: toNumber(product.min_stock, 2),
+    image_url: toNullableString(product.image_url),
+    sync_status: toNullableString(product.sync_status),
+    active: toNumber(product.active, 1)
+  };
+}
+
 function buildProductsQuery({ search, category, lowStock }) {
   let query = `
     SELECT p.*, c.name as category_name, b.name as brand_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
-    LEFT JOIN brands b ON p.brand_id = b.id
+    LEFT JOIN brands b ON b.id = p.brand_id
     WHERE COALESCE(p.active, 1) = 1
   `;
   const params = [];
@@ -76,9 +106,7 @@ function buildProductPayload(body = {}) {
     const rawName = categoryRecord ? categoryRecord.name : '';
     return !isGenericUncategorized(rawName);
   });
-  const categoryIds = toIntegerList([
-    ...filteredCategoryIds
-  ]);
+  const categoryIds = toIntegerList(filteredCategoryIds);
 
   const images = Array.isArray(body.images)
     ? body.images
@@ -88,7 +116,7 @@ function buildProductPayload(body = {}) {
       .filter(Boolean)
       .map((item) => ({ url_remote: item }));
 
-  const primaryImageUrl = (body.image_url || '').trim();
+  const primaryImageUrl = String(body.image_url || '').trim();
   const normalizedImages = primaryImageUrl
     ? [{ url_remote: primaryImageUrl, es_principal: true }, ...images.filter((item) => (item.url_remote || item.url_local) !== primaryImageUrl)]
     : images;
@@ -105,21 +133,21 @@ function buildProductPayload(body = {}) {
     category_ids: categoryIds,
     brand_id: body.brand_id === undefined || body.brand_id === '' ? null : body.brand_id,
     supplier: body.supplier === undefined ? null : body.supplier,
-    purchase_price: body.purchase_price === undefined ? 0 : body.purchase_price,
-    sale_price: body.sale_price === undefined ? 0 : body.sale_price,
+    purchase_price: toNumber(body.purchase_price, 0),
+    sale_price: toNumber(body.sale_price, 0),
     sale_price_includes_tax: body.sale_price_includes_tax ? 1 : 0,
-    sale_price_2: body.sale_price_2 === undefined ? 0 : body.sale_price_2,
+    sale_price_2: toNumber(body.sale_price_2, 0),
     sale_price_2_includes_tax: body.sale_price_2_includes_tax ? 1 : 0,
-    sale_price_3: body.sale_price_3 === undefined ? 0 : body.sale_price_3,
+    sale_price_3: toNumber(body.sale_price_3, 0),
     sale_price_3_includes_tax: body.sale_price_3_includes_tax ? 1 : 0,
-    sale_price_4: body.sale_price_4 === undefined ? 0 : body.sale_price_4,
+    sale_price_4: toNumber(body.sale_price_4, 0),
     sale_price_4_includes_tax: body.sale_price_4_includes_tax ? 1 : 0,
-    sale_price_5: body.sale_price_5 === undefined ? 0 : body.sale_price_5,
+    sale_price_5: toNumber(body.sale_price_5, 0),
     sale_price_5_includes_tax: body.sale_price_5_includes_tax ? 1 : 0,
-    sale_price_6: body.sale_price_6 === undefined ? 0 : body.sale_price_6,
+    sale_price_6: toNumber(body.sale_price_6, 0),
     sale_price_6_includes_tax: body.sale_price_6_includes_tax ? 1 : 0,
-    stock: body.stock === undefined ? 0 : body.stock,
-    min_stock: body.min_stock === undefined ? 2 : body.min_stock,
+    stock: toNumber(body.stock, 0),
+    min_stock: toNumber(body.min_stock, 2),
     woocommerce_id: body.woocommerce_id || body.woocommerce_product_id || null,
     woocommerce_product_id: body.woocommerce_product_id || body.woocommerce_id || null,
     image_url: primaryImageUrl || null,
@@ -241,7 +269,7 @@ async function persistProduct(payload, productId = null) {
 
 router.get('/', authenticate, (req, res) => {
   const { query, params } = buildProductsQuery(req.query || {});
-  res.json(listProductsWithCatalog(query, params));
+  res.json(listProductsWithCatalog(query, params).map((product) => sanitizeProductSummary(product)));
 });
 
 router.get('/next-sku/value', authenticate, (req, res) => {
@@ -252,7 +280,7 @@ router.get('/next-sku/value', authenticate, (req, res) => {
 router.get('/:id', authenticate, (req, res) => {
   const product = getProductById(req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found' });
-  res.json(product);
+  res.json(sanitizeProductSummary(product));
 });
 
 router.post('/', authenticate, async (req, res) => {
@@ -260,7 +288,7 @@ router.post('/', authenticate, async (req, res) => {
     const payload = buildProductPayload(req.body || {});
     const product = await persistProduct(payload);
     const syncResult = await syncProductSnapshotToWooCommerce(product, { action: 'product_create' });
-    const refreshedProduct = getProductById(product.id) || product;
+    const refreshedProduct = sanitizeProductSummary(getProductById(product.id) || product);
 
     if (!syncResult.success && !syncResult.skipped) {
       return res.status(201).json({
@@ -280,7 +308,7 @@ router.put('/:id', authenticate, async (req, res) => {
     const payload = buildProductPayload(req.body || {});
     const product = await persistProduct(payload, req.params.id);
     const syncResult = await syncProductSnapshotToWooCommerce(product, { action: 'product_update' });
-    const refreshedProduct = getProductById(product.id) || product;
+    const refreshedProduct = sanitizeProductSummary(getProductById(product.id) || product);
 
     if (!syncResult.success && !syncResult.skipped) {
       return res.json({
@@ -309,11 +337,12 @@ router.delete('/:id', authenticate, async (req, res) => {
     return res.status(404).json({ error: 'Product not found' });
   }
 
+  let remoteDeleteWarning = '';
   if (product.woocommerce_product_id || product.woocommerce_id) {
     const wooDeleteResult = await deleteProductFromWooCommerce(product, {
       action: 'product_delete'
     });
-    var remoteDeleteWarning = (!wooDeleteResult.success && !wooDeleteResult.skipped)
+    remoteDeleteWarning = (!wooDeleteResult.success && !wooDeleteResult.skipped)
       ? (wooDeleteResult.error || 'No se pudo eliminar en WooCommerce')
       : '';
   }
@@ -333,7 +362,7 @@ router.get('/low-stock/alerts', authenticate, (req, res) => {
      LEFT JOIN brands b ON p.brand_id = b.id
      WHERE COALESCE(p.active, 1) = 1 AND p.stock <= p.min_stock
      ORDER BY p.stock ASC`
-  );
+  ).map((product) => sanitizeProductSummary(product));
   res.json(products);
 });
 

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 const path = require('path');
 const { initializeDatabase } = require('./database');
 
@@ -18,6 +19,11 @@ const purchaseRoutes = require('./routes/purchases');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const publicDir = path.join(__dirname, 'public');
+const reactDistDir = path.join(__dirname, 'frontend', 'dist');
+const legacyIndexPath = path.join(publicDir, 'index.html');
+const reactIndexPath = path.join(reactDistDir, 'index.html');
+const frontendMode = String(process.env.FRONTEND_MODE || 'legacy').trim().toLowerCase();
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -27,14 +33,67 @@ app.use(express.json({
     req.rawBody = Buffer.from(buf);
   }
 }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+function hasReactBuild() {
+  return fs.existsSync(reactIndexPath);
+}
+
+function resolveFrontendStrategy() {
+  if (frontendMode === 'react') {
+    return {
+      mode: 'react',
+      indexPath: reactIndexPath,
+      reactActive: true,
+      buildAvailable: hasReactBuild()
+    };
+  }
+
+  if (frontendMode === 'auto') {
+    const buildAvailable = hasReactBuild();
+    return {
+      mode: buildAvailable ? 'react' : 'legacy',
+      indexPath: buildAvailable ? reactIndexPath : legacyIndexPath,
+      reactActive: buildAvailable,
+      buildAvailable
+    };
+  }
+
+  return {
+    mode: 'legacy',
+    indexPath: legacyIndexPath,
+    reactActive: false,
+    buildAvailable: hasReactBuild()
+  };
+}
+
+function sendIndexFile(res, filePath) {
+  res.sendFile(filePath);
+}
+
+function frontendRequestHandler(strategy) {
+  return (req, res) => {
+    sendIndexFile(res, strategy.indexPath);
+  };
+}
 
 async function startServer() {
   try {
     await initializeDatabase();
 
+    const frontendStrategy = resolveFrontendStrategy();
+
+    if (frontendMode === 'react' && !frontendStrategy.buildAvailable) {
+      throw new Error('FRONTEND_MODE=react requiere un build existente en frontend/dist');
+    }
+
     app.get('/api/health', (req, res) => {
-      res.json({ ok: true });
+      res.json({
+        ok: true,
+        frontend_mode: frontendStrategy.mode,
+        requested_frontend_mode: frontendMode,
+        react_build_available: frontendStrategy.buildAvailable,
+        legacy_entry: '/legacy-app'
+      });
     });
 
     app.use('/api/auth', authRoutes);
@@ -58,9 +117,18 @@ async function startServer() {
       res.status(404).json({ error: 'Endpoint not found' });
     });
 
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    app.use('/productos', express.static(path.join(publicDir, 'productos')));
+    app.use('/css', express.static(path.join(publicDir, 'css')));
+    app.use('/js', express.static(path.join(publicDir, 'js')));
+    app.get('/legacy-app', (req, res) => {
+      sendIndexFile(res, legacyIndexPath);
     });
+
+    if (frontendStrategy.reactActive) {
+      app.use(express.static(reactDistDir));
+    }
+
+    app.get('*', frontendRequestHandler(frontendStrategy));
 
     app.use((err, req, res, next) => {
       console.error('Unhandled server error:', err);
@@ -72,6 +140,7 @@ async function startServer() {
 
     app.listen(PORT, () => {
       console.log('milo-pro running on http://localhost:' + PORT);
+      console.log(`[FRONTEND] mode=${frontendStrategy.mode} requested=${frontendMode} react_build=${frontendStrategy.buildAvailable ? 'yes' : 'no'} legacy=/legacy-app`);
     });
   } catch (error) {
     console.error('Server startup failed:', error);

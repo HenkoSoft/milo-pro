@@ -17,6 +17,107 @@ function getErrorMessage(error, fallback) {
   return fallback;
 }
 
+function toNullableString(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  return String(value).trim();
+}
+
+function toNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function toNumberOrNull(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function sanitizeSupplier(record) {
+  if (!record) return null;
+  return {
+    ...record,
+    id: Number(record.id || 0),
+    name: String(record.name || ''),
+    phone: toNullableString(record.phone),
+    email: toNullableString(record.email),
+    address: toNullableString(record.address),
+    city: toNullableString(record.city),
+    tax_id: toNullableString(record.tax_id),
+    notes: toNullableString(record.notes),
+    balance: record.balance === undefined ? undefined : toNumber(record.balance),
+    total_purchases: record.total_purchases === undefined ? undefined : toNumber(record.total_purchases),
+    total_credits: record.total_credits === undefined ? undefined : toNumber(record.total_credits),
+    total_payments: record.total_payments === undefined ? undefined : toNumber(record.total_payments)
+  };
+}
+
+function normalizeSupplierPayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    name: String(data.name || '').trim(),
+    phone: String(data.phone || ''),
+    email: String(data.email || ''),
+    address: String(data.address || ''),
+    city: String(data.city || ''),
+    tax_id: String(data.tax_id || ''),
+    notes: String(data.notes || '')
+  };
+}
+
+function normalizePurchaseItem(item) {
+  const data = item && typeof item === 'object' ? item : {};
+  return {
+    product_id: data.product_id ?? null,
+    product_name: String(data.product_name || ''),
+    product_code: String(data.product_code || ''),
+    quantity: toNumber(data.quantity),
+    unit_cost: toNumber(data.unit_cost),
+    unit_price: toNumber(data.unit_price)
+  };
+}
+
+function normalizePurchasePayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    supplier_id: data.supplier_id ?? null,
+    invoice_type: String(data.invoice_type || 'FA').trim() || 'FA',
+    invoice_number: String(data.invoice_number || ''),
+    invoice_date: String(data.invoice_date || ''),
+    items: Array.isArray(data.items) ? data.items.map(normalizePurchaseItem) : [],
+    notes: String(data.notes || '')
+  };
+}
+
+function normalizeSupplierPaymentPayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    supplier_id: String(data.supplier_id || '').trim(),
+    amount: toNumber(data.amount),
+    payment_method: String(data.payment_method || 'cash').trim() || 'cash',
+    reference: String(data.reference || ''),
+    notes: String(data.notes || '')
+  };
+}
+
+function normalizeSupplierCreditPayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    supplier_id: data.supplier_id ?? null,
+    credit_note_number: String(data.credit_note_number || ''),
+    reference_invoice: String(data.reference_invoice || ''),
+    invoice_date: String(data.invoice_date || ''),
+    items: Array.isArray(data.items) ? data.items.map(normalizePurchaseItem) : [],
+    notes: String(data.notes || ''),
+    update_stock: Boolean(data.update_stock),
+    update_cash: Boolean(data.update_cash)
+  };
+}
+
 function recalculateSupplierAccount(supplierId) {
   if (!supplierId) return;
 
@@ -62,32 +163,34 @@ function normalizePurchaseTotals(purchase) {
 }
 
 router.get('/suppliers', authenticate, (req, res) => {
-  const suppliers = all('SELECT * FROM suppliers ORDER BY name');
+  const suppliers = all('SELECT * FROM suppliers ORDER BY name').map((supplier) => sanitizeSupplier(supplier));
   res.json(suppliers);
 });
 
 router.post('/suppliers', authenticate, (req, res) => {
-  const name = String(req.body.name || '').trim();
-  const phone = String(req.body.phone || '').trim();
-  const email = String(req.body.email || '').trim();
-  const address = String(req.body.address || '').trim();
-  const city = String(req.body.city || '').trim();
-  const tax_id = String(req.body.tax_id || '').trim();
-  const notes = String(req.body.notes || '').trim();
-  
-  if (!name) {
+  const payload = normalizeSupplierPayload(req.body);
+
+  if (!payload.name) {
     return res.status(400).json({ error: 'El nombre es requerido' });
   }
-  
+
   try {
     const result = run(`
       INSERT INTO suppliers (name, phone, email, address, city, tax_id, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [name, phone, email, address, city, tax_id, notes]);
-    
+    `, [
+      payload.name,
+      toNullableString(payload.phone),
+      toNullableString(payload.email),
+      toNullableString(payload.address),
+      toNullableString(payload.city),
+      toNullableString(payload.tax_id),
+      toNullableString(payload.notes)
+    ]);
+
     saveDatabase();
     const supplier = get('SELECT * FROM suppliers WHERE id = ?', [result.lastInsertRowid]);
-    res.status(201).json(supplier || { id: result.lastInsertRowid, name, phone, email, address, city, tax_id, notes });
+    res.status(201).json(sanitizeSupplier(supplier || { id: result.lastInsertRowid, ...payload }));
   } catch (err) {
     console.error('Create supplier failed:', err);
     res.status(400).json({ error: getErrorMessage(err, 'No se pudo crear el proveedor') });
@@ -95,27 +198,30 @@ router.post('/suppliers', authenticate, (req, res) => {
 });
 
 router.put('/suppliers/:id', authenticate, (req, res) => {
-  const name = String(req.body.name || '').trim();
-  const phone = String(req.body.phone || '').trim();
-  const email = String(req.body.email || '').trim();
-  const address = String(req.body.address || '').trim();
-  const city = String(req.body.city || '').trim();
-  const tax_id = String(req.body.tax_id || '').trim();
-  const notes = String(req.body.notes || '').trim();
-  
-  if (!name) {
+  const payload = normalizeSupplierPayload(req.body);
+
+  if (!payload.name) {
     return res.status(400).json({ error: 'El nombre es requerido' });
   }
-  
+
   try {
     run(`
       UPDATE suppliers SET name = ?, phone = ?, email = ?, address = ?, city = ?, tax_id = ?, notes = ?
       WHERE id = ?
-    `, [name, phone, email, address, city, tax_id, notes, req.params.id]);
-    
+    `, [
+      payload.name,
+      toNullableString(payload.phone),
+      toNullableString(payload.email),
+      toNullableString(payload.address),
+      toNullableString(payload.city),
+      toNullableString(payload.tax_id),
+      toNullableString(payload.notes),
+      req.params.id
+    ]);
+
     saveDatabase();
     const supplier = get('SELECT * FROM suppliers WHERE id = ?', [req.params.id]);
-    res.json(supplier);
+    res.json(sanitizeSupplier(supplier));
   } catch (err) {
     console.error('Update supplier failed:', err);
     res.status(400).json({ error: getErrorMessage(err, 'No se pudo actualizar el proveedor') });
@@ -146,37 +252,39 @@ router.delete('/suppliers/:id', authenticate, (req, res) => {
 router.get('/suppliers/:id', authenticate, (req, res) => {
   const supplier = get('SELECT * FROM suppliers WHERE id = ?', [req.params.id]);
   if (!supplier) return res.status(404).json({ error: 'Proveedor no encontrado' });
-  res.json(supplier);
+  res.json(sanitizeSupplier(supplier));
 });
 
 router.get('/credits', authenticate, (req, res) => {
-  const { supplier, date_from, date_to } = req.query;
-  
+  const supplier = String(req.query.supplier || '').trim();
+  const date_from = String(req.query.date_from || '').trim();
+  const date_to = String(req.query.date_to || '').trim();
+
   let query = `
-    SELECT c.*, s.name as supplier_name 
-    FROM supplier_credits c 
-    LEFT JOIN suppliers s ON c.supplier_id = s.id 
+    SELECT c.*, s.name as supplier_name
+    FROM supplier_credits c
+    LEFT JOIN suppliers s ON c.supplier_id = s.id
     WHERE 1=1
   `;
   const params = [];
-  
+
   if (supplier) {
     query += ' AND c.supplier_id = ?';
     params.push(supplier);
   }
-  
+
   if (date_from) {
     query += ' AND c.invoice_date >= ?';
     params.push(date_from);
   }
-  
+
   if (date_to) {
     query += ' AND c.invoice_date <= ?';
     params.push(date_to);
   }
-  
+
   query += ' ORDER BY c.created_at DESC';
-  
+
   const credits = all(query, params);
   res.json(credits);
 });
@@ -184,80 +292,90 @@ router.get('/credits', authenticate, (req, res) => {
 router.get('/credits/:id', authenticate, (req, res) => {
   const credit = get(`
     SELECT c.*, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.tax_id as supplier_tax_id
-    FROM supplier_credits c 
-    LEFT JOIN suppliers s ON c.supplier_id = s.id 
+    FROM supplier_credits c
+    LEFT JOIN suppliers s ON c.supplier_id = s.id
     WHERE c.id = ?
   `, [req.params.id]);
-  
+
   if (!credit) return res.status(404).json({ error: 'NC no encontrada' });
-  
+
   const items = all('SELECT * FROM supplier_credit_items WHERE credit_id = ?', [req.params.id]);
   credit.items = items;
-  
+
   res.json(credit);
 });
 
 router.post('/credits', authenticate, (req, res) => {
-  const { supplier_id, credit_note_number, reference_invoice, invoice_date, items, notes, update_stock, update_cash } = req.body;
-  
-  if (!items || items.length === 0) {
+  const payload = normalizeSupplierCreditPayload(req.body);
+
+  if (!payload.items || payload.items.length === 0) {
     return res.status(400).json({ error: 'Debe agregar al menos un producto' });
   }
-  
+
   let subtotal = 0;
-  items.forEach(item => {
+  payload.items.forEach((item) => {
     subtotal += item.quantity * item.unit_price;
   });
-  
+
   const iva = subtotal * 0.21;
   const total = subtotal + iva;
-  
+
   try {
     const result = run(`
       INSERT INTO supplier_credits (supplier_id, credit_note_number, reference_invoice, invoice_date, subtotal, iva, total, notes, user_id, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
-    `, [supplier_id, credit_note_number, reference_invoice, invoice_date, subtotal, iva, total, notes, req.user.id]);
-    
+    `, [
+      payload.supplier_id,
+      toNullableString(payload.credit_note_number),
+      toNullableString(payload.reference_invoice),
+      toNullableString(payload.invoice_date),
+      subtotal,
+      iva,
+      total,
+      toNullableString(payload.notes),
+      req.user.id
+    ]);
+
     const credit_id = result.lastInsertRowid;
-    
-    items.forEach(item => {
+
+    payload.items.forEach((item) => {
       run(`
         INSERT INTO supplier_credit_items (credit_id, product_id, product_name, product_code, quantity, unit_price, subtotal)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `, [credit_id, item.product_id || null, item.product_name, item.product_code, item.quantity, item.unit_price, item.quantity * item.unit_price]);
-      
-      if (update_stock && item.product_id) {
+
+      if (payload.update_stock && item.product_id) {
         run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
       }
     });
-    
-    if (supplier_id) {
-      let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [supplier_id]);
-      
+
+    if (payload.supplier_id) {
+      let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
+
       if (account) {
         account.balance -= total;
         account.total_credits += total;
         run(`
-          UPDATE supplier_account 
-          SET balance = ?, total_credits = ?, updated_at = CURRENT_TIMESTAMP 
+          UPDATE supplier_account
+          SET balance = ?, total_credits = ?, updated_at = CURRENT_TIMESTAMP
           WHERE supplier_id = ?
-        `, [account.balance, account.total_credits, supplier_id]);
+        `, [account.balance, account.total_credits, payload.supplier_id]);
       } else {
         account = { balance: -total, total_credits: total };
         run(`
           INSERT INTO supplier_account (supplier_id, balance, total_credits)
           VALUES (?, ?, ?)
-        `, [supplier_id, account.balance, account.total_credits]);
+        `, [payload.supplier_id, account.balance, account.total_credits]);
       }
-      
+
       run(`
         INSERT INTO supplier_account_movements (supplier_id, type, reference_id, reference_number, description, credit, balance)
         VALUES (?, 'credit', ?, ?, ?, ?, ?)
-      `, [supplier_id, credit_id, credit_note_number, `NC - ${credit_note_number}`, total, account.balance]);
+      `, [payload.supplier_id, credit_id, payload.credit_note_number, `NC - ${payload.credit_note_number}`, total, account.balance]);
     }
-    
+
     saveDatabase();
-    
+
     const credit = get('SELECT * FROM supplier_credits WHERE id = ?', [credit_id]);
     res.status(201).json(credit);
   } catch (err) {
@@ -296,7 +414,7 @@ router.delete('/credits/:id', authenticate, (req, res) => {
 
 router.get('/supplier-account', authenticate, (req, res) => {
   const suppliers = all(`
-    SELECT s.*, 
+    SELECT s.*,
       COALESCE(acc.balance, 0) as balance,
       COALESCE(acc.total_purchases, 0) as total_purchases,
       COALESCE(acc.total_credits, 0) as total_credits,
@@ -304,13 +422,13 @@ router.get('/supplier-account', authenticate, (req, res) => {
     FROM suppliers s
     LEFT JOIN supplier_account acc ON s.id = acc.supplier_id
     ORDER BY s.name
-  `);
+  `).map((supplier) => sanitizeSupplier(supplier));
   res.json(suppliers);
 });
 
 router.get('/supplier-account/:id', authenticate, (req, res) => {
   const supplier = get(`
-    SELECT s.*, 
+    SELECT s.*,
       COALESCE(acc.balance, 0) as balance,
       COALESCE(acc.total_purchases, 0) as total_purchases,
       COALESCE(acc.total_credits, 0) as total_credits,
@@ -319,56 +437,63 @@ router.get('/supplier-account/:id', authenticate, (req, res) => {
     LEFT JOIN supplier_account acc ON s.id = acc.supplier_id
     WHERE s.id = ?
   `, [req.params.id]);
-  
+
   if (!supplier) return res.status(404).json({ error: 'Proveedor no encontrado' });
-  
+
   const movements = all(`
-    SELECT * FROM supplier_account_movements 
-    WHERE supplier_id = ? 
+    SELECT * FROM supplier_account_movements
+    WHERE supplier_id = ?
     ORDER BY created_at DESC
   `, [req.params.id]);
-  
-  res.json({ supplier, movements });
+
+  res.json({ supplier: sanitizeSupplier(supplier), movements });
 });
 
 router.post('/supplier-payments', authenticate, (req, res) => {
-  const { supplier_id, amount, payment_method, reference, notes } = req.body;
-  
-  if (!supplier_id || !amount) {
+  const payload = normalizeSupplierPaymentPayload(req.body);
+
+  if (!payload.supplier_id || !payload.amount) {
     return res.status(400).json({ error: 'Proveedor y monto son requeridos' });
   }
-  
+
   try {
     run(`
       INSERT INTO supplier_payments (supplier_id, amount, payment_method, reference, notes, user_id)
       VALUES (?, ?, ?, ?, ?, ?)
-    `, [supplier_id, amount, payment_method || 'cash', reference, notes, req.user.id]);
-    
-    let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [supplier_id]);
-    
+    `, [
+      payload.supplier_id,
+      payload.amount,
+      payload.payment_method,
+      toNullableString(payload.reference),
+      toNullableString(payload.notes),
+      req.user.id
+    ]);
+
+    let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
+
     if (account) {
-      account.balance -= amount;
-      account.total_payments += amount;
+      account.balance -= payload.amount;
+      account.total_payments += payload.amount;
       run(`
-        UPDATE supplier_account 
-        SET balance = ?, total_payments = ?, updated_at = CURRENT_TIMESTAMP 
+        UPDATE supplier_account
+        SET balance = ?, total_payments = ?, updated_at = CURRENT_TIMESTAMP
         WHERE supplier_id = ?
-      `, [account.balance, account.total_payments, supplier_id]);
+      `, [account.balance, account.total_payments, payload.supplier_id]);
     } else {
-      account = { balance: -amount, total_payments: amount };
+      account = { balance: -payload.amount, total_payments: payload.amount };
       run(`
         INSERT INTO supplier_account (supplier_id, balance, total_payments)
         VALUES (?, ?, ?)
-      `, [supplier_id, account.balance, account.total_payments]);
+      `, [payload.supplier_id, account.balance, account.total_payments]);
     }
-    
+
     run(`
       INSERT INTO supplier_account_movements (supplier_id, type, reference_id, description, credit, balance)
       VALUES (?, 'payment', ?, ?, ?, ?)
-    `, [supplier_id, null, `Pago - ${reference || ''}`, amount, account.balance]);
-    
+    `, [payload.supplier_id, null, `Pago - ${payload.reference || ''}`, payload.amount, account.balance]);
+
     saveDatabase();
-    
+
     res.status(201).json({ success: true, balance: account.balance });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -376,104 +501,119 @@ router.post('/supplier-payments', authenticate, (req, res) => {
 });
 
 router.get('/payments', authenticate, (req, res) => {
-  const { supplier, date_from, date_to } = req.query;
-  
+  const supplier = String(req.query.supplier || '').trim();
+  const date_from = String(req.query.date_from || '').trim();
+  const date_to = String(req.query.date_to || '').trim();
+
   let query = `
-    SELECT p.*, s.name as supplier_name 
-    FROM supplier_payments p 
-    LEFT JOIN suppliers s ON p.supplier_id = s.id 
+    SELECT p.*, s.name as supplier_name
+    FROM supplier_payments p
+    LEFT JOIN suppliers s ON p.supplier_id = s.id
     WHERE 1=1
   `;
   const params = [];
-  
+
   if (supplier) {
     query += ' AND p.supplier_id = ?';
     params.push(supplier);
   }
-  
+
   if (date_from) {
     query += ' AND DATE(p.created_at) >= ?';
     params.push(date_from);
   }
-  
+
   if (date_to) {
     query += ' AND DATE(p.created_at) <= ?';
     params.push(date_to);
   }
-  
+
   query += ' ORDER BY p.created_at DESC';
-  
+
   const payments = all(query, params);
   res.json(payments);
 });
 
 router.get('/', authenticate, (req, res) => {
-  const { supplier, date_from, date_to, status } = req.query;
-  
+  const supplier = String(req.query.supplier || '').trim();
+  const date_from = String(req.query.date_from || '').trim();
+  const date_to = String(req.query.date_to || '').trim();
+  const status = String(req.query.status || '').trim();
+
   let query = `
-    SELECT p.*, s.name as supplier_name 
-    FROM purchases p 
-    LEFT JOIN suppliers s ON p.supplier_id = s.id 
+    SELECT p.*, s.name as supplier_name
+    FROM purchases p
+    LEFT JOIN suppliers s ON p.supplier_id = s.id
     WHERE 1=1
   `;
   const params = [];
-  
+
   if (supplier) {
     query += ' AND p.supplier_id = ?';
     params.push(supplier);
   }
-  
+
   if (date_from) {
     query += ' AND p.invoice_date >= ?';
     params.push(date_from);
   }
-  
+
   if (date_to) {
     query += ' AND p.invoice_date <= ?';
     params.push(date_to);
   }
-  
+
   if (status) {
     query += ' AND p.status = ?';
     params.push(status);
   }
-  
+
   query += ' ORDER BY p.created_at DESC';
-  
+
   const purchases = all(query, params).map(normalizePurchaseTotals);
   res.json(purchases);
 });
 
 router.post('/', authenticate, (req, res) => {
-  const { supplier_id, invoice_type, invoice_number, invoice_date, items, notes } = req.body;
-  
-  if (!items || items.length === 0) {
+  const payload = normalizePurchasePayload(req.body);
+
+  if (!payload.items || payload.items.length === 0) {
     return res.status(400).json({ error: 'Debe agregar al menos un producto' });
   }
-  
+
   let subtotal = 0;
-  items.forEach(item => {
+  payload.items.forEach((item) => {
     subtotal += item.quantity * item.unit_cost;
   });
-  
-  const normalizedInvoiceType = invoice_type || 'FA';
+
+  const normalizedInvoiceType = payload.invoice_type || 'FA';
   const iva = subtotal * getPurchaseIvaRate(normalizedInvoiceType);
   const total = subtotal + iva;
-  
+
   try {
     const result = run(`
       INSERT INTO purchases (supplier_id, invoice_type, invoice_number, invoice_date, subtotal, iva, total, notes, user_id, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
-    `, [supplier_id, normalizedInvoiceType, invoice_number, invoice_date, subtotal, iva, total, notes, req.user.id]);
-    
+    `, [
+      payload.supplier_id,
+      normalizedInvoiceType,
+      toNullableString(payload.invoice_number),
+      toNullableString(payload.invoice_date),
+      subtotal,
+      iva,
+      total,
+      toNullableString(payload.notes),
+      req.user.id
+    ]);
+
     const purchase_id = result.lastInsertRowid;
-    
-    items.forEach(item => {
+
+    payload.items.forEach((item) => {
       run(`
         INSERT INTO purchase_items (purchase_id, product_id, product_name, product_code, quantity, unit_cost, subtotal)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `, [purchase_id, item.product_id || null, item.product_name, item.product_code, item.quantity, item.unit_cost, item.quantity * item.unit_cost]);
-      
+
       if (item.product_id) {
         const current = get('SELECT stock FROM products WHERE id = ?', [item.product_id]);
         if (current) {
@@ -481,34 +621,34 @@ router.post('/', authenticate, (req, res) => {
         }
       }
     });
-    
-    if (supplier_id) {
-      let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [supplier_id]);
-      
+
+    if (payload.supplier_id) {
+      let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
+
       if (account) {
         account.balance += total;
         account.total_purchases += total;
         run(`
-          UPDATE supplier_account 
-          SET balance = ?, total_purchases = ?, updated_at = CURRENT_TIMESTAMP 
+          UPDATE supplier_account
+          SET balance = ?, total_purchases = ?, updated_at = CURRENT_TIMESTAMP
           WHERE supplier_id = ?
-        `, [account.balance, account.total_purchases, supplier_id]);
+        `, [account.balance, account.total_purchases, payload.supplier_id]);
       } else {
         account = { balance: total, total_purchases: total };
         run(`
           INSERT INTO supplier_account (supplier_id, balance, total_purchases)
           VALUES (?, ?, ?)
-        `, [supplier_id, account.balance, account.total_purchases]);
+        `, [payload.supplier_id, account.balance, account.total_purchases]);
       }
-      
+
       run(`
         INSERT INTO supplier_account_movements (supplier_id, type, reference_id, reference_number, description, debit, balance)
         VALUES (?, 'purchase', ?, ?, ?, ?, ?)
-      `, [supplier_id, purchase_id, invoice_number, `${normalizedInvoiceType} - ${invoice_number || ''}`, total, account.balance]);
+      `, [payload.supplier_id, purchase_id, payload.invoice_number, `${normalizedInvoiceType} - ${payload.invoice_number || ''}`, total, account.balance]);
     }
-    
+
     saveDatabase();
-    
+
     const purchase = get('SELECT * FROM purchases WHERE id = ?', [purchase_id]);
     res.status(201).json(purchase);
   } catch (err) {
@@ -519,16 +659,16 @@ router.post('/', authenticate, (req, res) => {
 router.get('/:id', authenticate, (req, res) => {
   const purchase = normalizePurchaseTotals(get(`
     SELECT p.*, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.tax_id as supplier_tax_id
-    FROM purchases p 
-    LEFT JOIN suppliers s ON p.supplier_id = s.id 
+    FROM purchases p
+    LEFT JOIN suppliers s ON p.supplier_id = s.id
     WHERE p.id = ?
   `, [req.params.id]));
-  
+
   if (!purchase) return res.status(404).json({ error: 'Compra no encontrada' });
-  
+
   const items = all('SELECT * FROM purchase_items WHERE purchase_id = ?', [req.params.id]);
   purchase.items = items;
-  
+
   res.json(purchase);
 });
 

@@ -4,6 +4,45 @@ const { authenticate } = require('../auth');
 
 const router = express.Router();
 
+function toNullableString(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value).trim();
+}
+
+function toNumberOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function slugify(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+function buildDeviceTypePayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return { name: String(data.name || '').trim() };
+}
+
+function buildBrandPayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  const name = String(data.name || '').trim();
+  return {
+    name,
+    slug: String(data.slug || slugify(name)).trim() || slugify(name),
+    active: data.active === false || data.active === 0 ? 0 : 1,
+    woocommerce_brand_id: toNumberOrNull(data.woocommerce_brand_id)
+  };
+}
+
+function buildDeviceModelPayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    name: String(data.name || '').trim(),
+    brand_id: toNumberOrNull(data.brand_id)
+  };
+}
+
 router.get('/device-types', authenticate, (req, res) => {
   const types = all('SELECT * FROM device_types WHERE active = 1 ORDER BY name');
   res.json(types);
@@ -11,12 +50,12 @@ router.get('/device-types', authenticate, (req, res) => {
 
 router.post('/device-types', authenticate, (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name required' });
+  const payload = buildDeviceTypePayload(req.body);
+  if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
-    const result = run('INSERT INTO device_types (name) VALUES (?)', [name]);
+    const result = run('INSERT INTO device_types (name) VALUES (?)', [payload.name]);
     saveDatabase();
-    res.json({ id: result.lastInsertRowid, name });
+    res.json({ id: result.lastInsertRowid, name: payload.name });
   } catch (err) {
     res.status(400).json({ error: 'Already exists' });
   }
@@ -36,17 +75,12 @@ router.get('/brands', authenticate, (req, res) => {
 
 router.post('/brands', authenticate, (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const { name, slug, active, woocommerce_brand_id } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'Name required' });
+  const payload = buildBrandPayload(req.body);
+  if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
     const result = run(
       'INSERT INTO brands (name, slug, active, woocommerce_brand_id) VALUES (?, ?, ?, ?)',
-      [
-        name,
-        slug || String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        active === false || active === 0 ? 0 : 1,
-        woocommerce_brand_id || null
-      ]
+      [payload.name, payload.slug, payload.active, payload.woocommerce_brand_id]
     );
     saveDatabase();
     res.json(get('SELECT * FROM brands WHERE id = ?', [result.lastInsertRowid]));
@@ -57,20 +91,14 @@ router.post('/brands', authenticate, (req, res) => {
 
 router.put('/brands/:id', authenticate, (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const { name, active, woocommerce_brand_id } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'Name required' });
+  const payload = buildBrandPayload(req.body);
+  if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
     run(
       `UPDATE brands
        SET name = ?, slug = ?, active = ?, woocommerce_brand_id = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [
-        name,
-        String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        active === false || active === 0 ? 0 : 1,
-        woocommerce_brand_id || null,
-        req.params.id
-      ]
+      [payload.name, payload.slug, payload.active, payload.woocommerce_brand_id, req.params.id]
     );
     saveDatabase();
     res.json(get('SELECT * FROM brands WHERE id = ?', [req.params.id]));
@@ -87,12 +115,12 @@ router.delete('/brands/:id', authenticate, (req, res) => {
 });
 
 router.get('/models', authenticate, (req, res) => {
-  const { brand_id } = req.query;
+  const brandId = toNullableString(req.query.brand_id);
   let query = 'SELECT * FROM device_models WHERE active = 1';
   const params = [];
-  if (brand_id) {
+  if (brandId) {
     query += ' AND brand_id = ?';
-    params.push(brand_id);
+    params.push(brandId);
   }
   query += ' ORDER BY name';
   const models = all(query, params);
@@ -101,12 +129,12 @@ router.get('/models', authenticate, (req, res) => {
 
 router.post('/models', authenticate, (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const { name, brand_id } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name required' });
+  const payload = buildDeviceModelPayload(req.body);
+  if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
-    const result = run('INSERT INTO device_models (name, brand_id) VALUES (?, ?)', [name, brand_id || null]);
+    const result = run('INSERT INTO device_models (name, brand_id) VALUES (?, ?)', [payload.name, payload.brand_id]);
     saveDatabase();
-    res.json({ id: result.lastInsertRowid, name, brand_id });
+    res.json({ id: result.lastInsertRowid, name: payload.name, brand_id: payload.brand_id });
   } catch (err) {
     res.status(400).json({ error: 'Already exists' });
   }

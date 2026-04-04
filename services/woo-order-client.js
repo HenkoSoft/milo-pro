@@ -55,5 +55,6 @@ async function fetchWooOrdersPaginated(filters = {}) {
 module.exports = {
   fetchWooOrderById,
   fetchWooOrders,
-  fetchWooOrdersPaginated
+  fetchWooOrdersPaginated,
+  sanitizeOrderFilters
 };

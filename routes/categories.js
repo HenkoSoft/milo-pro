@@ -10,6 +10,29 @@ const {
 
 const router = express.Router();
 
+function toNullableString(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value).trim();
+}
+
+function toNumberOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeCategoryPayload(body) {
+  const data = body && typeof body === 'object' ? body : {};
+  return {
+    name: String(data.name || '').trim(),
+    slug: String(data.slug || '').trim(),
+    description: String(data.description || ''),
+    parent_id: toNumberOrNull(data.parent_id),
+    woocommerce_category_id: toNumberOrNull(data.woocommerce_category_id),
+    active: data.active === false || data.active === 0 ? 0 : 1
+  };
+}
+
 function serializeCategory(category) {
   if (!category) return null;
   const productCount = get(
@@ -21,6 +44,11 @@ function serializeCategory(category) {
 
   return {
     ...category,
+    name: String(category.name || ''),
+    slug: toNullableString(category.slug),
+    description: toNullableString(category.description),
+    parent_id: toNumberOrNull(category.parent_id),
+    woocommerce_category_id: toNumberOrNull(category.woocommerce_category_id),
     depth: Number(category.depth || 0),
     product_count: Number(productCount.count || 0)
   };
@@ -63,8 +91,9 @@ router.get('/:id', authenticate, (req, res) => {
 
 router.post('/', authenticate, (req, res) => {
   try {
-    validateCategoryPayload(req.body);
-    const category = ensureCategoryRecord(req.body);
+    const payload = normalizeCategoryPayload(req.body);
+    validateCategoryPayload(payload);
+    const category = ensureCategoryRecord(payload);
     saveDatabase();
     res.status(201).json(serializeCategory(category));
   } catch (error) {
@@ -77,18 +106,19 @@ router.put('/:id', authenticate, (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Category not found' });
 
   try {
-    validateCategoryPayload(req.body, req.params.id);
+    const payload = normalizeCategoryPayload(req.body);
+    validateCategoryPayload(payload, req.params.id);
     run(
       `UPDATE categories
        SET name = ?, slug = ?, description = ?, parent_id = ?, woocommerce_category_id = ?, active = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
-        req.body.name,
-        req.body.slug || existing.slug || null,
-        req.body.description || null,
-        req.body.parent_id || null,
-        req.body.woocommerce_category_id || existing.woocommerce_category_id || null,
-        req.body.active === false || req.body.active === 0 ? 0 : 1,
+        payload.name,
+        payload.slug || existing.slug || null,
+        toNullableString(payload.description),
+        payload.parent_id,
+        payload.woocommerce_category_id || existing.woocommerce_category_id || null,
+        payload.active,
         req.params.id
       ]
     );

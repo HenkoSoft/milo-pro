@@ -1,7 +1,19 @@
-const http = require('http');
-const https = require('https');
 const fs = require('fs');
 const { get, run, all, saveDatabase } = require('../database');
+const {
+  getWooAttributeOptions: getWooAttributeOptionsBase,
+  getWooPrimaryBrand: getWooPrimaryBrandBase,
+  getWooPrimaryCategory,
+  getWooPrimaryColor: getWooPrimaryColorBase,
+  getWooProductImages,
+  normalizePrice,
+  normalizeStock,
+  upsertWooAttribute
+} = require('./woocommerce-sync-utils');
+const {
+  woocommerceRequest: woocommerceRequestBase,
+  wordpressRequest: wordpressRequestBase
+} = require('./woocommerce-request');
 const {
   collapseCategoryIdsToLeaves,
   ensureBrandRecord,
@@ -28,94 +40,16 @@ function isWooExportEnabled(config = getActiveWooConfig()) {
   return Boolean(config && config.store_url && config.sync_direction !== 'import');
 }
 
-function getTransport(url) {
-  return url.protocol === 'http:' ? http : https;
-}
-
-function getPort(url) {
-  if (url.port) return Number(url.port);
-  return url.protocol === 'http:' ? 80 : 443;
-}
-
-function buildApiPath(url, apiPath, config = null) {
-  const basePath = url.pathname && url.pathname !== '/' ? url.pathname.replace(/\/$/, '') : '';
-  const normalizedApiPath = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
-  const versionPath = ((config && config.api_version) ? String(config.api_version) : 'wc/v3').replace(/^\/+|\/+$/g, '');
-  return `${basePath}/wp-json/${versionPath}${normalizedApiPath}`;
-}
-
-function normalizeStock(value) {
-  const stock = Number.parseInt(value, 10);
-  return Number.isFinite(stock) ? stock : 0;
-}
-
-function normalizePrice(value) {
-  const price = Number(value);
-  return Number.isFinite(price) ? price.toString() : '0';
-}
-
-function getWooPrimaryCategory(wooProduct) {
-  return Array.isArray(wooProduct && wooProduct.categories) && wooProduct.categories.length > 0
-    ? wooProduct.categories[0]
-    : null;
+function getWooAttributeOptions(wooProduct, attributeNames = []) {
+  return getWooAttributeOptionsBase(wooProduct, normalizeCatalogText, attributeNames);
 }
 
 function getWooPrimaryBrand(wooProduct) {
-  if (wooProduct && Array.isArray(wooProduct.brands) && wooProduct.brands.length > 0) {
-    return wooProduct.brands[0];
-  }
-
-  const attrs = Array.isArray(wooProduct && wooProduct.attributes) ? wooProduct.attributes : [];
-  const brandAttr = attrs.find((attr) => ['brand', 'marca'].includes(normalizeCatalogText(attr.name)));
-  if (brandAttr && Array.isArray(brandAttr.options) && brandAttr.options.length > 0) {
-    return { name: brandAttr.options[0] };
-  }
-
-  return null;
-}
-
-function getWooAttributeOptions(wooProduct, attributeNames = []) {
-  const normalizedNames = (Array.isArray(attributeNames) ? attributeNames : [attributeNames])
-    .map((item) => normalizeCatalogText(item))
-    .filter(Boolean);
-  if (normalizedNames.length === 0) return [];
-
-  const attrs = Array.isArray(wooProduct && wooProduct.attributes) ? wooProduct.attributes : [];
-  const match = attrs.find((attr) => normalizedNames.includes(normalizeCatalogText(attr.name)));
-  return match && Array.isArray(match.options)
-    ? match.options.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
+  return getWooPrimaryBrandBase(wooProduct, normalizeCatalogText);
 }
 
 function getWooPrimaryColor(wooProduct) {
-  const options = getWooAttributeOptions(wooProduct, ['color', 'colour', 'colores']);
-  return options[0] || null;
-}
-
-function upsertWooAttribute(attributes, name, options) {
-  const nextOptions = [...new Set((Array.isArray(options) ? options : [options]).map((item) => String(item || '').trim()).filter(Boolean))];
-  if (!name || nextOptions.length === 0) return attributes;
-
-  const list = Array.isArray(attributes) ? attributes.slice() : [];
-  const normalizedName = normalizeCatalogText(name);
-  const existingIndex = list.findIndex((item) => normalizeCatalogText(item && item.name) === normalizedName);
-  const payload = {
-    name,
-    visible: true,
-    variation: false,
-    options: nextOptions
-  };
-
-  if (existingIndex >= 0) {
-    list[existingIndex] = {
-      ...list[existingIndex],
-      ...payload
-    };
-    return list;
-  }
-
-  list.push(payload);
-  return list;
+  return getWooPrimaryColorBase(wooProduct, normalizeCatalogText);
 }
 
 async function buildWooManagedAttribute(attributes, config, name, slug, options) {
@@ -150,17 +84,7 @@ async function buildWooManagedAttribute(attributes, config, name, slug, options)
     return list;
   }
 
-  return upsertWooAttribute(attributes, name, nextOptions);
-}
-
-function getWooProductImages(wooProduct) {
-  return (Array.isArray(wooProduct && wooProduct.images) ? wooProduct.images : []).map((image, index) => ({
-    url_local: null,
-    url_remote: image.src || '',
-    woocommerce_media_id: image.id || null,
-    orden: Number.isFinite(Number(image.position)) ? Number(image.position) : index,
-    es_principal: index === 0
-  })).filter((item) => item.url_remote);
+  return upsertWooAttribute(attributes, normalizeCatalogText, name, nextOptions);
 }
 
 function ensureLocalCategory(categoryName, parentId = null, extra = {}) {
@@ -183,118 +107,11 @@ function ensureLocalBrand(brandName, extra = {}) {
 }
 
 function woocommerceRequest(method, apiPath, data = null, config = null, requestOptions = null) {
-  return new Promise((resolve, reject) => {
-    const activeConfig = config || getActiveWooConfig();
-    if (!activeConfig || !activeConfig.store_url) {
-      return reject(new Error('WooCommerce not configured'));
-    }
-
-    const timeoutMs = Math.max(1000, Number((requestOptions && requestOptions.timeout_ms) || process.env.WOO_REQUEST_TIMEOUT_MS || 15000));
-    const url = new URL(activeConfig.store_url);
-    const transport = getTransport(url);
-    const auth = Buffer.from(`${activeConfig.consumer_key}:${activeConfig.consumer_secret}`).toString('base64');
-    const options = {
-      hostname: url.hostname,
-      port: getPort(url),
-      path: buildApiPath(url, apiPath, activeConfig),
-      method,
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/json'
-      }
-    };
-
-    const req = transport.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => {
-        body += chunk;
-      });
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          if (!body) return resolve(null);
-          try {
-            resolve(JSON.parse(body));
-          } catch (error) {
-            resolve(body);
-          }
-          return;
-        }
-
-        try {
-          const parsed = JSON.parse(body);
-          reject(new Error(`WooCommerce API Error ${res.statusCode}: ${parsed.message || body}`));
-        } catch (error) {
-          reject(new Error(`WooCommerce API Error ${res.statusCode}: ${body}`));
-        }
-      });
-    });
-
-    req.setTimeout(timeoutMs, () => {
-      req.destroy(new Error('WooCommerce request timed out'));
-    });
-
-    req.on('error', reject);
-
-    if (data) {
-      req.write(JSON.stringify(data));
-    }
-
-    req.end();
-  });
+  return woocommerceRequestBase(method, apiPath, data, config, requestOptions, getActiveWooConfig);
 }
 
 function wordpressRequest(method, apiPath, body = null, headers = {}, config = null) {
-  return new Promise((resolve, reject) => {
-    const activeConfig = config || getActiveWooConfig();
-    if (!activeConfig || !activeConfig.store_url) {
-      return reject(new Error('WooCommerce not configured'));
-    }
-    if (!activeConfig.wp_username || !activeConfig.wp_app_password) {
-      return reject(new Error('Faltan credenciales profesionales de WordPress para subir imagenes.'));
-    }
-
-    const url = new URL(activeConfig.store_url);
-    const transport = getTransport(url);
-    const auth = Buffer.from(`${activeConfig.wp_username}:${activeConfig.wp_app_password}`).toString('base64');
-    const basePath = url.pathname && url.pathname !== '/' ? url.pathname.replace(/\/$/, '') : '';
-    const normalizedApiPath = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
-    const options = {
-      hostname: url.hostname,
-      port: getPort(url),
-      path: `${basePath}${normalizedApiPath}`,
-      method,
-      headers: {
-        Authorization: `Basic ${auth}`,
-        ...headers
-      }
-    };
-
-    const req = transport.request(options, (res) => {
-      let responseBody = '';
-      res.on('data', (chunk) => {
-        responseBody += chunk;
-      });
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          if (!responseBody) return resolve(null);
-          try {
-            resolve(JSON.parse(responseBody));
-          } catch (error) {
-            resolve(responseBody);
-          }
-          return;
-        }
-        reject(new Error(`WordPress API Error ${res.statusCode}: ${responseBody}`));
-      });
-    });
-
-    req.setTimeout(20000, () => {
-      req.destroy(new Error('WordPress request timed out'));
-    });
-    req.on('error', reject);
-    if (body) req.write(body);
-    req.end();
-  });
+  return wordpressRequestBase(method, apiPath, body, headers, config, getActiveWooConfig);
 }
 
 async function getWooCategoryDetail(categoryId, config = getActiveWooConfig(), cache = new Map()) {
