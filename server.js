@@ -21,7 +21,12 @@ const PORT = process.env.PORT || 3000;
 
 app.disable('x-powered-by');
 app.use(cors());
-app.use(express.json({ limit: '35mb' }));
+app.use(express.json({
+  limit: '35mb',
+  verify: (req, res, buf) => {
+    req.rawBody = Buffer.from(buf);
+  }
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 async function startServer() {

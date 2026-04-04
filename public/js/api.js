@@ -23,7 +23,11 @@ async function request(endpoint, options = {}) {
   }
   if (token) headers['Authorization'] = 'Bearer ' + token;
   
-  const response = await fetch(API_BASE + endpoint, { ...options, headers });
+  const response = await fetch(API_BASE + endpoint, {
+    cache: options.cache || 'no-store',
+    ...options,
+    headers
+  });
   
   try {
     const data = await response.json();
@@ -76,8 +80,10 @@ const api = {
     getAll: (params) => request('/sales' + buildQuery(params)),
     getOne: (id) => request('/sales/' + id),
     getToday: () => request('/sales/today'),
+    onlineFeed: () => request('/sales/online-feed'),
     nextNumber: (params) => request('/sales/next-number' + buildQuery(params)),
     create: (sale) => request('/sales', { method: 'POST', body: JSON.stringify(sale) }),
+    updateStatus: (id, payload) => request('/sales/' + id + '/status', { method: 'PUT', body: JSON.stringify(payload) }),
     delete: (id) => request('/sales/' + id, { method: 'DELETE' })
   },
   customers: {

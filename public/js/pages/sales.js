@@ -6,10 +6,54 @@ let salesBusinessSettings = { business_name: 'Milo Pro' };
 let nextInvoiceNumber = 1;
 let printInProgress = false;
 let lastSaleData = null;
+const SALES_ORDER_STATUSES = ['pending_payment', 'paid', 'ready_for_delivery', 'completed', 'on_hold', 'cancelled', 'refunded', 'payment_failed'];
+const SALES_STATUS_ALIASES = {
+  pendiente: 'pending_payment',
+  pending_payment: 'pending_payment',
+  paid: 'paid',
+  pago: 'paid',
+  procesando: 'paid',
+  processing: 'paid',
+  ready_for_delivery: 'ready_for_delivery',
+  listo_para_entrega: 'ready_for_delivery',
+  listo_para_entregar: 'ready_for_delivery',
+  completed: 'completed',
+  completado: 'completed',
+  on_hold: 'on_hold',
+  on_hold_: 'on_hold',
+  cancelado: 'cancelled',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
+  reintegrado: 'refunded',
+  payment_failed: 'payment_failed',
+  fallido: 'payment_failed',
+  failed: 'payment_failed'
+};
+const SALES_STATUS_LABELS = {
+  pending_payment: 'Pendiente de pago',
+  paid: 'Pagado',
+  ready_for_delivery: 'Listo para entregar',
+  completed: 'Completado',
+  on_hold: 'En espera',
+  cancelled: 'Cancelado',
+  refunded: 'Reintegrado',
+  payment_failed: 'Pago fallido',
+  pending: 'Pendiente',
+  processing: 'Procesando',
+  failed: 'Fallido'
+};
 
 const SALES_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'];
 const SALES_IVA_CONDITIONS = ['Consumidor Final', 'Responsable Inscripto', 'Monotributista', 'Exento'];
 const SALES_PRICE_LISTS = ['Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'];
+const SALES_PAYMENT_METHODS = [
+  { id: 'cash', label: 'Efectivo' },
+  { id: 'digital', label: 'Pago Digital' },
+  { id: 'check', label: 'Cheque' },
+  { id: 'account', label: 'Cta. Cte.' },
+  { id: 'transfer', label: 'Transferencia' }
+];
+const SALES_DIGITAL_PAYMENT_TYPES = ['Debito', 'Credito', 'Transferencia', 'QR', 'Otro'];
 const SALES_MODULES = [
   { id: 'invoices', label: 'Facturas' },
   { id: 'delivery-notes', label: 'Remitos' },
@@ -21,7 +65,8 @@ const SALES_MODULES = [
   { id: 'query-delivery-notes', label: 'Consultar Remitos' },
   { id: 'query-credit-notes', label: 'Consultar Notas de Credito' },
   { id: 'query-quotes', label: 'Consultar Presupuestos' },
-  { id: 'query-orders', label: 'Consultar Pedidos' }
+  { id: 'query-orders', label: 'Consultar Pedidos' },
+  { id: 'web-orders', label: 'Pedidos Web' }
 ];
 
 function createDefaultSalesDraft() {
@@ -46,12 +91,33 @@ const salesUiState = {
   activeSection: 'invoices',
   querySearch: '',
   queryPage: 1,
+  webOrdersStatus: '',
   collectionsSearch: '',
   collectionsPage: 1,
   collectionsTab: 'customers',
   selectedCustomerId: null,
   customerLookupSearch: '',
   customerLookupPage: 1,
+  paymentModal: {
+    isOpen: false,
+    selectedMethod: '',
+    registeredPayments: [],
+    totalAmount: 0,
+    cashReceived: '',
+    digitalForm: {
+      monto: '0,00',
+      tipo: '',
+      banco: '',
+      ultimos4: '',
+      recargo: '0,00'
+    },
+    checkForm: {
+      monto: '0,00',
+      banco: '',
+      numeroCheque: '',
+      fechaCobro: ''
+    }
+  },
   invoiceDraft: createDefaultSalesDraft()
 };
 
@@ -97,6 +163,36 @@ function salesFormatDateTime(value, mode = 'date') {
     return new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(date);
   }
   return new Intl.DateTimeFormat('es-AR').format(date);
+}
+
+function salesGetPaymentMethodLabel(methodId) {
+  const found = SALES_PAYMENT_METHODS.find((item) => item.id === methodId);
+  return found ? found.label : 'Forma de pago';
+}
+
+function createSalesDigitalPaymentForm(amount = 0) {
+  return {
+    monto: app.formatDecimalInputValue(Math.max(0, Number(amount || 0)), 2),
+    tipo: '',
+    banco: '',
+    ultimos4: '',
+    recargo: app.formatDecimalInputValue(0, 2)
+  };
+}
+
+function createSalesCheckPaymentForm(amount = 0) {
+  return {
+    monto: app.formatDecimalInputValue(Math.max(0, Number(amount || 0)), 2),
+    banco: '',
+    numeroCheque: '',
+    fechaCobro: ''
+  };
+}
+
+function getSalesDigitalPaymentTotal(form = salesUiState.paymentModal.digitalForm) {
+  const amount = Math.max(0, app.parseLocaleNumber((form || {}).monto || 0, 0));
+  const surcharge = Math.max(0, app.parseLocaleNumber((form || {}).recargo || 0, 0));
+  return amount + (amount * surcharge / 100);
 }
 
 function salesGetSelectedReceiptType() {
@@ -271,6 +367,16 @@ function calculateCartTotals() {
   return { neto, descuento, subtotal, iva, total: totalConIva };
 }
 
+function getSalesPaymentModalTotals() {
+  const total = Number(salesUiState.paymentModal.totalAmount || 0);
+  const registeredTotal = (salesUiState.paymentModal.registeredPayments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const isCashSelected = salesUiState.paymentModal.selectedMethod === 'cash';
+  const cashReceived = Math.max(0, app.parseLocaleNumber(salesUiState.paymentModal.cashReceived || 0, 0));
+  const totalPaid = isCashSelected ? (cashReceived > 0 ? cashReceived : total) : registeredTotal;
+  const change = isCashSelected && cashReceived > 0 ? Math.max(0, cashReceived - total) : 0;
+  return { total, totalPaid, change, cashReceived };
+}
+
 function buildSalesNotes() {
   const obs = (document.getElementById('sale-observations') || {}).value || '';
   const oc = (document.getElementById('sale-oc') || {}).value || '';
@@ -339,6 +445,11 @@ function renderSalesSection() {
     return;
   }
 
+  if (salesUiState.activeSection === 'web-orders') {
+    panel.innerHTML = renderSalesWebOrdersModule();
+    return;
+  }
+
   if (salesUiState.activeSection === 'delivery-notes') {
     panel.innerHTML = renderSalesDocumentStub({ kicker: 'Remitos', title: 'Remitos', subtitle: 'Misma logica visual que facturacion para entregar mercaderia con datos claros del cliente.', numberLabel: 'Remito Nro', receiptLabel: 'P.Venta', documentButtonLabel: 'Aceptar', exitButtonLabel: 'Salir', checkboxLabel: 'Descontar stock', searchPlaceholder: 'Codigo articulo (F5)', totalLabel: 'Total remito' });
     return;
@@ -381,6 +492,7 @@ async function renderSales(sectionId = 'invoices') {
     productsForSale = products;
     customersForSale = customers;
     salesHistoryData = Array.isArray(salesHistory) ? salesHistory : [];
+    refreshWebOrdersMenuBadge();
     salesBusinessSettings = settings || salesBusinessSettings;
     nextInvoiceNumber = 1;
     content.innerHTML = renderSalesShell();
@@ -403,7 +515,8 @@ function selectSalesSection(sectionId) {
     'query-delivery-notes': 'sales-query-delivery-notes',
     'query-credit-notes': 'sales-query-credit-notes',
     'query-quotes': 'sales-query-quotes',
-    'query-orders': 'sales-query-orders'
+    'query-orders': 'sales-query-orders',
+    'web-orders': 'sales-web-orders'
   };
   window.location.hash = routeMap[sectionId] || 'sales';
 }
@@ -512,7 +625,7 @@ function renderSalesInvoiceModule() {
           </div>
         </div>
         <div class="sales-primary-action">
-          <button class="btn btn-success" type="button" onclick="processSale()">Facturar</button>
+          <button class="btn btn-success" type="button" onclick="openSalesPaymentModal()">Facturar</button>
         </div>
       </div>
     </div>
@@ -743,13 +856,79 @@ function renderSalesCollectionsAccountTab(activeCustomer) {
 
 function getSalesQueryConfig(sectionId) {
   const base = {
-    'query-invoices': { title: 'Consultar Facturas', subtitle: 'Tabla estandar con buscador, paginacion y acciones rapidas.', columns: [{ label: 'Fecha', render: (sale) => salesFormatDateTime(sale.created_at, 'date') }, { label: 'Hora', render: (sale) => salesFormatDateTime(sale.created_at, 'time') }, { label: 'N fact.', render: (sale) => formatSalesReceiptCode(sale) }, { label: 'Cliente', render: (sale) => sale.customer_name || 'Consumidor final' }, { label: 'Total', render: (sale) => app.formatMoney(sale.total || 0) }] },
+    'query-invoices': { title: 'Consultar Facturas', subtitle: 'Tabla estandar con buscador, paginacion y acciones rapidas.', columns: [{ label: 'Fecha', render: (sale) => salesFormatDateTime(sale.created_at, 'date') }, { label: 'Hora', render: (sale) => salesFormatDateTime(sale.created_at, 'time') }, { label: 'N fact.', render: (sale) => formatSalesReceiptCode(sale) }, { label: 'Cliente', render: (sale) => sale.customer_name || 'Consumidor final' }, { label: 'Canal', render: (sale) => renderSalesChannelBadge(sale), isHtml: true }, { label: 'Estado', render: (sale) => renderSalesStatusBadge(sale.status), isHtml: true }, { label: 'Total', render: (sale) => app.formatMoney(sale.total || 0) }] },
     'query-delivery-notes': { title: 'Consultar Remitos', subtitle: 'Misma estructura de consulta para mantener criterios visuales en Ventas.', columns: [{ label: 'Numero', render: (sale) => formatSalesReceiptCode(sale) }, { label: 'Fecha', render: (sale) => salesFormatDateTime(sale.created_at, 'date') }, { label: 'Hora', render: (sale) => salesFormatDateTime(sale.created_at, 'time') }, { label: 'Cliente', render: (sale) => sale.customer_name || 'Consumidor final' }, { label: 'Total', render: (sale) => app.formatMoney(sale.total || 0) }] },
     'query-credit-notes': { title: 'Consultar Notas de Credito', subtitle: 'Consulta visual uniforme para operaciones comerciales y revisiones rapidas.', columns: [{ label: 'Numero', render: (sale) => formatSalesReceiptCode(sale) }, { label: 'Fecha', render: (sale) => salesFormatDateTime(sale.created_at, 'date') }, { label: 'Hora', render: (sale) => salesFormatDateTime(sale.created_at, 'time') }, { label: 'Cliente', render: (sale) => sale.customer_name || 'Consumidor final' }, { label: 'Total', render: (sale) => app.formatMoney(sale.total || 0) }] },
     'query-quotes': { title: 'Consultar Presupuestos', subtitle: 'Tabla preparada para listar presupuestos con filtro, estado y acciones.', columns: [{ label: 'Numero', render: (sale) => formatSalesReceiptCode(sale) }, { label: 'Fecha', render: (sale) => salesFormatDateTime(sale.created_at, 'date') }, { label: 'Hora', render: (sale) => salesFormatDateTime(sale.created_at, 'time') }, { label: 'Cliente', render: (sale) => sale.customer_name || 'Consumidor final' }, { label: 'Estado', render: () => 'Emitido' }, { label: 'Total', render: (sale) => app.formatMoney(sale.total || 0) }] },
-    'query-orders': { title: 'Consultar Pedidos', subtitle: 'Consulta administrativa alineada con el resto del sistema.', columns: [{ label: 'Numero', render: (sale) => formatSalesReceiptCode(sale) }, { label: 'Fecha', render: (sale) => salesFormatDateTime(sale.created_at, 'date') }, { label: 'Hora', render: (sale) => salesFormatDateTime(sale.created_at, 'time') }, { label: 'Cliente', render: (sale) => sale.customer_name || 'Consumidor final' }, { label: 'Vendedor', render: (sale) => sale.user_name || salesGetCurrentSellerName() }, { label: 'Estado', render: () => 'Abierto' }, { label: 'Total', render: (sale) => app.formatMoney(sale.total || 0) }] }
+    'query-orders': { title: 'Consultar Pedidos', subtitle: 'Consulta administrativa alineada con el resto del sistema.', columns: [{ label: 'Numero', render: (sale) => formatSalesReceiptCode(sale) }, { label: 'Fecha', render: (sale) => salesFormatDateTime(sale.created_at, 'date') }, { label: 'Hora', render: (sale) => salesFormatDateTime(sale.created_at, 'time') }, { label: 'Cliente', render: (sale) => sale.customer_name || 'Consumidor final' }, { label: 'Vendedor', render: (sale) => sale.user_name || salesGetCurrentSellerName() }, { label: 'Estado', render: (sale) => renderSalesStatusBadge(sale.status), isHtml: true }, { label: 'Total', render: (sale) => app.formatMoney(sale.total || 0) }] }
   };
   return base[sectionId];
+}
+
+function salesGetChannelLabel(sale) {
+  const channel = String(sale.channel || 'local').toLowerCase();
+  if (channel === 'woocommerce' || channel === 'web') return 'WooCommerce';
+  return 'Local';
+}
+
+function renderSalesChannelBadge(sale) {
+  const isOnline = ['woocommerce', 'web'].includes(String(sale.channel || '').toLowerCase());
+  return `<span class="sales-channel-badge ${isOnline ? 'is-online' : 'is-local'}">${salesEscapeHtml(salesGetChannelLabel(sale))}</span>`;
+}
+
+function salesGetStatusLabel(status) {
+  const normalized = String(salesNormalizeStatus(status) || 'completed');
+  return SALES_STATUS_LABELS[normalized] || normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function salesNormalizeStatus(status) {
+  const raw = String(status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_');
+  return SALES_STATUS_ALIASES[raw] || raw || 'completed';
+}
+
+function renderSalesStatusBadge(status) {
+  const value = salesNormalizeStatus(status);
+  let badgeClass = 'badge-blue';
+  if (['completed', 'paid', 'ready_for_delivery'].includes(value)) badgeClass = 'badge-green';
+  if (['cancelled', 'refunded', 'payment_failed'].includes(value)) badgeClass = 'badge-red';
+  if (['pending_payment', 'on_hold'].includes(value)) badgeClass = 'badge-yellow';
+  return `<span class="badge ${badgeClass}">${salesEscapeHtml(salesGetStatusLabel(value))}</span>`;
+}
+
+function renderWooExternalStatusBadge(status) {
+  const raw = String(status || '').trim().toLowerCase();
+  let badgeClass = 'badge-blue';
+  if (['completed', 'processing'].includes(raw)) badgeClass = 'badge-green';
+  if (['cancelled', 'refunded', 'failed'].includes(raw)) badgeClass = 'badge-red';
+  if (['pending', 'on-hold'].includes(raw)) badgeClass = 'badge-yellow';
+  const label = raw
+    ? (SALES_STATUS_LABELS[raw.replace(/-/g, '_')] || raw.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()))
+    : '-';
+  return `<span class="badge ${badgeClass}">${salesEscapeHtml(label)}</span>`;
+}
+
+function salesGetPriorityMeta(sale) {
+  const status = salesNormalizeStatus(sale.status);
+  if (['pending_payment', 'on_hold'].includes(status)) {
+    return { label: 'Atencion', className: 'is-high' };
+  }
+  if (['ready_for_delivery'].includes(status)) {
+    return { label: 'Listo para entregar', className: 'is-ready' };
+  }
+  if (['paid'].includes(status)) {
+    return { label: 'Preparar', className: 'is-medium' };
+  }
+  if (['completed'].includes(status)) {
+    return { label: 'Cerrado', className: 'is-low' };
+  }
+  if (['cancelled', 'refunded', 'payment_failed'].includes(status)) {
+    return { label: 'Resolver', className: 'is-critical' };
+  }
+  return { label: 'Seguimiento', className: 'is-low' };
 }
 
 function setSalesQuerySearch(value) {
@@ -765,12 +944,102 @@ function changeSalesQueryPage(delta) {
   renderSalesSection();
 }
 
+function getOnlineSalesRows() {
+  return salesHistoryData
+    .filter((sale) => ['woocommerce', 'web'].includes(String(sale.channel || '').toLowerCase()))
+    .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+}
+
+function getWebOrdersFilterCounts() {
+  const rows = getOnlineSalesRows();
+  return {
+    all: rows.length,
+    unmanaged: rows.filter((sale) => ['pending_payment', 'paid', 'on_hold', 'ready_for_delivery'].includes(salesNormalizeStatus(sale.status))).length,
+    pending_payment: rows.filter((sale) => ['pending_payment', 'on_hold'].includes(salesNormalizeStatus(sale.status))).length,
+    paid: rows.filter((sale) => salesNormalizeStatus(sale.status) === 'paid').length,
+    ready_for_delivery: rows.filter((sale) => salesNormalizeStatus(sale.status) === 'ready_for_delivery').length,
+    completed: rows.filter((sale) => salesNormalizeStatus(sale.status) === 'completed').length,
+    refunded: rows.filter((sale) => ['refunded', 'cancelled', 'payment_failed'].includes(salesNormalizeStatus(sale.status))).length
+  };
+}
+
+function setWebOrdersStatusFilter(value) {
+  salesUiState.webOrdersStatus = value || '';
+  salesUiState.queryPage = 1;
+  renderSalesSection();
+}
+
+function getFilteredWebOrders() {
+  const search = String(salesUiState.querySearch || '').trim().toLowerCase();
+  const rawStatusFilter = String(salesUiState.webOrdersStatus || '').trim();
+  const statusFilter = rawStatusFilter === 'unmanaged' ? 'unmanaged' : salesNormalizeStatus(rawStatusFilter);
+
+  return getOnlineSalesRows().filter((sale) => {
+    const normalizedStatus = salesNormalizeStatus(sale.status);
+    if (statusFilter === 'unmanaged' && !['pending_payment', 'paid', 'on_hold', 'ready_for_delivery'].includes(normalizedStatus)) return false;
+    if (statusFilter && statusFilter !== 'unmanaged' && normalizedStatus !== statusFilter) return false;
+    if (!search) return true;
+    return [
+      sale.customer_name,
+      sale.user_name,
+      sale.notes,
+      sale.external_reference,
+      sale.external_status,
+      formatSalesReceiptCode(sale),
+      sale.id
+    ].some((value) => String(value || '').toLowerCase().includes(search));
+  });
+}
+
+function renderWebOrdersFilterButton(value, label, count, tone = 'neutral') {
+  const current = String(salesUiState.webOrdersStatus || '').trim();
+  const isActive = current === String(value || '');
+  return `<button class="sales-web-filter-tab${isActive ? ' is-active' : ''} sales-web-filter-tab--${salesEscapeAttr(tone)}" type="button" onclick="setWebOrdersStatusFilter('${salesEscapeAttr(value)}')"><span>${salesEscapeHtml(label)}</span><strong>${salesEscapeHtml(count || 0)}</strong></button>`;
+}
+
+function getOnlineSaleAvailableActions(sale) {
+  const status = salesNormalizeStatus(sale && sale.status);
+  const actions = [
+    { id: 'view', label: 'Ver', kind: 'ghost' }
+  ];
+
+  if (['pending_payment', 'paid', 'on_hold'].includes(status)) {
+    actions.push({ id: 'ready_for_delivery', label: 'Listo', kind: 'ready' });
+  }
+
+  if (['pending_payment', 'paid', 'on_hold', 'ready_for_delivery'].includes(status)) {
+    actions.push({ id: 'completed', label: 'Finalizar', kind: 'complete' });
+  }
+
+  if (!['completed', 'cancelled', 'refunded', 'payment_failed'].includes(status)) {
+    actions.push({ id: 'refunded', label: 'Devolver', kind: 'danger' });
+  }
+
+  return actions;
+}
+
+function renderOnlineSaleActions(sale) {
+  return getOnlineSaleAvailableActions(sale).map((action) => {
+    if (action.id === 'view') {
+      return `<button class="sales-web-action-btn sales-web-action-btn--${salesEscapeAttr(action.kind)}" type="button" onclick="openSaleDetailModal(${sale.id})">${salesEscapeHtml(action.label)}</button>`;
+    }
+    return `<button class="sales-web-action-btn sales-web-action-btn--${salesEscapeAttr(action.kind)}" type="button" onclick="quickOnlineSaleAction(${sale.id}, '${salesEscapeAttr(action.id)}')">${salesEscapeHtml(action.label)}</button>`;
+  }).join('');
+}
+
+function getUnmanagedWebOrdersCount() {
+  return getOnlineSalesRows().filter((sale) => {
+    const status = salesNormalizeStatus(sale.status);
+    return ['pending_payment', 'paid', 'on_hold', 'ready_for_delivery'].includes(status);
+  }).length;
+}
+
 function getSalesFilteredQueryRows() {
   const search = String(salesUiState.querySearch || '').trim().toLowerCase();
   return salesHistoryData.filter((sale) => {
     if (!search) return true;
-    return [sale.customer_name, sale.user_name, sale.notes, formatSalesReceiptCode(sale), sale.id].some((value) => String(value || '').toLowerCase().includes(search));
-  });
+    return [sale.customer_name, sale.user_name, sale.notes, formatSalesReceiptCode(sale), sale.id, sale.channel, sale.status, sale.external_reference].some((value) => String(value || '').toLowerCase().includes(search));
+  }).sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 }
 
 function formatSalesReceiptCode(sale) {
@@ -804,7 +1073,7 @@ function renderSalesQueryModule(sectionId) {
         <table class="sales-lines-table">
           <thead><tr>${config.columns.map((column) => `<th>${salesEscapeHtml(column.label)}</th>`).join('')}<th>Acciones</th></tr></thead>
           <tbody>
-            ${rows.length === 0 ? `<tr><td colspan="${config.columns.length + 1}" class="sales-empty-row">No hay registros para mostrar.</td></tr>` : rows.map((sale) => `<tr>${config.columns.map((column) => `<td>${salesEscapeHtml(column.render(sale))}</td>`).join('')}<td><div class="btn-group"><button class="btn btn-sm btn-secondary" type="button" onclick="showSalesUiNotice('${salesEscapeAttr(config.title)}')">Ver</button></div></td></tr>`).join('')}
+            ${rows.length === 0 ? `<tr><td colspan="${config.columns.length + 1}" class="sales-empty-row">No hay registros para mostrar.</td></tr>` : rows.map((sale) => `<tr class="${['woocommerce', 'web'].includes(String(sale.channel || '').toLowerCase()) ? 'sales-online-row' : ''}">${config.columns.map((column) => `<td>${column.isHtml ? column.render(sale) : salesEscapeHtml(column.render(sale))}</td>`).join('')}<td><div class="btn-group"><button class="btn btn-sm btn-secondary" type="button" onclick="openSaleDetailModal(${sale.id})">Ver</button>${['woocommerce', 'web'].includes(String(sale.channel || '').toLowerCase()) ? `<button class="btn btn-sm btn-primary" type="button" onclick="openSaleDetailModal(${sale.id})">Gestionar</button>` : ''}</div></td></tr>`).join('')}
           </tbody>
         </table>
       </div>
@@ -817,6 +1086,299 @@ function renderSalesQueryModule(sectionId) {
       </div>
     </div>
   `;
+}
+
+function renderSalesWebOrdersModule() {
+  const allRows = getOnlineSalesRows();
+  const rows = getFilteredWebOrders();
+  const filterCounts = getWebOrdersFilterCounts();
+  const totalOrders = allRows.length;
+  const pendingCount = allRows.filter((sale) => ['pending_payment', 'on_hold'].includes(salesNormalizeStatus(sale.status))).length;
+  const inProgressCount = allRows.filter((sale) => ['paid', 'ready_for_delivery'].includes(salesNormalizeStatus(sale.status))).length;
+  const closedCount = allRows.filter((sale) => ['completed', 'cancelled', 'refunded'].includes(salesNormalizeStatus(sale.status))).length;
+  const totalAmount = allRows.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const pageSize = 8;
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.max(1, Math.min(totalPages, salesUiState.queryPage));
+  const visibleRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const urgentRows = rows.filter((sale) => ['pending_payment', 'on_hold', 'refunded', 'cancelled', 'payment_failed'].includes(salesNormalizeStatus(sale.status))).slice(0, 3);
+  const currentFilter = String(salesUiState.webOrdersStatus || '').trim() || 'all';
+  const filterLabels = {
+    all: 'Todos los pedidos',
+    unmanaged: 'Sin gestionar',
+    pending_payment: 'Pendientes',
+    paid: 'Pagados',
+    ready_for_delivery: 'Listos',
+    completed: 'Completados',
+    refunded: 'Devueltos o cerrados con incidencia'
+  };
+
+  return `
+    <div class="sales-module-head">
+      <div>
+        <p class="sales-module-kicker">Operacion Web</p>
+        <h2>Pedidos Web</h2>
+        <p>Cola dedicada para gestionar ventas WooCommerce desde el sistema maestro.</p>
+      </div>
+    </div>
+
+    <div class="reports-summary-grid">
+      <article class="reports-summary-card"><span>Pedidos web</span><strong>${salesEscapeHtml(totalOrders)}</strong></article>
+      <article class="reports-summary-card"><span>Pendientes</span><strong>${salesEscapeHtml(pendingCount)}</strong></article>
+      <article class="reports-summary-card"><span>En gestion</span><strong>${salesEscapeHtml(inProgressCount)}</strong></article>
+      <article class="reports-summary-card"><span>Cerrados</span><strong>${salesEscapeHtml(closedCount)}</strong></article>
+      <article class="reports-summary-card"><span>Total</span><strong>${salesEscapeHtml(app.formatMoney(totalAmount))}</strong></article>
+    </div>
+
+    <div class="sales-web-priority-strip">
+      ${urgentRows.length === 0
+        ? '<div class="sales-web-priority-card is-low"><strong>Sin alertas</strong><p>No hay pedidos web urgentes ahora.</p></div>'
+        : urgentRows.map((sale) => {
+          const priority = salesGetPriorityMeta(sale);
+          return `
+            <button class="sales-web-priority-card ${priority.className}" type="button" onclick="openSaleDetailModal(${sale.id})">
+              <span>${salesEscapeHtml(priority.label)}</span>
+              <strong>${salesEscapeHtml(sale.customer_name || 'Cliente web')}</strong>
+              <p>${salesEscapeHtml(formatSalesReceiptCode(sale))} · ${salesEscapeHtml(app.formatMoney(sale.total || 0))}</p>
+            </button>
+          `;
+        }).join('')}
+    </div>
+
+    <div class="sales-table-card">
+      <div class="sales-table-toolbar" style="justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div class="sales-web-filter-tabs" role="tablist" aria-label="Filtros de pedidos web">
+          ${renderWebOrdersFilterButton('', 'Todos', filterCounts.all, 'neutral')}
+          ${renderWebOrdersFilterButton('unmanaged', 'Sin gestionar', filterCounts.unmanaged, 'warning')}
+          ${renderWebOrdersFilterButton('pending_payment', 'Pendientes', filterCounts.pending_payment, 'warning')}
+          ${renderWebOrdersFilterButton('paid', 'Pagados', filterCounts.paid, 'info')}
+          ${renderWebOrdersFilterButton('ready_for_delivery', 'Listos', filterCounts.ready_for_delivery, 'success')}
+          ${renderWebOrdersFilterButton('completed', 'Completados', filterCounts.completed, 'neutral')}
+          ${renderWebOrdersFilterButton('refunded', 'Devueltos', filterCounts.refunded, 'danger')}
+        </div>
+        <div class="search-box sales-query-search">
+          <input type="text" value="${salesEscapeAttr(salesUiState.querySearch)}" placeholder="Buscar pedido web..." oninput="setSalesQuerySearch(this.value)">
+        </div>
+      </div>
+      <div class="sales-web-filter-summary">
+        <strong>${salesEscapeHtml(filterLabels[currentFilter] || filterLabels.all)}</strong>
+        <span>${salesEscapeHtml(rows.length)} pedidos en esta vista</span>
+      </div>
+      <div class="sales-lines-table-wrap">
+        <table class="sales-lines-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Estado local</th>
+              <th>Estado Woo</th>
+              <th>Total</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${visibleRows.length === 0
+              ? '<tr><td colspan="7" class="sales-empty-row">No hay pedidos web para los filtros seleccionados.</td></tr>'
+              : visibleRows.map((sale) => `
+                <tr class="sales-online-row">
+                  <td>${salesEscapeHtml(salesFormatDateTime(sale.created_at, 'date'))}</td>
+                  <td>
+                    <div>${salesEscapeHtml(formatSalesReceiptCode(sale))}</div>
+                    <small>${salesEscapeHtml(sale.external_reference || '-')}</small>
+                  </td>
+                  <td>${salesEscapeHtml(sale.customer_name || 'Cliente web')}</td>
+                  <td><div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">${renderSalesStatusBadge(sale.status)}<span class="sales-web-priority-pill ${salesGetPriorityMeta(sale).className}">${salesEscapeHtml(salesGetPriorityMeta(sale).label)}</span></div></td>
+                  <td>${renderWooExternalStatusBadge(sale.external_status || '-')}</td>
+                  <td>${salesEscapeHtml(app.formatMoney(sale.total || 0))}</td>
+                  <td>
+                    <div class="sales-web-actions">
+                      ${renderOnlineSaleActions(sale)}
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="sales-pagination">
+        <span>Pagina ${salesEscapeHtml(currentPage)} de ${salesEscapeHtml(totalPages)}</span>
+        <div class="btn-group">
+          <button class="btn btn-sm btn-secondary" type="button" onclick="changeSalesQueryPage(-1)" ${currentPage <= 1 ? 'disabled' : ''}>Anterior</button>
+          <button class="btn btn-sm btn-secondary" type="button" onclick="changeSalesQueryPage(1)" ${currentPage >= totalPages ? 'disabled' : ''}>Siguiente</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function getSaleById(saleId) {
+  return salesHistoryData.find((sale) => String(sale.id) === String(saleId)) || null;
+}
+
+function buildSaleStatusOptions(selectedValue) {
+  const normalizedSelected = salesNormalizeStatus(selectedValue);
+  return SALES_ORDER_STATUSES.map((status) => `<option value="${salesEscapeAttr(status)}"${normalizedSelected === status ? ' selected' : ''}>${salesEscapeHtml(salesGetStatusLabel(status))}</option>`).join('');
+}
+
+function refreshWebOrdersMenuBadge() {
+  const badge = document.getElementById('sales-web-orders-badge');
+  if (!badge) return;
+  const count = getUnmanagedWebOrdersCount();
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.hidden = count <= 0;
+}
+
+function openSaleDetailModal(saleId) {
+  const sale = getSaleById(saleId);
+  if (!sale) {
+    alert('No se encontro la venta');
+    return;
+  }
+
+  const items = Array.isArray(sale.items) ? sale.items : [];
+  const isOnline = ['woocommerce', 'web'].includes(String(sale.channel || '').toLowerCase());
+  const availableActions = getOnlineSaleAvailableActions(sale).filter((action) => action.id !== 'view');
+
+  app.showModal(`
+    <div class="modal" style="max-width: 920px;">
+      <div class="modal-header">
+        <h3>Venta ${salesEscapeHtml(formatSalesReceiptCode(sale))}</h3>
+        <button type="button" class="btn-close" onclick="app.closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="sales-detail-grid">
+          <article class="sales-detail-card">
+            <span>Canal</span>
+            <strong>${renderSalesChannelBadge(sale)}</strong>
+          </article>
+          <article class="sales-detail-card">
+            <span>Estado</span>
+            <strong>${renderSalesStatusBadge(sale.status)}</strong>
+          </article>
+          <article class="sales-detail-card">
+            <span>Cliente</span>
+            <strong>${salesEscapeHtml(sale.customer_name || 'Consumidor final')}</strong>
+          </article>
+          <article class="sales-detail-card">
+            <span>Total</span>
+            <strong>${salesEscapeHtml(app.formatMoney(sale.total || 0))}</strong>
+          </article>
+          <article class="sales-detail-card">
+            <span>Pago</span>
+            <strong>${salesEscapeHtml(sale.payment_method || '-')}</strong>
+          </article>
+          <article class="sales-detail-card">
+            <span>Referencia externa</span>
+            <strong>${salesEscapeHtml(sale.external_reference || '-')}</strong>
+          </article>
+        </div>
+
+        <div class="sales-detail-items">
+          <h4>Items</h4>
+          <div class="sales-lines-table-wrap">
+            <table class="sales-lines-table">
+              <thead><tr><th>Articulo</th><th>SKU</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead>
+              <tbody>
+                ${items.length === 0
+                  ? '<tr><td colspan="5" class="sales-empty-row">No hay items para mostrar.</td></tr>'
+                  : items.map((item) => `<tr><td>${salesEscapeHtml(item.product_name || '-')}</td><td>${salesEscapeHtml(item.sku || '-')}</td><td>${salesEscapeHtml(item.quantity || 0)}</td><td>${salesEscapeHtml(app.formatMoney(item.unit_price || 0))}</td><td>${salesEscapeHtml(app.formatMoney(item.subtotal || 0))}</td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        ${isOnline ? `
+          <div class="sales-detail-status-actions">
+            <h4>Gestion operativa WooCommerce</h4>
+            <p class="sales-status-note">La app local decide el estado operativo final y sincroniza el cambio a WooCommerce.</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Nuevo estado</label>
+                <select id="sale-status-next">${buildSaleStatusOptions(sale.status)}</select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Nota operativa</label>
+              <textarea id="sale-status-note" placeholder="Ej. Compra entregada, devolucion aprobada, cancelacion validada"></textarea>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-primary" type="button" onclick="applyOnlineSaleStatusChange(${sale.id})">Aplicar estado</button>
+              ${availableActions.map((action) => `<button class="btn ${action.kind === 'danger' ? 'btn-danger' : 'btn-secondary'}" type="button" onclick="quickOnlineSaleAction(${sale.id}, '${salesEscapeAttr(action.id)}')">${salesEscapeHtml(action.label === 'Listo' ? 'Marcar listo' : action.label === 'Finalizar' ? 'Finalizar compra' : 'Generar devolucion')}</button>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cerrar</button>
+      </div>
+    </div>
+  `);
+}
+
+async function refreshSalesHistoryData() {
+  const salesHistory = await api.sales.getAll({}).catch(() => []);
+  salesHistoryData = Array.isArray(salesHistory) ? salesHistory : [];
+  refreshWebOrdersMenuBadge();
+}
+
+async function handleIncomingOnlineSales(event) {
+  const detail = event && event.detail ? event.detail : {};
+  const newSales = Array.isArray(detail.newSales) ? detail.newSales : [];
+  if (newSales.length === 0) return;
+
+  await refreshSalesHistoryData();
+
+  const panel = document.getElementById('sales-admin-panel');
+  if (!panel) return;
+
+  if (['web-orders', 'query-invoices', 'query-orders'].includes(String(salesUiState.activeSection || ''))) {
+    renderSalesSection();
+  }
+}
+
+window.removeEventListener('online-sales:new', handleIncomingOnlineSales);
+window.addEventListener('online-sales:new', handleIncomingOnlineSales);
+
+async function applyOnlineSaleStatusChange(saleId, forcedStatus = '') {
+  const nextStatus = forcedStatus || ((document.getElementById('sale-status-next') || {}).value || '');
+  const note = ((document.getElementById('sale-status-note') || {}).value || '').trim();
+
+  if (!nextStatus) {
+    alert('Selecciona un estado');
+    return;
+  }
+
+  try {
+    const response = await api.sales.updateStatus(saleId, {
+      status: nextStatus,
+      note,
+      sync_to_woo: true
+    });
+
+    await refreshSalesHistoryData();
+    renderSalesSection();
+    app.showToast(`Venta actualizada a ${salesGetStatusLabel(nextStatus)}`, {
+      title: 'Venta online actualizada',
+      variant: 'success',
+      actionLabel: 'Ver',
+      onAction: () => {
+        window.location.hash = 'sales-query-invoices';
+      }
+    });
+
+    app.closeModal();
+
+    if (response && response.remoteSync && response.remoteSync.success === false) {
+      alert('El estado local se actualizo, pero fallo la sincronizacion con WooCommerce: ' + response.remoteSync.error);
+    }
+  } catch (error) {
+    alert('No se pudo actualizar la venta: ' + error.message);
+  }
+}
+
+function quickOnlineSaleAction(saleId, nextStatus) {
+  applyOnlineSaleStatusChange(saleId, nextStatus);
 }
 
 function filterPosProducts() {
@@ -983,6 +1545,284 @@ function openSalesCustomerLookup(initialSearch = '') {
 function closeSalesCustomerLookup() {
   const container = document.getElementById('modal-container');
   if (container) container.innerHTML = '';
+}
+
+function openSalesPaymentModal() {
+  if (cart.length === 0) {
+    alert('Debes agregar al menos un articulo');
+    return;
+  }
+
+  const totals = calculateCartTotals();
+  const currentPayment = (document.getElementById('sale-payment') || {}).value || 'cash';
+  salesUiState.paymentModal = {
+    isOpen: true,
+    selectedMethod: currentPayment,
+    registeredPayments: currentPayment === 'digital' || currentPayment === 'check'
+      ? []
+      : [{
+        id: 'payment-main',
+        method: currentPayment,
+        label: salesGetPaymentMethodLabel(currentPayment),
+        amount: Number(totals.total || 0)
+      }],
+    totalAmount: Number(totals.total || 0),
+    cashReceived: currentPayment === 'cash' ? app.formatDecimalInputValue(0, 2) : '',
+    digitalForm: createSalesDigitalPaymentForm(Number(totals.total || 0)),
+    checkForm: createSalesCheckPaymentForm(Number(totals.total || 0))
+  };
+  renderSalesPaymentModal();
+}
+
+function closeSalesPaymentModal() {
+  salesUiState.paymentModal.isOpen = false;
+  const container = document.getElementById('modal-container');
+  if (container) container.innerHTML = '';
+}
+
+function selectSalesPaymentMethod(methodId) {
+  const total = Number(salesUiState.paymentModal.totalAmount || 0);
+  salesUiState.paymentModal.selectedMethod = methodId;
+  salesUiState.paymentModal.registeredPayments = methodId === 'digital' || methodId === 'check'
+    ? []
+    : [{
+      id: 'payment-main',
+      method: methodId,
+      label: salesGetPaymentMethodLabel(methodId),
+      amount: total
+    }];
+  salesUiState.paymentModal.cashReceived = methodId === 'cash' ? app.formatDecimalInputValue(0, 2) : '';
+  salesUiState.paymentModal.digitalForm = createSalesDigitalPaymentForm(total);
+  salesUiState.paymentModal.checkForm = createSalesCheckPaymentForm(total);
+  renderSalesPaymentModal();
+}
+
+function updateSalesCashReceived(value) {
+  salesUiState.paymentModal.cashReceived = value;
+  syncSalesPaymentCashPreview();
+}
+
+function syncSalesPaymentCashPreview() {
+  const totals = getSalesPaymentModalTotals();
+  const totalPaidEl = document.getElementById('sales-payment-total-paid');
+  const changeEl = document.getElementById('sales-payment-change');
+  const cashRowAmountEl = document.getElementById('sales-payment-cash-row-amount');
+
+  if (totalPaidEl) totalPaidEl.textContent = app.formatMoney(totals.totalPaid);
+  if (changeEl) changeEl.textContent = app.formatMoney(totals.change);
+  if (cashRowAmountEl) cashRowAmountEl.textContent = app.formatMoney(totals.cashReceived > 0 ? totals.cashReceived : 0);
+}
+
+function updateSalesDigitalPaymentField(field, value) {
+  if (!salesUiState.paymentModal.digitalForm) {
+    salesUiState.paymentModal.digitalForm = createSalesDigitalPaymentForm(salesUiState.paymentModal.totalAmount || 0);
+  }
+  if (field === 'ultimos4') {
+    salesUiState.paymentModal.digitalForm[field] = String(value || '').replace(/\D/g, '').slice(0, 4);
+  } else {
+    salesUiState.paymentModal.digitalForm[field] = value;
+  }
+  syncSalesDigitalPaymentPreview();
+}
+
+function syncSalesDigitalPaymentPreview() {
+  const total = getSalesDigitalPaymentTotal();
+  const previewEl = document.getElementById('sales-digital-total');
+  if (previewEl) previewEl.textContent = app.formatMoney(total);
+}
+
+function addSalesDigitalPayment() {
+  const form = salesUiState.paymentModal.digitalForm || createSalesDigitalPaymentForm(salesUiState.paymentModal.totalAmount || 0);
+  const amount = Math.max(0, app.parseLocaleNumber(form.monto || 0, 0));
+  const surcharge = Math.max(0, app.parseLocaleNumber(form.recargo || 0, 0));
+  const totalWithSurcharge = amount + (amount * surcharge / 100);
+
+  if (amount <= 0) {
+    alert('El monto del pago digital debe ser mayor a cero');
+    return;
+  }
+
+  salesUiState.paymentModal.registeredPayments.push({
+    id: 'payment-' + Date.now(),
+    method: 'digital',
+    label: 'Pago Digital',
+    amount: Number(totalWithSurcharge.toFixed(2)),
+    detail: {
+      tipo: form.tipo || '',
+      banco: String(form.banco || '').trim(),
+      ultimos4: String(form.ultimos4 || '').trim(),
+      recargo: Number(surcharge.toFixed(2)),
+      montoBase: Number(amount.toFixed(2))
+    }
+  });
+
+  const { total, totalPaid } = getSalesPaymentModalTotals();
+  const pending = Math.max(0, total - totalPaid);
+  salesUiState.paymentModal.digitalForm = createSalesDigitalPaymentForm(pending);
+  renderSalesPaymentModal();
+}
+
+function updateSalesCheckPaymentField(field, value) {
+  if (!salesUiState.paymentModal.checkForm) {
+    salesUiState.paymentModal.checkForm = createSalesCheckPaymentForm(salesUiState.paymentModal.totalAmount || 0);
+  }
+  salesUiState.paymentModal.checkForm[field] = value;
+}
+
+function addSalesCheckPayment() {
+  const form = salesUiState.paymentModal.checkForm || createSalesCheckPaymentForm(salesUiState.paymentModal.totalAmount || 0);
+  const amount = Math.max(0, app.parseLocaleNumber(form.monto || 0, 0));
+
+  if (amount <= 0) {
+    alert('El monto del cheque debe ser mayor a cero');
+    return;
+  }
+
+  salesUiState.paymentModal.registeredPayments.push({
+    id: 'payment-' + Date.now(),
+    method: 'check',
+    label: 'Cheque',
+    amount: Number(amount.toFixed(2)),
+    detail: {
+      banco: String(form.banco || '').trim(),
+      numeroCheque: String(form.numeroCheque || '').trim(),
+      fechaCobro: String(form.fechaCobro || '').trim()
+    }
+  });
+
+  const { total, totalPaid } = getSalesPaymentModalTotals();
+  salesUiState.paymentModal.checkForm = createSalesCheckPaymentForm(Math.max(0, total - totalPaid));
+  renderSalesPaymentModal();
+}
+
+function removeSalesRegisteredPayment(paymentId) {
+  const removedPayment = (salesUiState.paymentModal.registeredPayments || []).find((payment) => payment.id === paymentId);
+  salesUiState.paymentModal.registeredPayments = (salesUiState.paymentModal.registeredPayments || []).filter((payment) => payment.id !== paymentId);
+  if (salesUiState.paymentModal.registeredPayments.length === 0) {
+    salesUiState.paymentModal.selectedMethod = removedPayment && ['digital', 'check'].includes(removedPayment.method) ? removedPayment.method : '';
+  }
+  if (salesUiState.paymentModal.selectedMethod === 'digital') {
+    const { total, totalPaid } = getSalesPaymentModalTotals();
+    salesUiState.paymentModal.digitalForm = createSalesDigitalPaymentForm(Math.max(0, total - totalPaid));
+  }
+  if (salesUiState.paymentModal.selectedMethod === 'check') {
+    const { total, totalPaid } = getSalesPaymentModalTotals();
+    salesUiState.paymentModal.checkForm = createSalesCheckPaymentForm(Math.max(0, total - totalPaid));
+  }
+  renderSalesPaymentModal();
+}
+
+function renderSalesPaymentModal() {
+  const container = document.getElementById('modal-container');
+  if (!container || !salesUiState.paymentModal.isOpen) return;
+
+  const { total, totalPaid, change } = getSalesPaymentModalTotals();
+  const registeredPayments = salesUiState.paymentModal.registeredPayments || [];
+  const isCashSelected = salesUiState.paymentModal.selectedMethod === 'cash';
+  const isDigitalSelected = salesUiState.paymentModal.selectedMethod === 'digital';
+  const isCheckSelected = salesUiState.paymentModal.selectedMethod === 'check';
+  const cashReceivedValue = salesUiState.paymentModal.cashReceived || '';
+  const digitalForm = salesUiState.paymentModal.digitalForm || createSalesDigitalPaymentForm(total);
+  const checkForm = salesUiState.paymentModal.checkForm || createSalesCheckPaymentForm(total);
+  const digitalTotal = getSalesDigitalPaymentTotal(digitalForm);
+  const paymentRows = registeredPayments.length
+    ? registeredPayments.map((payment) => {
+      const isCashPayment = payment.method === 'cash';
+      const displayAmount = isCashPayment ? (getSalesPaymentModalTotals().cashReceived > 0 ? getSalesPaymentModalTotals().cashReceived : 0) : Number(payment.amount || 0);
+      let paymentDetail = '';
+      if (payment.method === 'digital' && payment.detail) {
+        paymentDetail = '<small>' +
+          [
+            payment.detail.tipo || 'Sin tipo',
+            payment.detail.banco || 'Sin banco',
+            payment.detail.ultimos4 ? '**** ' + payment.detail.ultimos4 : ''
+          ].filter(Boolean).join(' - ') +
+          '</small>';
+      }
+      if (payment.method === 'check' && payment.detail) {
+        paymentDetail = '<small>' +
+          [
+            payment.detail.banco || 'Sin banco',
+            payment.detail.numeroCheque ? 'Cheque ' + payment.detail.numeroCheque : '',
+            payment.detail.fechaCobro || ''
+          ].filter(Boolean).join(' - ') +
+          '</small>';
+      }
+      return '' +
+      '<div class="sales-payment-row">' +
+      '<div>' +
+      '<strong>' + salesEscapeHtml(payment.label) + '</strong>' +
+      paymentDetail +
+      '<span' + (isCashPayment ? ' id="sales-payment-cash-row-amount"' : '') + '>' + app.formatMoney(displayAmount) + '</span>' +
+      '</div>' +
+      '<button class="btn btn-sm btn-secondary" type="button" onclick="removeSalesRegisteredPayment(\'' + salesEscapeAttr(payment.id) + '\')">Quitar</button>' +
+      '</div>';
+    }).join('')
+    : '<div class="sales-payment-empty">Todavia no hay pagos registrados.</div>';
+
+  container.innerHTML = '' +
+    '<div class="modal-overlay" onclick="if(event.target === this) closeSalesPaymentModal()">' +
+    '<div class="modal sales-payment-modal">' +
+    '<div class="modal-header sales-payment-modal-header">' +
+    '<h3>Forma de Pago</h3>' +
+    '<button class="modal-close" type="button" onclick="closeSalesPaymentModal()">&times;</button>' +
+    '</div>' +
+    '<div class="modal-body sales-payment-modal-body">' +
+    '<div class="sales-payment-total">Total a Pagar: <strong>' + app.formatMoney(total) + '</strong></div>' +
+    '<div class="sales-payment-methods">' +
+    SALES_PAYMENT_METHODS.map((method) => {
+      const activeClass = salesUiState.paymentModal.selectedMethod === method.id ? ' is-active' : '';
+      return '<button class="sales-payment-method' + activeClass + '" type="button" onclick="selectSalesPaymentMethod(\'' + salesEscapeAttr(method.id) + '\')">' + salesEscapeHtml(method.label) + '</button>';
+    }).join('') +
+    '</div>' +
+    (isCashSelected
+      ? '<div class="sales-payment-cash-box">' +
+        '<label for="sales-cash-received">Importe recibido</label>' +
+        '<input id="sales-cash-received" type="text" inputmode="decimal" value="' + salesEscapeAttr(cashReceivedValue) + '" placeholder="0,00" onfocus="this.select()" oninput="app.sanitizeNumericInput(this, { decimals: 2 }); updateSalesCashReceived(this.value)" onkeydown="if(event.key === \'Enter\'){ event.preventDefault(); this.blur(); }" onblur="this.value = app.formatDecimalInputValue(Math.max(0, app.parseLocaleNumber(this.value, 0)), 2); updateSalesCashReceived(this.value)">' +
+        '<small>Ingresa el efectivo entregado por el cliente para calcular el vuelto.</small>' +
+      '</div>'
+      : '') +
+    (isDigitalSelected
+      ? '<div class="sales-payment-digital-box">' +
+        '<h4>Datos del Pago Digital</h4>' +
+        '<div class="sales-payment-digital-grid">' +
+        '<div class="form-group"><label for="sales-digital-amount">Monto</label><input id="sales-digital-amount" type="text" inputmode="decimal" value="' + salesEscapeAttr(digitalForm.monto) + '" oninput="app.sanitizeNumericInput(this, { decimals: 2 }); updateSalesDigitalPaymentField(\'monto\', this.value)" onblur="this.value = app.formatDecimalInputValue(Math.max(0, app.parseLocaleNumber(this.value, 0)), 2); updateSalesDigitalPaymentField(\'monto\', this.value)"></div>' +
+        '<div class="form-group"><label for="sales-digital-type">Tipo</label><select id="sales-digital-type" onchange="updateSalesDigitalPaymentField(\'tipo\', this.value)">' + salesBuildOptions(SALES_DIGITAL_PAYMENT_TYPES, digitalForm.tipo, 'Seleccione...') + '</select></div>' +
+        '<div class="form-group"><label for="sales-digital-bank">Banco</label><input id="sales-digital-bank" type="text" value="' + salesEscapeAttr(digitalForm.banco) + '" placeholder="Ej: Banco Galicia" oninput="updateSalesDigitalPaymentField(\'banco\', this.value)"></div>' +
+        '<div class="form-group"><label for="sales-digital-last4">Ultimos 4 digitos</label><input id="sales-digital-last4" type="text" inputmode="numeric" maxlength="4" value="' + salesEscapeAttr(digitalForm.ultimos4) + '" placeholder="1234" oninput="updateSalesDigitalPaymentField(\'ultimos4\', this.value)"></div>' +
+        '<div class="form-group"><label for="sales-digital-surcharge">Recargo</label><input id="sales-digital-surcharge" type="text" inputmode="decimal" value="' + salesEscapeAttr(digitalForm.recargo) + '" oninput="app.sanitizeNumericInput(this, { decimals: 2 }); updateSalesDigitalPaymentField(\'recargo\', this.value)" onblur="this.value = app.formatDecimalInputValue(Math.max(0, app.parseLocaleNumber(this.value, 0)), 2); updateSalesDigitalPaymentField(\'recargo\', this.value)"></div>' +
+        '<div class="form-group"><label>Total con recargo</label><div class="sales-payment-digital-total" id="sales-digital-total">' + app.formatMoney(digitalTotal) + '</div></div>' +
+        '</div>' +
+        '<div class="sales-payment-digital-actions"><button class="btn btn-primary" type="button" onclick="addSalesDigitalPayment()">Agregar Pago</button></div>' +
+      '</div>'
+      : '') +
+    (isCheckSelected
+      ? '<div class="sales-payment-digital-box">' +
+        '<h4>Datos del Cheque</h4>' +
+        '<div class="sales-payment-digital-grid">' +
+        '<div class="form-group"><label for="sales-check-amount">Monto</label><input id="sales-check-amount" type="text" inputmode="decimal" value="' + salesEscapeAttr(checkForm.monto) + '" oninput="app.sanitizeNumericInput(this, { decimals: 2 }); updateSalesCheckPaymentField(\'monto\', this.value)" onblur="this.value = app.formatDecimalInputValue(Math.max(0, app.parseLocaleNumber(this.value, 0)), 2); updateSalesCheckPaymentField(\'monto\', this.value)"></div>' +
+        '<div class="form-group"><label for="sales-check-bank">Banco</label><input id="sales-check-bank" type="text" value="' + salesEscapeAttr(checkForm.banco) + '" placeholder="Ej: Banco Frances" oninput="updateSalesCheckPaymentField(\'banco\', this.value)"></div>' +
+        '<div class="form-group"><label for="sales-check-number">Numero de Cheque</label><input id="sales-check-number" type="text" value="' + salesEscapeAttr(checkForm.numeroCheque) + '" oninput="updateSalesCheckPaymentField(\'numeroCheque\', this.value)"></div>' +
+        '<div class="form-group"><label for="sales-check-date">Fecha de Cobro</label><input id="sales-check-date" type="date" value="' + salesEscapeAttr(checkForm.fechaCobro) + '" onchange="updateSalesCheckPaymentField(\'fechaCobro\', this.value)"></div>' +
+        '</div>' +
+        '<div class="sales-payment-digital-actions"><button class="btn btn-primary" type="button" onclick="addSalesCheckPayment()">Agregar Pago</button></div>' +
+      '</div>'
+      : '') +
+    '<div class="sales-payment-registered">' +
+    '<h4>Pagos Registrados</h4>' +
+    '<div class="sales-payment-rows">' + paymentRows + '</div>' +
+    '</div>' +
+    '<div class="sales-payment-summary">' +
+    '<div class="sales-payment-summary-row"><span>Total Pagado</span><strong id="sales-payment-total-paid">' + app.formatMoney(totalPaid) + '</strong></div>' +
+    '<div class="sales-payment-summary-row"><span>Vuelto</span><strong id="sales-payment-change">' + app.formatMoney(change) + '</strong></div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="modal-footer sales-payment-modal-footer">' +
+    '<button class="btn btn-secondary" type="button" onclick="closeSalesPaymentModal()">Cancelar</button>' +
+    '<button class="btn btn-success" type="button" onclick="confirmSaleFromPaymentModal()"' + (registeredPayments.length === 0 ? ' disabled' : '') + '>Confirmar Venta</button>' +
+    '</div>' +
+    '</div>' +
+    '</div>';
 }
 
 function updateSalesCustomerLookupSearch(value) {
@@ -1290,6 +2130,12 @@ function cancelSale(clearBanner = true) {
 
   cart = [];
   salesUiState.invoiceDraft = createDefaultSalesDraft();
+  salesUiState.paymentModal = {
+    isOpen: false,
+    selectedMethod: '',
+    registeredPayments: [],
+    totalAmount: 0
+  };
 
   const customerSelect = document.getElementById('sale-customer');
   const paymentSelect = document.getElementById('sale-payment');
@@ -1324,14 +2170,28 @@ function cancelSale(clearBanner = true) {
   refreshSaleDocumentPreview();
 }
 
-async function processSale() {
+async function confirmSaleFromPaymentModal() {
+  const registeredPayments = salesUiState.paymentModal.registeredPayments || [];
+  if (registeredPayments.length === 0) {
+    alert('Debes registrar una forma de pago');
+    return;
+  }
+
+  const paymentMethod = registeredPayments[0].method || salesUiState.paymentModal.selectedMethod || 'cash';
+  const paymentInput = document.getElementById('sale-payment');
+  if (paymentInput) paymentInput.value = paymentMethod;
+  closeSalesPaymentModal();
+  await processSale(paymentMethod, registeredPayments);
+}
+
+async function processSale(selectedPaymentMethod = null, registeredPayments = []) {
   if (cart.length === 0) {
     alert('Debes agregar al menos un articulo');
     return;
   }
 
   const customer = getSelectedCustomer();
-  const paymentMethod = (document.getElementById('sale-payment') || {}).value || 'cash';
+  const paymentMethod = selectedPaymentMethod || (document.getElementById('sale-payment') || {}).value || 'cash';
   const notes = buildSalesNotes();
   const items = cart.map((item) => ({ product_id: item.product_id, quantity: item.quantity, unit_price: Number(getEffectiveUnitPrice(item).toFixed(2)) }));
 
@@ -1356,6 +2216,7 @@ async function processSale() {
       receiptNumber: response.sale?.receipt_number || nextInvoiceNumber,
       cart: cart.map((item) => ({ ...item })),
       paymentMethod,
+      registeredPayments: registeredPayments.map((payment) => ({ ...payment })),
       customerName: customer ? customer.name : 'Consumidor final',
       notes
     };
@@ -1414,7 +2275,7 @@ function showReceipt(sale, cartData, paymentMethod, saleId, syncStatus, customer
   });
   receiptHtml += '<hr>';
   receiptHtml += '<div class="sales-receipt-line sales-receipt-line--total"><span>Total</span><strong>' + app.formatMoney(totals) + '</strong></div>';
-  receiptHtml += '<p>Pago: ' + salesEscapeHtml(paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'card' ? 'Tarjeta' : 'Transferencia') + '</p>';
+  receiptHtml += '<p>Pago: ' + salesEscapeHtml(salesGetPaymentMethodLabel(paymentMethod)) + '</p>';
   receiptHtml += '</div>';
   receiptHtml += '</div>';
   receiptHtml += '<div class="modal-footer"><button class="btn btn-secondary" type="button" onclick="closeReceipt()">Cerrar</button><button class="btn btn-primary" type="button" onclick="printReceipt()">Imprimir</button></div>';
@@ -1459,7 +2320,7 @@ function printReceipt() {
 
   receiptText += '------------------------------------------\n';
   receiptText += 'TOTAL:' + ' '.repeat(35) + app.formatMoney(total) + '\n';
-  receiptText += 'Pago: ' + (paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'card' ? 'Tarjeta' : 'Transferencia') + '\n';
+  receiptText += 'Pago: ' + salesGetPaymentMethodLabel(paymentMethod) + '\n';
   if (lastSaleData.notes) receiptText += lastSaleData.notes + '\n';
   receiptText += '------------------------------------------\n';
   receiptText += '       Gracias por su compra!\n';

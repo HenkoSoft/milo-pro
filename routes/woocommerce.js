@@ -14,6 +14,16 @@ const {
   woocommerceRequest
 } = require('../services/woocommerce-sync');
 const {
+  getSyncLogs: getOrderSyncLogs,
+  getWooOrderSyncConfig,
+  syncWooOrder,
+  verifyWebhookRequest
+} = require('../services/woo-order-sync');
+const {
+  importWooOrderById,
+  importWooOrders
+} = require('../services/woo-order-importer');
+const {
   getProductById,
   collapseCategoryIdsToLeaves,
   syncProductCategories,
@@ -34,6 +44,14 @@ function parseWooBoolean(value, fallback = false) {
   return ['1', 'true', 'on', 'yes', 'si'].includes(normalized);
 }
 
+function requireAdmin(req, res) {
+  if (req.user.role !== 'admin') {
+    res.status(403).json({ error: 'Solo el administrador puede ejecutar esta accion' });
+    return false;
+  }
+  return true;
+}
+
 function buildWooStatusResponse(config = null) {
   if (!config || !config.store_url) {
     return { connected: false, message: 'WooCommerce not configured' };
@@ -41,6 +59,7 @@ function buildWooStatusResponse(config = null) {
 
   const logs = all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
   const recentErrors = logs.filter((log) => log.status === 'error').slice(0, 10);
+  const orderConfig = getWooOrderSyncConfig();
 
   return {
     connected: true,
@@ -61,10 +80,22 @@ function buildWooStatusResponse(config = null) {
     last_sync: config.last_sync,
     auto_sync: parseWooBoolean(config.auto_sync, false),
     polling_active: pollingInterval !== null,
+    orders_sync_enabled: parseWooBoolean(config.sync_orders, false),
+    order_sync_mode: config.order_sync_mode || 'webhook',
+    order_sales_channel: config.order_sales_channel || 'woocommerce',
+    customer_sync_strategy: config.customer_sync_strategy || 'create_or_link',
+    generic_customer_name: config.generic_customer_name || 'Cliente WooCommerce',
+    webhook_signature_header: config.webhook_signature_header || 'x-wc-webhook-signature',
+    webhook_delivery_header: config.webhook_delivery_header || 'x-wc-webhook-delivery-id',
+    order_status_map_effective: orderConfig.statusMap,
+    order_stock_statuses: orderConfig.stockStatuses,
+    order_paid_statuses: orderConfig.paidStatuses,
     has_consumer_key: Boolean(config.consumer_key),
     has_consumer_secret: Boolean(config.consumer_secret),
     has_wp_username: Boolean(config.wp_username),
     has_wp_app_password: Boolean(config.wp_app_password),
+    has_webhook_secret: Boolean(config.webhook_secret || process.env.WOO_WEBHOOK_SECRET),
+    has_webhook_auth_token: Boolean(config.webhook_auth_token || process.env.WOO_WEBHOOK_AUTH_TOKEN),
     logs_summary: {
       processed: logs.length,
       errors: recentErrors.length,
@@ -434,13 +465,25 @@ router.put('/config', authenticate, async (req, res) => {
     tax_mode,
     category_mode,
     conflict_priority,
-    order_status_map
+    order_status_map,
+    order_stock_statuses,
+    order_paid_statuses,
+    order_sync_mode,
+    order_sales_channel,
+    customer_sync_strategy,
+    generic_customer_name,
+    webhook_secret,
+    webhook_auth_token,
+    webhook_signature_header,
+    webhook_delivery_header
   } = req.body;
   const existing = get('SELECT * FROM woocommerce_sync WHERE id = 1');
   const nextSecret = consumer_secret ? consumer_secret : (existing ? existing.consumer_secret : '');
   const nextKey = consumer_key ? consumer_key : (existing ? existing.consumer_key : '');
   const nextWpUsername = wp_username ? wp_username : (existing ? existing.wp_username : '');
   const nextWpAppPassword = wp_app_password ? wp_app_password : (existing ? existing.wp_app_password : '');
+  const nextWebhookSecret = webhook_secret ? webhook_secret : (existing ? existing.webhook_secret : '');
+  const nextWebhookAuthToken = webhook_auth_token ? webhook_auth_token : (existing ? existing.webhook_auth_token : '');
   const nextStatusMap = typeof order_status_map === 'string'
     ? order_status_map
     : JSON.stringify(order_status_map || {
@@ -451,6 +494,12 @@ router.put('/config', authenticate, async (req, res) => {
       refunded: 'reintegrado',
       failed: 'fallido'
     });
+  const nextStockStatuses = typeof order_stock_statuses === 'string'
+    ? order_stock_statuses
+    : JSON.stringify(order_stock_statuses || ['paid', 'completed']);
+  const nextPaidStatuses = typeof order_paid_statuses === 'string'
+    ? order_paid_statuses
+    : JSON.stringify(order_paid_statuses || ['paid', 'completed']);
 
   if (existing) {
     run(
@@ -458,7 +507,10 @@ router.put('/config', authenticate, async (req, res) => {
        store_url = ?, consumer_key = ?, consumer_secret = ?, wp_username = ?, wp_app_password = ?,
        api_version = ?, sync_direction = ?, sync_products = ?, sync_customers = ?, sync_orders = ?,
        sync_stock = ?, sync_prices = ?, sync_mode = ?, sync_interval_minutes = ?, auto_sync = ?,
-       tax_mode = ?, category_mode = ?, conflict_priority = ?, order_status_map = ?, active = 1
+       tax_mode = ?, category_mode = ?, conflict_priority = ?, order_status_map = ?, order_stock_statuses = ?,
+       order_paid_statuses = ?, order_sync_mode = ?, order_sales_channel = ?, customer_sync_strategy = ?,
+       generic_customer_name = ?, webhook_secret = ?, webhook_auth_token = ?, webhook_signature_header = ?,
+       webhook_delivery_header = ?, active = 1
        WHERE id = 1`,
       [
         store_url,
@@ -479,7 +531,17 @@ router.put('/config', authenticate, async (req, res) => {
         tax_mode || existing.tax_mode || 'woocommerce',
         category_mode || existing.category_mode || 'milo',
         conflict_priority || existing.conflict_priority || 'milo',
-        nextStatusMap
+        nextStatusMap,
+        nextStockStatuses,
+        nextPaidStatuses,
+        order_sync_mode || existing.order_sync_mode || 'webhook',
+        order_sales_channel || existing.order_sales_channel || 'woocommerce',
+        customer_sync_strategy || existing.customer_sync_strategy || 'create_or_link',
+        generic_customer_name || existing.generic_customer_name || 'Cliente WooCommerce',
+        nextWebhookSecret,
+        nextWebhookAuthToken,
+        webhook_signature_header || existing.webhook_signature_header || 'x-wc-webhook-signature',
+        webhook_delivery_header || existing.webhook_delivery_header || 'x-wc-webhook-delivery-id'
       ]
     );
   } else {
@@ -488,9 +550,11 @@ router.put('/config', authenticate, async (req, res) => {
         id, store_url, consumer_key, consumer_secret, wp_username, wp_app_password, api_version, sync_direction,
         sync_products, sync_customers, sync_orders, sync_stock, sync_prices,
         sync_mode, sync_interval_minutes, auto_sync, tax_mode, category_mode,
-        conflict_priority, order_status_map
+        conflict_priority, order_status_map, order_stock_statuses, order_paid_statuses, order_sync_mode,
+        order_sales_channel, customer_sync_strategy, generic_customer_name, webhook_secret, webhook_auth_token,
+        webhook_signature_header, webhook_delivery_header
       )
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         store_url,
         nextKey,
@@ -510,7 +574,17 @@ router.put('/config', authenticate, async (req, res) => {
         tax_mode || 'woocommerce',
         category_mode || 'milo',
         conflict_priority || 'milo',
-        nextStatusMap
+        nextStatusMap,
+        nextStockStatuses,
+        nextPaidStatuses,
+        order_sync_mode || 'webhook',
+        order_sales_channel || 'woocommerce',
+        customer_sync_strategy || 'create_or_link',
+        generic_customer_name || 'Cliente WooCommerce',
+        nextWebhookSecret,
+        nextWebhookAuthToken,
+        webhook_signature_header || 'x-wc-webhook-signature',
+        webhook_delivery_header || 'x-wc-webhook-delivery-id'
       ]
     );
   }
@@ -747,6 +821,45 @@ router.delete('/disconnect', authenticate, (req, res) => {
   res.json({ success: true });
 });
 
+router.get('/orders/logs', authenticate, (req, res) => {
+  res.json(getOrderSyncLogs(req.query.limit));
+});
+
+router.post('/orders/import/:id', authenticate, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (!getWooOrderSyncConfig().syncEnabled) {
+    return res.status(409).json({ success: false, error: 'La sincronizacion de ordenes esta desactivada' });
+  }
+
+  try {
+    const result = await importWooOrderById(req.params.id, {
+      origin: 'woocommerce_api_manual',
+      eventType: 'order.manual_import'
+    });
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/orders/import', authenticate, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (!getWooOrderSyncConfig().syncEnabled) {
+    return res.status(409).json({ success: false, error: 'La sincronizacion de ordenes esta desactivada' });
+  }
+
+  try {
+    const { after, before, status, per_page } = req.body || {};
+    const result = await importWooOrders(
+      { after, before, status, per_page },
+      { origin: 'woocommerce_api_manual', eventType: 'order.manual_backfill' }
+    );
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/webhook', async (req, res) => {
   res.status(200).json({ received: true });
 
@@ -773,6 +886,54 @@ router.post('/webhook', async (req, res) => {
   } catch (error) {
     console.error('[WOO-WEBHOOK] Error processing webhook:', error.message);
   }
+});
+
+router.post('/webhooks/orders', async (req, res) => {
+  const config = get('SELECT * FROM woocommerce_sync WHERE id = 1');
+  if (!config || !config.store_url) {
+    return res.status(503).json({ error: 'WooCommerce no configurado' });
+  }
+
+  const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody : Buffer.from(JSON.stringify(req.body || {}));
+  const syncConfig = getWooOrderSyncConfig();
+  if (!syncConfig.syncEnabled) {
+    return res.status(409).json({ received: false, error: 'La sincronizacion de ordenes esta desactivada' });
+  }
+  const topic = req.headers['x-wc-webhook-topic'] || 'order.updated';
+  const deliveryId = req.headers[syncConfig.deliveryHeader] || null;
+
+  try {
+    verifyWebhookRequest(req.headers, rawBody, syncConfig);
+
+    if (!req.body || typeof req.body !== 'object' || !req.body.id) {
+      return res.status(200).json({
+        received: true,
+        skipped: true,
+        reason: 'Payload de prueba o sin order id'
+      });
+    }
+
+    const result = await syncWooOrder(req.body, {
+      origin: 'woocommerce_webhook',
+      eventType: String(topic),
+      deliveryId: deliveryId ? String(deliveryId) : null
+    });
+    res.status(200).json({ received: true, result });
+  } catch (error) {
+    const statusCode = error.statusCode || 400;
+    res.status(statusCode).json({ received: false, error: error.message });
+  }
+});
+
+router.get('/webhooks/orders', (req, res) => {
+  const syncConfig = getWooOrderSyncConfig();
+  res.json({
+    ok: true,
+    endpoint: 'woocommerce_orders_webhook',
+    method: 'POST',
+    sync_orders: syncConfig.syncEnabled,
+    message: 'Endpoint listo para recibir webhooks de WooCommerce'
+  });
 });
 
 router.post('/start-polling', authenticate, (req, res) => {

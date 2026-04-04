@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Milo Pro - Sistema de Gestión</title>
-  <link rel="stylesheet" href="/css/styles.css?v=13">
+  <link rel="stylesheet" href="/css/styles.css?v=16">
 </head>
 <body>
   <div id="login-screen" class="login-screen">
@@ -135,6 +135,11 @@
             <a href="#sales-orders" class="nav-item nav-group-item" data-page="sales-orders">
               <span>&#129530;</span>
               <span>Pedidos</span>
+            </a>
+            <a href="#sales-web-orders" class="nav-item nav-group-item" data-page="sales-web-orders">
+              <span>&#127760;</span>
+              <span>Pedidos Web</span>
+              <span id="sales-web-orders-badge" class="nav-counter-badge" hidden>0</span>
             </a>
             <a href="#sales-credit-notes" class="nav-item nav-group-item" data-page="sales-credit-notes">
               <span>&#128179;</span>
@@ -356,11 +361,11 @@
 
   <div id="modal-container"></div>
 
-  <script src="/js/api.js?v=2"></script>
+  <script src="/js/api.js?v=3"></script>
   <script src="/js/auth.js?v=3"></script>
   <script src="/js/pages/dashboard.js?v=2"></script>
   <script src="/js/pages/products.js?v=10"></script>
-  <script src="/js/pages/sales.js?v=7"></script>
+  <script src="/js/pages/sales.js?v=11"></script>
   <script src="/js/pages/customers.js?v=3"></script>
   <script src="/js/pages/sellers.js?v=1"></script>
   <script src="/js/pages/cash.js?v=1"></script>
@@ -382,7 +387,7 @@
       window.renderSuppliers = renderSuppliers;
     }
   </script>
-  <script src="/js/router.js?v=36"></script>
+  <script src="/js/router.js?v=37"></script>
   
   <script type="text/plain" id="legacy-suppliers-inline-disabled">
   console.log('INLINE SUPPLIERS LOADING');
@@ -731,6 +736,6 @@
   console.log('SUPPLIERS LOADED, window.renderSuppliers:', typeof window.renderSuppliers);
   </script>
   
-  <script src="/js/app.js?v=4"></script>
+  <script src="/js/app.js?v=7"></script>
 </body>
 </html>

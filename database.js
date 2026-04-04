@@ -5,7 +5,7 @@ const fs2 = require('fs');
 const { buildAutomaticProductSku } = require('./services/product-sku');
 
 let db = null;
-const DATABASE_FILENAME = 'milo-pro.db';
+const DATABASE_FILENAME = process.env.MILO_DB_FILENAME || 'milo-pro.db';
 const LEGACY_DATABASE_FILENAME = 'techfix.db';
 
 function getDatabasePath(filename = DATABASE_FILENAME) {
@@ -174,6 +174,9 @@ async function initializeDatabase() {
       seller TEXT,
       price_list TEXT DEFAULT '1',
       billing_conditions TEXT,
+      external_source TEXT,
+      external_customer_id TEXT,
+      is_generic INTEGER DEFAULT 0,
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -184,12 +187,30 @@ async function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer_id INTEGER,
       user_id INTEGER NOT NULL,
+      channel TEXT DEFAULT 'local',
+      status TEXT DEFAULT 'completed',
+      payment_status TEXT DEFAULT 'paid',
+      external_status TEXT,
+      currency TEXT DEFAULT 'ARS',
+      subtotal REAL DEFAULT 0,
+      discount_total REAL DEFAULT 0,
+      tax_total REAL DEFAULT 0,
+      shipping_total REAL DEFAULT 0,
       receipt_type TEXT DEFAULT 'C',
       point_of_sale TEXT DEFAULT '001',
       receipt_number INTEGER DEFAULT 1,
       total REAL NOT NULL,
+      total_paid REAL DEFAULT 0,
+      external_reference TEXT,
       payment_method TEXT DEFAULT 'cash',
       notes TEXT,
+      external_created_at DATETIME,
+      external_updated_at DATETIME,
+      stock_applied_at DATETIME,
+      stock_applied_state TEXT,
+      stock_reverted_at DATETIME,
+      stock_reverted_state TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES customers(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
@@ -201,6 +222,10 @@ async function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       sale_id INTEGER NOT NULL,
       product_id INTEGER NOT NULL,
+      external_line_id TEXT,
+      external_product_id TEXT,
+      sku TEXT,
+      product_name TEXT,
       quantity INTEGER NOT NULL,
       unit_price REAL NOT NULL,
       subtotal REAL NOT NULL,
@@ -270,7 +295,7 @@ async function initializeDatabase() {
       sync_direction TEXT DEFAULT 'export',
       sync_products INTEGER DEFAULT 1,
       sync_customers INTEGER DEFAULT 0,
-      sync_orders INTEGER DEFAULT 0,
+      sync_orders INTEGER DEFAULT 1,
       sync_stock INTEGER DEFAULT 1,
       sync_prices INTEGER DEFAULT 1,
       sync_mode TEXT DEFAULT 'manual',
@@ -279,6 +304,16 @@ async function initializeDatabase() {
       category_mode TEXT DEFAULT 'milo',
       conflict_priority TEXT DEFAULT 'milo',
       order_status_map TEXT DEFAULT '{"pending":"pendiente","processing":"procesando","completed":"completado","cancelled":"cancelado","refunded":"reintegrado","failed":"fallido"}',
+      order_stock_statuses TEXT DEFAULT '["paid","completed"]',
+      order_paid_statuses TEXT DEFAULT '["paid","completed"]',
+      order_sync_mode TEXT DEFAULT 'webhook',
+      order_sales_channel TEXT DEFAULT 'woocommerce',
+      customer_sync_strategy TEXT DEFAULT 'create_or_link',
+      generic_customer_name TEXT DEFAULT 'Cliente WooCommerce',
+      webhook_secret TEXT,
+      webhook_auth_token TEXT,
+      webhook_signature_header TEXT DEFAULT 'x-wc-webhook-signature',
+      webhook_delivery_header TEXT DEFAULT 'x-wc-webhook-delivery-id',
       last_sync DATETIME,
       auto_sync INTEGER DEFAULT 0,
       active INTEGER DEFAULT 1
@@ -330,7 +365,7 @@ async function initializeDatabase() {
   try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN wp_app_password TEXT'); } catch (e) {}
   try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_products INTEGER DEFAULT 1'); } catch (e) {}
   try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_customers INTEGER DEFAULT 0'); } catch (e) {}
-  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_orders INTEGER DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_orders INTEGER DEFAULT 1'); } catch (e) {}
   try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_stock INTEGER DEFAULT 1'); } catch (e) {}
   try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN sync_prices INTEGER DEFAULT 1'); } catch (e) {}
   try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN sync_mode TEXT DEFAULT 'manual'"); } catch (e) {}
@@ -339,6 +374,16 @@ async function initializeDatabase() {
   try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN category_mode TEXT DEFAULT 'milo'"); } catch (e) {}
   try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN conflict_priority TEXT DEFAULT 'milo'"); } catch (e) {}
   try { db.run(`ALTER TABLE woocommerce_sync ADD COLUMN order_status_map TEXT DEFAULT '{"pending":"pendiente","processing":"procesando","completed":"completado","cancelled":"cancelado","refunded":"reintegrado","failed":"fallido"}'`); } catch (e) {}
+  try { db.run(`ALTER TABLE woocommerce_sync ADD COLUMN order_stock_statuses TEXT DEFAULT '["paid","completed"]'`); } catch (e) {}
+  try { db.run(`ALTER TABLE woocommerce_sync ADD COLUMN order_paid_statuses TEXT DEFAULT '["paid","completed"]'`); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN order_sync_mode TEXT DEFAULT 'webhook'"); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN order_sales_channel TEXT DEFAULT 'woocommerce'"); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN customer_sync_strategy TEXT DEFAULT 'create_or_link'"); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN generic_customer_name TEXT DEFAULT 'Cliente WooCommerce'"); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN webhook_secret TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE woocommerce_sync ADD COLUMN webhook_auth_token TEXT'); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN webhook_signature_header TEXT DEFAULT 'x-wc-webhook-signature'"); } catch (e) {}
+  try { db.run("ALTER TABLE woocommerce_sync ADD COLUMN webhook_delivery_header TEXT DEFAULT 'x-wc-webhook-delivery-id'"); } catch (e) {}
 
   try {
     db.run('ALTER TABLE customers ADD COLUMN contact TEXT');
@@ -395,6 +440,15 @@ async function initializeDatabase() {
   try {
     db.run('ALTER TABLE customers ADD COLUMN billing_conditions TEXT');
   } catch (e) {}
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN external_source TEXT');
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN external_customer_id TEXT');
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE customers ADD COLUMN is_generic INTEGER DEFAULT 0');
+  } catch (e) {}
 
   try {
     db.run("ALTER TABLE sales ADD COLUMN receipt_type TEXT DEFAULT 'C'");
@@ -413,6 +467,28 @@ async function initializeDatabase() {
   } catch (e) {
     // Column may already exist
   }
+  try { db.run("ALTER TABLE sales ADD COLUMN channel TEXT DEFAULT 'local'"); } catch (e) {}
+  try { db.run("ALTER TABLE sales ADD COLUMN status TEXT DEFAULT 'completed'"); } catch (e) {}
+  try { db.run("ALTER TABLE sales ADD COLUMN payment_status TEXT DEFAULT 'paid'"); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN external_status TEXT'); } catch (e) {}
+  try { db.run("ALTER TABLE sales ADD COLUMN currency TEXT DEFAULT 'ARS'"); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN subtotal REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN discount_total REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN tax_total REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN shipping_total REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN total_paid REAL DEFAULT 0'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN external_reference TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN external_created_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN external_updated_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN stock_applied_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN stock_applied_state TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN stock_reverted_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN stock_reverted_state TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE sales ADD COLUMN updated_at DATETIME'); } catch (e) {}
+  try { db.run('ALTER TABLE sale_items ADD COLUMN external_line_id TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE sale_items ADD COLUMN external_product_id TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE sale_items ADD COLUMN sku TEXT'); } catch (e) {}
+  try { db.run('ALTER TABLE sale_items ADD COLUMN product_name TEXT'); } catch (e) {}
   
   db.run(`
     CREATE TABLE IF NOT EXISTS product_sync_log (
@@ -425,6 +501,53 @@ async function initializeDatabase() {
       synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS external_order_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER NOT NULL,
+      channel TEXT NOT NULL,
+      woocommerce_order_id INTEGER NOT NULL,
+      woocommerce_order_key TEXT,
+      local_sale_id INTEGER NOT NULL,
+      external_reference TEXT NOT NULL,
+      sync_state TEXT DEFAULT 'synced',
+      last_error TEXT,
+      last_payload TEXT,
+      first_synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(channel, woocommerce_order_id),
+      UNIQUE(channel, woocommerce_order_key),
+      UNIQUE(channel, external_reference),
+      FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+      FOREIGN KEY (local_sale_id) REFERENCES sales(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sync_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      origin TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      external_id TEXT,
+      event_type TEXT,
+      delivery_id TEXT,
+      status TEXT NOT NULL,
+      message TEXT,
+      error TEXT,
+      payload TEXT,
+      context TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_external_reference ON sales(external_reference)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sales_channel_status ON sales(channel, status)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sync_logs_external_id ON sync_logs(external_id, created_at)');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS product_categories (
@@ -654,8 +777,10 @@ async function initializeDatabase() {
     db.run('ALTER TABLE product_sync_log RENAME COLUMN techfix_id TO milo_id');
   } catch (e) {}
   
+  const shouldSeed = process.env.MILO_DISABLE_SEED !== '1';
+
   const supplierCount = get('SELECT COUNT(*) as count FROM suppliers');
-  if (!supplierCount || supplierCount.count === 0) {
+  if (shouldSeed && (!supplierCount || supplierCount.count === 0)) {
     const defaultSuppliers = [
       { name: 'Distribuidora Tech', phone: '11-5555-1234', email: 'ventas@distritech.com', city: 'Buenos Aires', tax_id: '30-12345678-9' },
       { name: 'Global Parts SA', phone: '11-5555-5678', email: 'info@globalparts.com', city: 'Córdoba', tax_id: '30-87654321-0' },
@@ -668,13 +793,13 @@ async function initializeDatabase() {
   }
   
   const deviceTypeCount = get('SELECT COUNT(*) as count FROM device_types');
-  if (!deviceTypeCount || deviceTypeCount.count === 0) {
+  if (shouldSeed && (!deviceTypeCount || deviceTypeCount.count === 0)) {
     const defaultTypes = ['Celular', 'Computadora', 'Tablet', 'Consola', 'Smartwatch', 'Otro'];
     defaultTypes.forEach(t => run('INSERT INTO device_types (name) VALUES (?)', [t]));
   }
   
   const brandCount = get('SELECT COUNT(*) as count FROM brands');
-  if (!brandCount || brandCount.count === 0) {
+  if (shouldSeed && (!brandCount || brandCount.count === 0)) {
     const defaultBrands = ['Apple', 'Samsung', 'Huawei', 'Xiaomi', 'Motorola', 'Nokia', 'LG', 'Sony', 'Lenovo', 'Dell', 'HP', 'Asus', 'Acer', 'Microsoft', 'Nintendo', 'Otro'];
     defaultBrands.forEach(b => run('INSERT INTO brands (name) VALUES (?)', [b]));
   }
@@ -745,9 +870,41 @@ async function initializeDatabase() {
       }
     }
   });
+
+  run(`
+    UPDATE sales
+    SET status = CASE lower(replace(replace(trim(COALESCE(status, '')), '-', '_'), ' ', '_'))
+      WHEN 'pendiente' THEN 'pending_payment'
+      WHEN 'procesando' THEN 'paid'
+      WHEN 'listo_para_entrega' THEN 'ready_for_delivery'
+      WHEN 'listo_para_entregar' THEN 'ready_for_delivery'
+      WHEN 'completado' THEN 'completed'
+      WHEN 'en_espera' THEN 'on_hold'
+      WHEN 'cancelado' THEN 'cancelled'
+      WHEN 'reintegrado' THEN 'refunded'
+      WHEN 'fallido' THEN 'payment_failed'
+      ELSE status
+    END
+    WHERE status IS NOT NULL
+  `);
+
+  run(`
+    UPDATE sales
+    SET payment_status = CASE
+      WHEN lower(COALESCE(status, '')) IN ('paid', 'completed') THEN 'paid'
+      ELSE COALESCE(payment_status, 'pending')
+    END
+    WHERE channel IS NOT NULL
+  `);
+
+  run(`
+    UPDATE sales
+    SET updated_at = COALESCE(updated_at, external_updated_at, external_created_at, created_at, CURRENT_TIMESTAMP)
+    WHERE updated_at IS NULL OR trim(COALESCE(updated_at, '')) = ''
+  `);
   
   const modelCount = get('SELECT COUNT(*) as count FROM device_models');
-  if (!modelCount || modelCount.count === 0) {
+  if (shouldSeed && (!modelCount || modelCount.count === 0)) {
     const defaultModels = [
       { name: 'iPhone 15 Pro Max', brand: 'Apple' },
       { name: 'iPhone 15 Pro', brand: 'Apple' },
@@ -830,7 +987,7 @@ async function initializeDatabase() {
   }
   
   const userCount = get('SELECT COUNT(*) as count FROM users');
-  if (!userCount || userCount.count === 0) {
+  if (shouldSeed && (!userCount || userCount.count === 0)) {
     const hashedPassword = bcrypt.hashSync('admin123', 10);
     run('INSERT INTO users (username, password, role, name) VALUES (?, ?, ?, ?)', ['admin', hashedPassword, 'admin', 'Administrator']);
     run('INSERT INTO users (username, password, role, name) VALUES (?, ?, ?, ?)', ['tech', bcrypt.hashSync('tech123', 10), 'technician', 'Technician']);

@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     try {
       await auth.login(username, password);
+      startOnlineSalesMonitor();
       errorEl.textContent = '';
     } catch (err) {
       errorEl.textContent = err.message;
@@ -43,12 +44,201 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('App initializing...');
   await auth.initAuth();
   console.log('auth.initAuth done, currentUser:', auth.currentUser);
-  if (auth.currentUser) {
+  if (getAuthenticatedUser()) {
+    startOnlineSalesMonitor();
     document.getElementById('page-content').innerHTML = '<div class="loading">Cargando...</div>';
     console.log('Calling handleRoute...');
     handleRoute();
   }
 });
+
+let onlineSalesMonitorId = null;
+let lastOnlineSaleSeenId = null;
+let appAudioContext = null;
+const ONLINE_SALE_STATUS_LABELS = {
+  pending_payment: 'pendiente de pago',
+  paid: 'pagado',
+  ready_for_delivery: 'listo para entregar',
+  completed: 'completado',
+  on_hold: 'en espera',
+  cancelled: 'cancelado',
+  refunded: 'reintegrado',
+  payment_failed: 'pago fallido',
+  pending: 'pendiente',
+  processing: 'procesando',
+  failed: 'fallido'
+};
+
+function getAuthenticatedUser() {
+  if (window.auth && typeof window.auth.getCurrentUser === 'function') {
+    return window.auth.getCurrentUser();
+  }
+  return (window.auth && window.auth.currentUser) || null;
+}
+
+function formatOnlineSaleStatusLabel(status) {
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_');
+  return ONLINE_SALE_STATUS_LABELS[normalized] || normalized.replace(/_/g, ' ');
+}
+
+function ensureToastContainer() {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  return container;
+}
+
+function showToast(message, options = {}) {
+  const container = ensureToastContainer();
+  const toast = document.createElement('div');
+  toast.className = 'app-toast' + (options.variant ? ` is-${options.variant}` : '');
+  toast.innerHTML = `
+    <div class="app-toast-body">
+      <strong>${escapeHtml(options.title || 'Aviso')}</strong>
+      <p>${escapeHtml(message)}</p>
+    </div>
+    <div class="app-toast-actions"></div>
+  `;
+
+  const actions = toast.querySelector('.app-toast-actions');
+  if (options.actionLabel && typeof options.onAction === 'function') {
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
+    actionBtn.className = 'btn btn-sm btn-primary';
+    actionBtn.textContent = options.actionLabel;
+    actionBtn.addEventListener('click', () => {
+      options.onAction();
+      toast.remove();
+    });
+    actions.appendChild(actionBtn);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'btn btn-sm btn-secondary';
+  closeBtn.textContent = 'Cerrar';
+  closeBtn.addEventListener('click', () => toast.remove());
+  actions.appendChild(closeBtn);
+
+  container.appendChild(toast);
+  window.setTimeout(() => {
+    if (toast.isConnected) toast.remove();
+  }, Number(options.durationMs || 9000));
+}
+
+function playOnlineSaleNotificationSound() {
+  try {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return;
+    if (!appAudioContext) {
+      appAudioContext = new AudioContextCtor();
+    }
+    if (appAudioContext.state === 'suspended') {
+      appAudioContext.resume().catch(() => {});
+    }
+
+    const oscillator = appAudioContext.createOscillator();
+    const gainNode = appAudioContext.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, appAudioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(1320, appAudioContext.currentTime + 0.18);
+    gainNode.gain.setValueAtTime(0.0001, appAudioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.06, appAudioContext.currentTime + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, appAudioContext.currentTime + 0.25);
+    oscillator.connect(gainNode);
+    gainNode.connect(appAudioContext.destination);
+    oscillator.start();
+    oscillator.stop(appAudioContext.currentTime + 0.26);
+  } catch (error) {
+    console.error('Notification sound error:', error.message);
+  }
+}
+
+function isUrgentOnlineSale(sale) {
+  const status = String(sale && sale.status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_');
+  return ['pending_payment', 'pending', 'on_hold', 'on_hold_', 'paid', 'ready_for_delivery', 'procesando', 'processing'].includes(status);
+}
+
+function updateWebOrdersNavBadge(feed = []) {
+  const badge = document.getElementById('sales-web-orders-badge');
+  if (!badge) return;
+  const count = (Array.isArray(feed) ? feed : []).filter((sale) => isUrgentOnlineSale(sale)).length;
+  badge.textContent = count > 99 ? '99+' : String(count);
+  badge.hidden = count <= 0;
+}
+
+async function checkForNewOnlineSales({ silent = false } = {}) {
+  if (!getAuthenticatedUser()) return;
+
+  try {
+    const feed = await api.sales.onlineFeed();
+    const onlineSales = Array.isArray(feed) ? feed : [];
+    updateWebOrdersNavBadge(onlineSales);
+    if (onlineSales.length === 0) return;
+
+    if (lastOnlineSaleSeenId === null) {
+      lastOnlineSaleSeenId = Number(onlineSales[0].id || 0);
+      return;
+    }
+
+    const newSales = onlineSales
+      .filter((sale) => Number(sale.id || 0) > lastOnlineSaleSeenId)
+      .sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+
+    if (!silent) {
+      newSales.forEach((sale) => {
+        if (isUrgentOnlineSale(sale)) {
+          playOnlineSaleNotificationSound();
+        }
+        const customerName = sale.customer_name || 'Cliente web';
+        showToast(
+          `${customerName} - ${formatMoney(sale.total || 0)} - estado ${formatOnlineSaleStatusLabel(sale.status)}`,
+          {
+            title: 'Nueva venta online',
+            variant: 'success',
+            actionLabel: 'Ver venta',
+            onAction: () => {
+              window.location.hash = 'sales-query-invoices';
+            }
+          }
+        );
+      });
+
+      if (newSales.length > 0) {
+        window.dispatchEvent(new CustomEvent('online-sales:new', {
+          detail: {
+            newSales,
+            onlineSales
+          }
+        }));
+      }
+    }
+
+    lastOnlineSaleSeenId = Math.max(lastOnlineSaleSeenId, ...onlineSales.map((sale) => Number(sale.id || 0)));
+  } catch (error) {
+    console.error('Online sales monitor error:', error.message);
+  }
+}
+
+function startOnlineSalesMonitor() {
+  if (onlineSalesMonitorId) return;
+  checkForNewOnlineSales({ silent: true });
+  onlineSalesMonitorId = window.setInterval(() => {
+    checkForNewOnlineSales({ silent: false });
+  }, 15000);
+}
 
 function showModal(content) {
   const container = document.getElementById('modal-container');
@@ -184,6 +374,7 @@ function formatDecimalInputValue(value, decimals = 2) {
 window.app = {
   showModal,
   closeModal,
+  showToast,
   formatMoney,
   formatDate,
   formatDateTime,

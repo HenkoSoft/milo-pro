@@ -1,6 +1,17 @@
 let currentUser = null;
 let businessSettings = { business_name: 'Milo Pro' };
 
+function syncAuthWindow() {
+  window.auth = {
+    initAuth,
+    login,
+    logout,
+    isAdmin,
+    getCurrentUser: () => currentUser,
+    currentUser
+  };
+}
+
 async function loadSettings() {
   try {
     businessSettings = await api.settings.get();
@@ -20,11 +31,14 @@ async function initAuth() {
   
   try {
     currentUser = await api.auth.me();
+    syncAuthWindow();
     await loadSettings();
     showApp();
     handleRoute();
   } catch (e) {
     localStorage.removeItem('token');
+    currentUser = null;
+    syncAuthWindow();
     showLogin();
   }
 }
@@ -34,6 +48,7 @@ async function login(username, password) {
     const data = await api.auth.login(username, password);
     localStorage.setItem('token', data.token);
     currentUser = data.user;
+    syncAuthWindow();
     await loadSettings();
     showApp();
     console.log('Login successful, calling handleRoute...');
@@ -47,6 +62,7 @@ async function logout() {
   try { await api.auth.logout(); } catch (e) {}
   localStorage.removeItem('token');
   currentUser = null;
+  syncAuthWindow();
   showLogin();
 }
 
@@ -73,5 +89,5 @@ function isAdmin() {
   return currentUser && currentUser.role === 'admin';
 }
 
-window.auth = { initAuth, login, logout, currentUser, isAdmin };
+syncAuthWindow();
 console.log('Auth loaded');

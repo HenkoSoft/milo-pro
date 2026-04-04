@@ -119,6 +119,7 @@ function getPages() {
     'sales-query-credit-notes': { title: 'Consultar Notas de Credito', icon: '🔍', render: salesSectionRender('query-credit-notes') },
     'sales-query-quotes': { title: 'Consultar Presupuestos', icon: '🔍', render: salesSectionRender('query-quotes') },
     'sales-query-orders': { title: 'Consultar Pedidos', icon: '🔍', render: salesSectionRender('query-orders') },
+    'sales-web-orders': { title: 'Pedidos Web', icon: '🌐', render: salesSectionRender('web-orders') },
     suppliers: { title: 'Proveedores', icon: '🚚', render: suppliersRender },
     sellers: { title: 'Planilla de Vendedores', icon: '💼', render: sellersSectionRender('planilla') },
     'sellers-commissions': { title: 'Comisiones', icon: '💸', render: sellersSectionRender('commissions') },
@@ -185,7 +186,7 @@ function navigate(page) {
 
   const comprasChildPages = ['merchandise-entry', 'nc-proveedor', 'purchase-query', 'nc-query', 'supplier-payments', 'suppliers'];
   const articulosChildPages = ['products', 'products-price-update', 'products-stock-adjustment', 'products-stock-output', 'products-stock-query', 'products-labels', 'products-barcodes', 'products-qr'];
-  const ventasChildPages = ['sales', 'sales-delivery-notes', 'sales-quotes', 'sales-orders', 'sales-credit-notes', 'sales-collections', 'sales-query-invoices', 'sales-query-delivery-notes', 'sales-query-credit-notes', 'sales-query-quotes', 'sales-query-orders'];
+  const ventasChildPages = ['sales', 'sales-delivery-notes', 'sales-quotes', 'sales-orders', 'sales-credit-notes', 'sales-collections', 'sales-query-invoices', 'sales-query-delivery-notes', 'sales-query-credit-notes', 'sales-query-quotes', 'sales-query-orders', 'sales-web-orders'];
   const vendedoresChildPages = ['sellers', 'sellers-commissions', 'sellers-payments', 'sellers-sales-report'];
   const cajaChildPages = ['cash', 'cash-expenses', 'cash-withdrawals', 'cash-day'];
   const reportesChildPages = ['reports', 'reports-sales', 'reports-purchases', 'reports-customers', 'reports-delivery-notes', 'reports-accounts', 'reports-ranking', 'reports-cash', 'reports-excel'];

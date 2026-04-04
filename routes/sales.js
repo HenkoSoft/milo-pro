@@ -5,6 +5,10 @@ const {
   syncProductSnapshotToWooCommerce,
   syncProductToWooCommerce
 } = require('../services/woocommerce-sync');
+const {
+  normalizeInternalSaleStatus,
+  updateSaleStatus
+} = require('../services/woo-order-sync');
 
 const router = express.Router();
 const ALLOWED_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'];
@@ -162,6 +166,22 @@ router.get('/today', authenticate, (req, res) => {
     totalRevenue: totalRevenue.total,
     salesCount: salesCount.count
   });
+});
+
+router.get('/online-feed', authenticate, (req, res) => {
+  const feed = all(
+    `
+      SELECT s.*, c.name as customer_name, u.name as user_name
+      FROM sales s
+      LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN users u ON s.user_id = u.id
+      WHERE lower(COALESCE(s.channel, '')) IN ('woocommerce', 'web')
+      ORDER BY s.id DESC
+      LIMIT 20
+    `
+  );
+
+  res.json(feed);
 });
 
 router.get('/next-number', authenticate, (req, res) => {
@@ -357,6 +377,26 @@ router.post('/test-sync/:id', authenticate, async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/:id/status', authenticate, async (req, res) => {
+  const { status, note, sync_to_woo } = req.body || {};
+  const normalizedStatus = normalizeInternalSaleStatus(status);
+  const allowedStatuses = ['pending_payment', 'paid', 'ready_for_delivery', 'completed', 'on_hold', 'cancelled', 'refunded', 'payment_failed'];
+
+  if (!allowedStatuses.includes(normalizedStatus)) {
+    return res.status(400).json({ error: 'Invalid sale status' });
+  }
+
+  try {
+    const result = await updateSaleStatus(req.params.id, normalizedStatus, {
+      note: note || '',
+      syncToWoo: sync_to_woo !== false
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Sale status update failed' });
   }
 });
 

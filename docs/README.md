@@ -74,5 +74,9 @@ milo-pro/
 - Frontend: Vanilla JavaScript + CSS
 - Autenticacion: JWT
 
+## Integraciones
+
+- [WooCommerce Order Sync](./WOO_ORDER_SYNC.md)
+
 ## Licencia
 MIT

@@ -182,13 +182,14 @@ function ensureLocalBrand(brandName, extra = {}) {
   return brand ? brand.id : null;
 }
 
-function woocommerceRequest(method, apiPath, data = null, config = null) {
+function woocommerceRequest(method, apiPath, data = null, config = null, requestOptions = null) {
   return new Promise((resolve, reject) => {
     const activeConfig = config || getActiveWooConfig();
     if (!activeConfig || !activeConfig.store_url) {
       return reject(new Error('WooCommerce not configured'));
     }
 
+    const timeoutMs = Math.max(1000, Number((requestOptions && requestOptions.timeout_ms) || process.env.WOO_REQUEST_TIMEOUT_MS || 15000));
     const url = new URL(activeConfig.store_url);
     const transport = getTransport(url);
     const auth = Buffer.from(`${activeConfig.consumer_key}:${activeConfig.consumer_secret}`).toString('base64');
@@ -228,7 +229,7 @@ function woocommerceRequest(method, apiPath, data = null, config = null) {
       });
     });
 
-    req.setTimeout(15000, () => {
+    req.setTimeout(timeoutMs, () => {
       req.destroy(new Error('WooCommerce request timed out'));
     });
 
