@@ -8,6 +8,89 @@ export interface WooOrderFetchFilters {
   page?: number;
 }
 
+export interface WooOrderSyncConfig {
+  statusMap: Record<string, string>;
+  stockStatuses: string[];
+  paidStatuses: string[];
+  salesChannel: string;
+  customerStrategy: string;
+  genericCustomerName: string;
+  webhookSecret: string;
+  webhookAuthToken: string;
+  signatureHeader: string;
+  deliveryHeader: string;
+  syncEnabled: boolean;
+}
+
+export interface WooOrderCustomer {
+  externalCustomerId: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  notes: string | null;
+}
+
+export interface WooOrderItem {
+  externalLineId: string | null;
+  externalProductId: string | null;
+  wooProductId: number | null;
+  sku: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  taxTotal: number;
+  metaData: unknown[];
+}
+
+export interface NormalizedWooOrder {
+  woocommerceOrderId: number;
+  woocommerceOrderKey: string | null;
+  externalReference: string;
+  channel: string;
+  wooStatus: string;
+  internalStatus: string;
+  paymentStatus: string;
+  currency: string;
+  subtotal: number;
+  total: number;
+  discountTotal: number;
+  taxTotal: number;
+  shippingTotal: number;
+  totalPaid: number;
+  paymentMethod: string;
+  paymentMethodCode: string;
+  notes: string | null;
+  customer: WooOrderCustomer;
+  items: WooOrderItem[];
+  raw: unknown;
+  createdAt: string;
+  updatedAt: string;
+  deliveryId: unknown;
+}
+
+export interface WooSyncConfigLike {
+  store_url?: string | null;
+  consumer_key?: string | null;
+  consumer_secret?: string | null;
+  wp_username?: string | null;
+  wp_app_password?: string | null;
+  api_version?: string | null;
+  sync_direction?: string | null;
+}
+
+export interface WooProductImageDto {
+  url_local: string | null;
+  url_remote: string;
+  woocommerce_media_id: number | null;
+  orden: number;
+  es_principal: boolean;
+}
+
 export interface WooStatusRecentErrorDto {
   id: number;
   message?: string | null;

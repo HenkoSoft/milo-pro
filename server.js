@@ -23,7 +23,7 @@ const publicDir = path.join(__dirname, 'public');
 const reactDistDir = path.join(__dirname, 'frontend', 'dist');
 const legacyIndexPath = path.join(publicDir, 'index.html');
 const reactIndexPath = path.join(reactDistDir, 'index.html');
-const frontendMode = String(process.env.FRONTEND_MODE || 'legacy').trim().toLowerCase();
+const frontendMode = String(process.env.FRONTEND_MODE || 'auto').trim().toLowerCase();
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -149,3 +149,4 @@ async function startServer() {
 }
 
 startServer();
+

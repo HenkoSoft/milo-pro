@@ -225,7 +225,7 @@ Criterios de aceptacion:
 - existe estructura base `backend/src` y `shared/types`
 - auth, customers, settings, dashboard y WooCommerce tienen helpers y tipos compartidos iniciales
 - el comando `npm run typecheck:backend` pasa sin requerir migrar todavia archivos JS existentes
-- WooCommerce conserva su runtime actual, pero con normalizacion tipada en config, logs, filtros de importacion y polling
+- WooCommerce conserva su runtime actual, pero con normalizacion tipada en config, logs, filtros de importacion, polling, helpers puros de ordenes y utilidades de sync/request
 - backend y frontend siguen compilando, testeando y buildando
 
 Riesgos:
@@ -256,9 +256,9 @@ Validacion automatica:
 - `npm run test:frontend`
 - `npm run build:frontend`
 
-## Estado consolidado actual
+## Migracion cerrada
 
-Lo que ya quedo estable en esta etapa:
+La migracion puede considerarse cerrada en terminos funcionales y operativos:
 
 - frontend nuevo en `frontend/` con React, TypeScript, Vite y Tailwind
 - autenticacion JWT reutilizando la API existente
@@ -266,7 +266,7 @@ Lo que ya quedo estable en esta etapa:
 - Express puede servir `legacy`, `react` o `auto` sin perder rollback rapido
 - backend con scaffold TypeScript en `backend/` y contratos compartidos en `shared/types`
 - normalizacion progresiva de rutas JS existentes de riesgo bajo y medio
-- WooCommerce dividido en modulos de rutas y utilidades para bajar acoplamiento sin reescribir la sincronizacion
+- WooCommerce dividido en modulos de rutas y utilidades para bajar acoplamiento sin reescribir la sincronizacion`r`n- carril TypeScript extendido tambien a `backend/src/services/woo-order-utils.ts`, `backend/src/services/woocommerce-sync-utils.ts` y `backend/src/services/woocommerce-request.ts`
 - cobertura automatica real sobre sync de ordenes Woo, config y rutas HTTP de WooCommerce
 
 WooCommerce hoy queda repartido asi:
@@ -287,3 +287,5 @@ Proximo paso recomendado:
 - consolidar commits por bloques para dejar checkpoints claros
 - si se sigue refactorizando Woo, extraer solo bloques chicos de `services/woocommerce-sync.js`
 - mantener la regla actual: primero helpers puros y pruebas, despues logica transaccional
+
+

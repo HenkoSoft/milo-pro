@@ -38,7 +38,7 @@ Piezas ya preparadas:
 - `backend/src/routes/purchases.ts` con normalizacion de proveedores, compras, pagos y NC
 - `backend/src/routes/sales.ts` con normalizacion de payloads y serializacion segura de ventas
 - `backend/src/routes/woocommerce.ts` con helpers tipados para configuracion, logs, filtros de importacion y estado de polling
-- `backend/src/services/woo-order-client.ts` con sanitizacion tipada de filtros para fetch paginado de ordenes Woo
+- `backend/src/services/woo-order-client.ts` con sanitizacion tipada de filtros para fetch paginado de ordenes Woo`r`n- `backend/src/services/woo-order-utils.ts` con helpers tipados de normalizacion y mapeo de ordenes Woo`r`n- `backend/src/services/woocommerce-sync-utils.ts` con helpers tipados de atributos, imagenes y normalizacion basica de productos Woo`r`n- `backend/src/services/woocommerce-request.ts` con contratos tipados para requests remotos a WooCommerce y WordPress
 
 Comando de validacion:
 
@@ -55,7 +55,7 @@ Estado consolidado de WooCommerce:
 - `services/woocommerce-polling.js` concentra el manager de polling
 - `services/woo-order-utils.js` concentra helpers puros de normalizacion y mapeo de ordenes Woo
 - `services/woocommerce-sync-utils.js` concentra helpers puros de transporte, atributos, imagenes y normalizacion basica
-- `services/woocommerce-request.js` concentra requests remotos a WooCommerce y WordPress
+- `services/woocommerce-request.js` concentra requests remotos a WooCommerce y WordPress`r`n- `backend/src/services/woo-order-utils.ts` replica en TypeScript la capa pura de ordenes Woo`r`n- `backend/src/services/woocommerce-sync-utils.ts` replica en TypeScript la capa pura de sync de productos Woo`r`n- `backend/src/services/woocommerce-request.ts` replica en TypeScript la capa de requests remotos de Woo
 
 Cobertura automatica agregada:
 
@@ -68,3 +68,5 @@ Siguiente paso recomendado:
 - consolidar commits por bloques de migracion y refactor de Woo para facilitar rollback logico
 - si se sigue refactorizando, extraer categorias/atributos o payload de producto desde `services/woocommerce-sync.js` en bloques chicos
 - mantener la estrategia actual: primero helpers puros y tests, despues cualquier cambio mas profundo de sincronizacion
+
+
