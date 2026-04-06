@@ -13,6 +13,30 @@ const {
 const router = express.Router();
 const ALLOWED_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'];
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => saveDatabase(),
+    transaction: runtimeDb && typeof runtimeDb.transaction === 'function'
+      ? (fn) => runtimeDb.transaction(fn)
+      : async (fn) => {
+          const wrapped = transaction(() => fn(getDatabaseAccess(req)));
+          return wrapped();
+        }
+  };
+}
+
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
   return String(value).trim();
@@ -104,8 +128,8 @@ function sanitizeSale(record, items = []) {
   };
 }
 
-function getNextReceiptNumber(receiptType, pointOfSale) {
-  const next = get(
+async function getNextReceiptNumber(db, receiptType, pointOfSale) {
+  const next = await db.get(
     `
       SELECT COALESCE(MAX(receipt_number), 0) + 1 as next_number
       FROM sales
@@ -157,7 +181,8 @@ async function rollbackWooSnapshots(previousSnapshots, action) {
   }
 }
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const startDate = String(req.query.startDate || '').trim();
   const endDate = String(req.query.endDate || '').trim();
   const customerId = String(req.query.customerId || '').trim();
@@ -188,10 +213,11 @@ router.get('/', authenticate, (req, res) => {
 
   query += ' ORDER BY s.created_at DESC';
 
-  const sales = all(query, params);
+  const sales = await db.all(query, params);
+  const salesWithItems = [];
 
-  const salesWithItems = sales.map((sale) => {
-    const items = all(
+  for (const sale of sales) {
+    const items = (await db.all(
       `
         SELECT si.*, p.name as product_name, p.sku
         FROM sale_items si
@@ -199,18 +225,19 @@ router.get('/', authenticate, (req, res) => {
         WHERE si.sale_id = ?
       `,
       [sale.id]
-    ).map((item) => sanitizeSaleItem(item));
+    )).map((item) => sanitizeSaleItem(item));
 
-    return sanitizeSale(sale, items);
-  });
+    salesWithItems.push(sanitizeSale(sale, items));
+  }
 
   res.json(salesWithItems);
 });
 
-router.get('/today', authenticate, (req, res) => {
+router.get('/today', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const today = new Date().toISOString().split('T')[0];
 
-  const sales = all(
+  const sales = (await db.all(
     `
       SELECT s.*, c.name as customer_name, u.name as user_name
       FROM sales s
@@ -220,9 +247,9 @@ router.get('/today', authenticate, (req, res) => {
       ORDER BY s.created_at DESC
     `,
     [today]
-  ).map((sale) => sanitizeSale(sale));
+  )).map((sale) => sanitizeSale(sale));
 
-  const totalRevenue = get(
+  const totalRevenue = await db.get(
     `
       SELECT COALESCE(SUM(total), 0) as total
       FROM sales
@@ -231,7 +258,7 @@ router.get('/today', authenticate, (req, res) => {
     [today]
   );
 
-  const salesCount = get(
+  const salesCount = await db.get(
     `
       SELECT COUNT(*) as count
       FROM sales
@@ -242,13 +269,14 @@ router.get('/today', authenticate, (req, res) => {
 
   res.json({
     sales,
-    totalRevenue: toNumber(totalRevenue.total),
-    salesCount: toNumber(salesCount.count)
+    totalRevenue: toNumber(totalRevenue ? totalRevenue.total : 0),
+    salesCount: toNumber(salesCount ? salesCount.count : 0)
   });
 });
 
-router.get('/online-feed', authenticate, (req, res) => {
-  const feed = all(
+router.get('/online-feed', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const feed = (await db.all(
     `
       SELECT s.*, c.name as customer_name, u.name as user_name
       FROM sales s
@@ -258,15 +286,16 @@ router.get('/online-feed', authenticate, (req, res) => {
       ORDER BY s.id DESC
       LIMIT 20
     `
-  ).map((sale) => sanitizeSale(sale));
+  )).map((sale) => sanitizeSale(sale));
 
   res.json(feed);
 });
 
-router.get('/next-number', authenticate, (req, res) => {
+router.get('/next-number', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const receiptType = normalizeReceiptType(req.query.receiptType);
   const pointOfSale = normalizePointOfSale(req.query.pointOfSale);
-  const nextNumber = getNextReceiptNumber(receiptType, pointOfSale);
+  const nextNumber = await getNextReceiptNumber(db, receiptType, pointOfSale);
 
   res.json({
     receipt_type: receiptType,
@@ -275,8 +304,9 @@ router.get('/next-number', authenticate, (req, res) => {
   });
 });
 
-router.get('/:id', authenticate, (req, res) => {
-  const sale = get(
+router.get('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const sale = await db.get(
     `
       SELECT s.*, c.name as customer_name, c.phone as customer_phone, u.name as user_name
       FROM sales s
@@ -291,7 +321,7 @@ router.get('/:id', authenticate, (req, res) => {
     return res.status(404).json({ error: 'Sale not found' });
   }
 
-  const items = all(
+  const items = (await db.all(
     `
       SELECT si.*, p.name as product_name, p.sku
       FROM sale_items si
@@ -299,12 +329,13 @@ router.get('/:id', authenticate, (req, res) => {
       WHERE si.sale_id = ?
     `,
     [sale.id]
-  ).map((item) => sanitizeSaleItem(item));
+  )).map((item) => sanitizeSaleItem(item));
 
   res.json(sanitizeSale(sale, items));
 });
 
 router.post('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeSalePayload(req.body);
   const { customer_id, items, payment_method, notes, receipt_type, point_of_sale } = payload;
 
@@ -321,9 +352,9 @@ router.post('/', authenticate, async (req, res) => {
 
   try {
     const productSnapshotsBeforeSale = new Map();
-    const createSale = transaction(async () => {
-      items.forEach((item) => {
-        const product = get('SELECT id, name, stock FROM products WHERE id = ?', [item.product_id]);
+    const { sale, syncResults } = await db.transaction(async (tx) => {
+      for (const item of items) {
+        const product = await tx.get('SELECT id, name, stock FROM products WHERE id = ?', [item.product_id]);
         if (!product) {
           throw new Error('Product not found');
         }
@@ -339,14 +370,14 @@ router.post('/', authenticate, async (req, res) => {
         if (!productSnapshotsBeforeSale.has(item.product_id)) {
           productSnapshotsBeforeSale.set(
             item.product_id,
-            get('SELECT * FROM products WHERE id = ?', [item.product_id])
+            await tx.get('SELECT * FROM products WHERE id = ?', [item.product_id])
           );
         }
-      });
+      }
 
-      const receiptNumber = getNextReceiptNumber(receiptType, pointOfSale);
+      const receiptNumber = await getNextReceiptNumber(tx, receiptType, pointOfSale);
 
-      const saleResult = run(
+      const saleResult = await tx.run(
         `
           INSERT INTO sales (customer_id, user_id, receipt_type, point_of_sale, receipt_number, total, payment_method, notes)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -356,8 +387,8 @@ router.post('/', authenticate, async (req, res) => {
 
       const saleId = saleResult.lastInsertRowid;
 
-      items.forEach((item) => {
-        run(
+      for (const item of items) {
+        await tx.run(
           `
             INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
             VALUES (?, ?, ?, ?, ?)
@@ -365,31 +396,30 @@ router.post('/', authenticate, async (req, res) => {
           [saleId, item.product_id, item.quantity, item.unit_price, item.quantity * item.unit_price]
         );
 
-        run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
-      });
+        await tx.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
+      }
 
-      const snapshotsAfterSale = getUniqueProductIds(items).map((productId) => {
-        const currentSnapshot = get('SELECT * FROM products WHERE id = ?', [productId]);
-        return {
+      const snapshotsAfterSale = [];
+      for (const productId of getUniqueProductIds(items)) {
+        const currentSnapshot = await tx.get('SELECT * FROM products WHERE id = ?', [productId]);
+        snapshotsAfterSale.push({
           ...currentSnapshot,
           previousState: productSnapshotsBeforeSale.get(productId)
-        };
-      });
+        });
+      }
 
       const syncResults = await syncSnapshotsOrThrow(snapshotsAfterSale, 'sale_sync');
-      const sale = get('SELECT * FROM sales WHERE id = ?', [saleId]);
+      const sale = await tx.get('SELECT * FROM sales WHERE id = ?', [saleId]);
 
       return { sale, syncResults };
     });
 
-    const { sale, syncResults } = await createSale();
-    saveDatabase();
-
+    await db.save();
     res.status(201).json({ sale: sanitizeSale(sale), syncResults });
   } catch (err) {
     if (err.rollbackSnapshots && err.rollbackSnapshots.length > 0) {
       await rollbackWooSnapshots(err.rollbackSnapshots, 'sale_sync_rollback');
-      saveDatabase();
+      await db.save();
     }
 
     res.status(400).json({ error: err.message || 'Sale failed' });
@@ -397,52 +427,52 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 router.delete('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   try {
-    const sale = get('SELECT id FROM sales WHERE id = ?', [req.params.id]);
+    const sale = await db.get('SELECT id FROM sales WHERE id = ?', [req.params.id]);
     if (!sale) {
       return res.status(404).json({ error: 'Sale not found' });
     }
 
     const productSnapshotsBeforeDelete = new Map();
-    const deleteSale = transaction(async () => {
-      const items = all('SELECT product_id, quantity FROM sale_items WHERE sale_id = ?', [req.params.id]);
+    const { syncResults } = await db.transaction(async (tx) => {
+      const items = await tx.all('SELECT product_id, quantity FROM sale_items WHERE sale_id = ?', [req.params.id]);
 
-      items.forEach((item) => {
+      for (const item of items) {
         if (!productSnapshotsBeforeDelete.has(item.product_id)) {
           productSnapshotsBeforeDelete.set(
             item.product_id,
-            get('SELECT * FROM products WHERE id = ?', [item.product_id])
+            await tx.get('SELECT * FROM products WHERE id = ?', [item.product_id])
           );
         }
-      });
+      }
 
-      items.forEach((item) => {
-        run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
-      });
+      for (const item of items) {
+        await tx.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+      }
 
-      run('DELETE FROM sale_items WHERE sale_id = ?', [req.params.id]);
-      run('DELETE FROM sales WHERE id = ?', [req.params.id]);
+      await tx.run('DELETE FROM sale_items WHERE sale_id = ?', [req.params.id]);
+      await tx.run('DELETE FROM sales WHERE id = ?', [req.params.id]);
 
-      const snapshotsAfterDelete = getUniqueProductIds(items).map((productId) => {
-        const currentSnapshot = get('SELECT * FROM products WHERE id = ?', [productId]);
-        return {
+      const snapshotsAfterDelete = [];
+      for (const productId of getUniqueProductIds(items)) {
+        const currentSnapshot = await tx.get('SELECT * FROM products WHERE id = ?', [productId]);
+        snapshotsAfterDelete.push({
           ...currentSnapshot,
           previousState: productSnapshotsBeforeDelete.get(productId)
-        };
-      });
+        });
+      }
 
       const syncResults = await syncSnapshotsOrThrow(snapshotsAfterDelete, 'sale_delete_sync');
       return { syncResults };
     });
 
-    const { syncResults } = await deleteSale();
-    saveDatabase();
-
+    await db.save();
     res.json({ success: true, syncResults });
   } catch (err) {
     if (err.rollbackSnapshots && err.rollbackSnapshots.length > 0) {
       await rollbackWooSnapshots(err.rollbackSnapshots, 'sale_delete_sync_rollback');
-      saveDatabase();
+      await db.save();
     }
 
     res.status(400).json({ error: err.message || 'Sale delete failed' });

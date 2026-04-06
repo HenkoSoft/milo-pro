@@ -9,6 +9,7 @@
   },
   "include": [
     "src/server.ts",
-    "src/runtime-shims.d.ts"
+    "src/db/**/*.ts",
+    "src/**/*.d.ts"
   ]
 }

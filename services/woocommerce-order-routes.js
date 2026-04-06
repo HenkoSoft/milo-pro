@@ -1,7 +1,15 @@
+function getDatabaseAccess(req, deps) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => deps.get(sql, params)
+  };
+}
+
 function registerWooOrderRoutes(router, deps) {
   const {
     authenticate,
-    get,
     getOrderSyncLogs,
     getWooOrderSyncConfig,
     importWooOrderById,
@@ -55,7 +63,8 @@ function registerWooOrderRoutes(router, deps) {
   });
 
   router.post('/webhooks/orders', async (req, res) => {
-    const config = get('SELECT * FROM woocommerce_sync WHERE id = 1');
+    const db = getDatabaseAccess(req, deps);
+    const config = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
     if (!config || !config.store_url) {
       return res.status(503).json({ error: 'WooCommerce no configurado' });
     }

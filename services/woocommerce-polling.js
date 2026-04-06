@@ -18,7 +18,7 @@ function createWooPollingManager(options) {
   let pollingInFlight = false;
 
   async function importWooProducts({ action }) {
-    const config = getConfig();
+    const config = await getConfig();
     if (!canImportFromWoo(config)) {
       return { imported: 0, updated: 0, unchanged: 0, total: 0 };
     }
@@ -40,9 +40,9 @@ function createWooPollingManager(options) {
       unchanged += result.unchanged ? 1 : 0;
     }
 
-    markLastSync();
+    await markLastSync();
     if (imported > 0 || updated > 0) {
-      persist();
+      await persist();
     }
 
     return {
@@ -79,8 +79,8 @@ function createWooPollingManager(options) {
     }
   }
 
-  function startWooPolling({ manual = false } = {}) {
-    const config = getConfig();
+  async function startWooPolling({ manual = false } = {}) {
+    const config = await getConfig();
     if (!config || !config.store_url) {
       return { success: false, error: 'WooCommerce not configured' };
     }
@@ -94,21 +94,22 @@ function createWooPollingManager(options) {
     }
 
     log.log('[WOO-POLLING] Starting polling interval...');
-    pollWooCommerce(manual ? 'manual_polling_import' : 'auto_polling_import');
+    void pollWooCommerce(manual ? 'manual_polling_import' : 'auto_polling_import');
     pollingInterval = setInterval(() => {
-      pollWooCommerce('polling_import');
+      void pollWooCommerce('polling_import');
     }, pollingIntervalMs);
 
     return { success: true, interval_seconds: pollingIntervalMs / 1000 };
   }
 
-  function initializeWooAutomation() {
-    const config = getConfig();
+  async function initializeWooAutomation() {
+    const config = await getConfig();
     if (config && canImportFromWoo(config)) {
-      startWooPolling({ manual: false });
-    } else {
-      stopWooPolling('startup_config');
+      return startWooPolling({ manual: false });
     }
+
+    stopWooPolling('startup_config');
+    return { success: true, active: false };
   }
 
   function isPollingActive() {

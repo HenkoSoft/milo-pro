@@ -7,7 +7,8 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 
 - Frontend principal: React + TypeScript + Vite + Tailwind
 - Backend runtime: Express con entrada compilada desde TypeScript en `backend/src/server.ts`
-- Base de datos: SQLite (`sql.js`)
+- Base de datos activa: SQLite (`sql.js`)
+- Migracion de base futura: PostgreSQL planificado por etapas desde `backend/src/db`
 - Autenticacion: JWT
 - Integracion externa: WooCommerce
 - Frontend legacy: disponible solo como fallback operativo en `/legacy-app`
@@ -39,7 +40,29 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 - `npm run build:frontend`: genera `frontend/dist`
 - `npm run typecheck:backend`
 - `npm run typecheck:frontend`
+- `npm run check:syntax`
 - `npm test`
+- `npm run validate`: ejecuta build backend + typechecks + check de sintaxis + tests
+
+## Flujo recomendado de validacion
+
+Para validar el estado final del stack con un solo comando:
+
+- `npm run validate`
+
+Para desarrollo del frontend nuevo:
+
+1. `npm run dev:frontend`
+2. `npm run start:auto` o `npm start`
+
+## PostgreSQL por etapas
+
+La aplicacion sigue usando SQLite como runtime actual. La migracion a PostgreSQL se va a hacer sin corte brusco. Si hoy alguien define `DATABASE_DIALECT=postgres`, el backend falla de forma explicita para evitar estados ambiguos:
+
+1. crear adapters y config tipados en `backend/src/db`
+2. mover el runtime a una abstraccion comun de acceso a datos
+3. portar schema y datos a PostgreSQL
+4. activar PostgreSQL por configuracion cuando toda la validacion este verde
 
 ## Credenciales por defecto
 
@@ -71,7 +94,8 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 
 - Backend: Node.js + Express + TypeScript progresivo
 - Frontend: React + TypeScript + Vite + Tailwind
-- Base de datos: SQLite (`sql.js`)
+- Base de datos actual: SQLite (`sql.js`)
+- Base de datos objetivo: PostgreSQL
 - Autenticacion: JWT
 
 ## Integraciones
@@ -81,7 +105,8 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 
 ## Nota de migracion
 
-La migracion base al nuevo stack ya quedo cerrada. Desde este punto, los cambios pendientes se consideran mejoras incrementales o consolidacion tecnica, no una migracion estructural pendiente.
+La migracion base al nuevo stack ya quedo cerrada. Desde este punto, los cambios pendientes se consideran mejoras incrementales o consolidacion tecnica, incluyendo la futura sustitucion de SQLite por PostgreSQL.
 
 ## Licencia
 MIT
+

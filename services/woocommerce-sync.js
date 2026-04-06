@@ -32,8 +32,36 @@ const {
 } = require('./catalog');
 const { getNextAutomaticProductSku } = require('./product-sku');
 
+let runtimeDatabase = null;
+
+function setRuntimeDatabase(adapter) {
+  runtimeDatabase = adapter || null;
+}
+
+function getDatabaseAccess() {
+  return {
+    get: runtimeDatabase && typeof runtimeDatabase.get === 'function'
+      ? (sql, params = []) => runtimeDatabase.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDatabase && typeof runtimeDatabase.all === 'function'
+      ? (sql, params = []) => runtimeDatabase.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDatabase && typeof runtimeDatabase.run === 'function'
+      ? (sql, params = []) => runtimeDatabase.run(sql, params)
+      : async (sql, params = []) => run(sql, params),
+    save: runtimeDatabase && typeof runtimeDatabase.save === 'function'
+      ? () => runtimeDatabase.save()
+      : async () => saveDatabase()
+  };
+}
+
 function getActiveWooConfig() {
   return get('SELECT * FROM woocommerce_sync WHERE id = 1 AND active = 1');
+}
+
+async function getActiveWooConfigAsync() {
+  const db = getDatabaseAccess();
+  return db.get('SELECT * FROM woocommerce_sync WHERE id = 1 AND active = 1');
 }
 
 function isWooExportEnabled(config = getActiveWooConfig()) {
@@ -87,9 +115,9 @@ async function buildWooManagedAttribute(attributes, config, name, slug, options)
   return upsertWooAttribute(attributes, normalizeCatalogText, name, nextOptions);
 }
 
-function ensureLocalCategory(categoryName, parentId = null, extra = {}) {
+async function ensureLocalCategory(categoryName, parentId = null, extra = {}) {
   if (!categoryName) return null;
-  const category = ensureCategoryRecord({
+  const category = await ensureCategoryRecord({
     name: categoryName,
     parent_id: parentId,
     ...extra
@@ -97,9 +125,9 @@ function ensureLocalCategory(categoryName, parentId = null, extra = {}) {
   return category ? category.id : null;
 }
 
-function ensureLocalBrand(brandName, extra = {}) {
+async function ensureLocalBrand(brandName, extra = {}) {
   if (!brandName) return null;
-  const brand = ensureBrandRecord({
+  const brand = await ensureBrandRecord({
     name: brandName,
     ...extra
   });
@@ -114,25 +142,27 @@ function wordpressRequest(method, apiPath, body = null, headers = {}, config = n
   return wordpressRequestBase(method, apiPath, body, headers, config, getActiveWooConfig);
 }
 
-async function getWooCategoryDetail(categoryId, config = getActiveWooConfig(), cache = new Map()) {
+async function getWooCategoryDetail(categoryId, config = null, cache = new Map()) {
   if (!categoryId) return null;
+  const activeConfig = config || await getActiveWooConfigAsync();
   const key = Number(categoryId);
   if (cache.has(key)) return cache.get(key);
-  const detail = await woocommerceRequest('GET', `/products/categories/${categoryId}`, null, config);
+  const detail = await woocommerceRequest('GET', `/products/categories/${categoryId}`, null, activeConfig);
   cache.set(key, detail);
   return detail;
 }
 
-async function ensureLocalCategoryFromWooCategory(wooCategory, config = getActiveWooConfig(), cache = new Map()) {
+async function ensureLocalCategoryFromWooCategory(wooCategory, config = null, cache = new Map()) {
+  const activeConfig = config || await getActiveWooConfigAsync();
   if (!wooCategory || !wooCategory.id) return null;
   const detailed = wooCategory.parent !== undefined && wooCategory.slug !== undefined
     ? wooCategory
-    : await getWooCategoryDetail(wooCategory.id, config, cache);
+    : await getWooCategoryDetail(wooCategory.id, activeConfig, cache);
   if (!detailed || !detailed.id) return null;
 
   let parentId = null;
   if (Number(detailed.parent || 0) > 0) {
-    const parentCategory = await ensureLocalCategoryFromWooCategory({ id: detailed.parent }, config, cache);
+    const parentCategory = await ensureLocalCategoryFromWooCategory({ id: detailed.parent }, activeConfig, cache);
     parentId = parentCategory ? parentCategory.id : null;
   }
 
@@ -145,11 +175,12 @@ async function ensureLocalCategoryFromWooCategory(wooCategory, config = getActiv
   });
 }
 
-async function ensureLocalCategoriesFromWooProduct(wooProduct, config = getActiveWooConfig()) {
+async function ensureLocalCategoriesFromWooProduct(wooProduct, config = null) {
+  const activeConfig = config || await getActiveWooConfigAsync();
   const cache = new Map();
   const categories = [];
   for (const category of (Array.isArray(wooProduct && wooProduct.categories) ? wooProduct.categories : [])) {
-    const local = await ensureLocalCategoryFromWooCategory(category, config, cache);
+    const local = await ensureLocalCategoryFromWooCategory(category, activeConfig, cache);
     if (local && !categories.some((item) => Number(item.id) === Number(local.id))) {
       categories.push(local);
     }
@@ -168,26 +199,28 @@ async function findWooCategoryByName(config, name, parentWooId = 0) {
   }) || null;
 }
 
-async function ensureWooCategoryFromLocal(localCategoryId, config = getActiveWooConfig(), cache = new Map()) {
+async function ensureWooCategoryFromLocal(localCategoryId, config = null, cache = new Map()) {
+  const db = getDatabaseAccess();
+  const activeConfig = config || await getActiveWooConfigAsync();
   if (!localCategoryId) return null;
   const key = Number(localCategoryId);
   if (cache.has(key)) return cache.get(key);
 
-  const localCategory = getCategoryById(localCategoryId);
+  const localCategory = await getCategoryById(localCategoryId);
   if (!localCategory) return null;
 
   let existing = localCategory.woocommerce_category_id
-    ? await woocommerceRequest('GET', `/products/categories/${localCategory.woocommerce_category_id}`, null, config).catch(() => null)
+    ? await woocommerceRequest('GET', `/products/categories/${localCategory.woocommerce_category_id}`, null, activeConfig).catch(() => null)
     : null;
 
   let parentWooId = 0;
   if (localCategory.parent_id) {
-    const parentWoo = await ensureWooCategoryFromLocal(localCategory.parent_id, config, cache);
+    const parentWoo = await ensureWooCategoryFromLocal(localCategory.parent_id, activeConfig, cache);
     parentWooId = parentWoo && parentWoo.id ? parentWoo.id : 0;
   }
 
   if (!existing) {
-    existing = await findWooCategoryByName(config, localCategory.name, parentWooId);
+    existing = await findWooCategoryByName(activeConfig, localCategory.name, parentWooId);
   }
 
   if (!existing) {
@@ -199,12 +232,12 @@ async function ensureWooCategoryFromLocal(localCategoryId, config = getActiveWoo
         slug: localCategory.slug || undefined,
         parent: parentWooId || 0
       },
-      config
+      activeConfig
     );
   }
 
   if (existing && existing.id) {
-    run(
+    await db.run(
       'UPDATE categories SET woocommerce_category_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [existing.id, localCategoryId]
     );
@@ -271,9 +304,10 @@ async function ensureWooAttributeTerm(config, attributeId, termName) {
 }
 
 async function ensureWooBrand(config, brandName, brandId = null) {
+  const db = getDatabaseAccess();
   if (!brandName) return null;
 
-  let existing = brandId ? getBrandById(brandId) : findBrandByName(brandName);
+  let existing = brandId ? await getBrandById(brandId) : await findBrandByName(brandName);
   let remote = existing && existing.woocommerce_brand_id
     ? await woocommerceRequest('GET', `/products/brands/${existing.woocommerce_brand_id}`, null, config).catch(() => null)
     : null;
@@ -291,7 +325,7 @@ async function ensureWooBrand(config, brandName, brandId = null) {
   }
 
   if (existing && remote && remote.id) {
-    run(
+    await db.run(
       'UPDATE brands SET woocommerce_brand_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [remote.id, existing.id]
     );
@@ -300,9 +334,11 @@ async function ensureWooBrand(config, brandName, brandId = null) {
   return remote;
 }
 
-async function buildWooProductPayload(product, config = getActiveWooConfig()) {
-  const snapshot = product && product.id ? (getProductById(product.id) || product) : product;
-  const sku = snapshot.sku || getNextAutomaticProductSku(all('SELECT sku FROM products'));
+async function buildWooProductPayload(product, config = null) {
+  const db = getDatabaseAccess();
+  const activeConfig = config || await getActiveWooConfigAsync();
+  const snapshot = product && product.id ? ((await getProductById(product.id)) || product) : product;
+  const sku = snapshot.sku || getNextAutomaticProductSku(await db.all('SELECT sku FROM products'));
   const stockQuantity = normalizeStock(snapshot.stock);
   const payload = {
     name: snapshot.name || `Producto ${snapshot.id}`,
@@ -319,21 +355,28 @@ async function buildWooProductPayload(product, config = getActiveWooConfig()) {
   let existingWooProduct = null;
   const snapshotWooId = snapshot.woocommerce_product_id || snapshot.woocommerce_id || null;
   if (snapshotWooId) {
-    existingWooProduct = await woocommerceRequest('GET', `/products/${snapshotWooId}`, null, config).catch(() => null);
+    existingWooProduct = await woocommerceRequest('GET', `/products/${snapshotWooId}`, null, activeConfig).catch(() => null);
   }
 
   const categoryCache = new Map();
   const localCategories = Array.isArray(snapshot.categories) && snapshot.categories.length > 0
     ? snapshot.categories
-    : getProductCategories(snapshot.id);
+    : await getProductCategories(snapshot.id);
   const wooCategories = [];
-  const categoryIdsToSync = [...new Set(localCategories.flatMap((category) => {
-    const trail = getCategoryTrail(category.id);
-    return trail.length > 0 ? trail.map((item) => item.id) : [category.id];
-  }))];
+  const categoryIdsToSync = [];
+
+  for (const category of localCategories) {
+    const trail = await getCategoryTrail(category.id);
+    const ids = trail.length > 0 ? trail.map((item) => item.id) : [category.id];
+    ids.forEach((id) => {
+      if (!categoryIdsToSync.includes(id)) {
+        categoryIdsToSync.push(id);
+      }
+    });
+  }
 
   for (const categoryId of categoryIdsToSync) {
-    const remote = await ensureWooCategoryFromLocal(categoryId, config, categoryCache);
+    const remote = await ensureWooCategoryFromLocal(categoryId, activeConfig, categoryCache);
     if (remote && remote.id && !wooCategories.some((item) => Number(item.id) === Number(remote.id))) {
       wooCategories.push({ id: remote.id });
     }
@@ -343,9 +386,10 @@ async function buildWooProductPayload(product, config = getActiveWooConfig()) {
     payload.categories = wooCategories;
   }
 
-  const brand = snapshot.brand_name || ((snapshot.brand_id ? getBrandById(snapshot.brand_id) : null) || {}).name || '';
+  const brandRecord = snapshot.brand_id ? await getBrandById(snapshot.brand_id) : null;
+  const brand = snapshot.brand_name || (brandRecord ? brandRecord.name : null) || '';
   if (brand) {
-    const wooBrand = await ensureWooBrand(config, brand, snapshot.brand_id);
+    const wooBrand = await ensureWooBrand(activeConfig, brand, snapshot.brand_id);
     if (wooBrand && wooBrand.id) {
       payload.brands = [{ id: wooBrand.id }];
     }
@@ -355,10 +399,10 @@ async function buildWooProductPayload(product, config = getActiveWooConfig()) {
     ? existingWooProduct.attributes.filter((attr) => !['marca', 'brand', 'color', 'colour', 'colores'].includes(normalizeCatalogText(attr && attr.name)))
     : [];
   if (brand) {
-    attributes = await buildWooManagedAttribute(attributes, config, 'Marca', 'marca', [brand]);
+    attributes = await buildWooManagedAttribute(attributes, activeConfig, 'Marca', 'marca', [brand]);
   }
   if (snapshot.color) {
-    attributes = await buildWooManagedAttribute(attributes, config, 'Color', 'color', [snapshot.color]);
+    attributes = await buildWooManagedAttribute(attributes, activeConfig, 'Color', 'color', [snapshot.color]);
   }
   if (attributes.length > 0) {
     payload.attributes = attributes;
@@ -366,23 +410,23 @@ async function buildWooProductPayload(product, config = getActiveWooConfig()) {
 
   const images = Array.isArray(snapshot.images) && snapshot.images.length > 0
     ? snapshot.images
-    : getProductImages(snapshot.id);
+    : await getProductImages(snapshot.id);
   const wooImages = [];
   for (let index = 0; index < images.length; index += 1) {
     const item = images[index];
     let mediaId = item.woocommerce_media_id || null;
     if (!mediaId && item.ruta_local && fs.existsSync(item.ruta_local)) {
-      const uploadedMedia = await uploadProductImageToWooCommerce(snapshot.id, item, config).catch(() => null);
+      const uploadedMedia = await uploadProductImageToWooCommerce(snapshot.id, item, activeConfig).catch(() => null);
       if (uploadedMedia && uploadedMedia.id) {
         mediaId = uploadedMedia.id;
-        run(
+        await db.run(
           'UPDATE product_images SET woocommerce_media_id = ? WHERE id = ?',
           [mediaId, item.id]
         );
       }
     }
 
-  const fallbackSrc = [item.url_remote, item.url_publica, item.url_local].find((value) => /^https?:\/\//i.test(String(value || '').trim())) || '';
+    const fallbackSrc = [item.url_remote, item.url_publica, item.url_local].find((value) => /^https?:\/\//i.test(String(value || '').trim())) || '';
     const imagePayload = {
       id: mediaId || undefined,
       src: fallbackSrc,
@@ -401,7 +445,8 @@ async function buildWooProductPayload(product, config = getActiveWooConfig()) {
   return payload;
 }
 
-async function uploadProductImageToWooCommerce(productId, image, config = getActiveWooConfig()) {
+async function uploadProductImageToWooCommerce(productId, image, config = null) {
+  const activeConfig = config || await getActiveWooConfigAsync();
   if (!image || !image.ruta_local || !fs.existsSync(image.ruta_local)) {
     return null;
   }
@@ -417,13 +462,14 @@ async function uploadProductImageToWooCommerce(productId, image, config = getAct
       'Content-Disposition': `attachment; filename="${fileName}"`,
       'Content-Length': fileBuffer.length
     },
-    config
+    activeConfig
   );
   return response && response.id ? response : null;
 }
 
-function insertSyncLog(product, action, status, message) {
-  run(
+async function insertSyncLog(product, action, status, message) {
+  const db = getDatabaseAccess();
+  await db.run(
     'INSERT INTO product_sync_log (milo_id, woocommerce_id, action, status, message) VALUES (?, ?, ?, ?, ?)',
     [product?.id || null, product?.woocommerce_product_id || product?.woocommerce_id || null, action, status, message]
   );
@@ -447,12 +493,13 @@ async function findWooProductBySku(config, sku) {
 }
 
 async function syncProductSnapshotToWooCommerce(productSnapshot, options = {}) {
+  const db = getDatabaseAccess();
   const { action = 'sale_sync', persistChanges = true, retries = 2 } = options;
   if (!productSnapshot || !productSnapshot.id) {
     throw new Error('Producto invalido para sincronizar');
   }
 
-  const config = getActiveWooConfig();
+  const config = await getActiveWooConfigAsync();
   if (!isWooExportEnabled(config)) {
     return { success: true, skipped: true, productId: productSnapshot.id };
   }
@@ -461,7 +508,7 @@ async function syncProductSnapshotToWooCommerce(productSnapshot, options = {}) {
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const latestProduct = getProductById(productSnapshot.id) || productSnapshot;
+      const latestProduct = (await getProductById(productSnapshot.id)) || productSnapshot;
       const payload = await buildWooProductPayload(latestProduct, config);
 
       let wooProductId = latestProduct.woocommerce_product_id || latestProduct.woocommerce_id || null;
@@ -478,16 +525,16 @@ async function syncProductSnapshotToWooCommerce(productSnapshot, options = {}) {
         throw new Error('WooCommerce no devolvio un ID de producto');
       }
 
-      run(
+      await db.run(
         `UPDATE products
          SET woocommerce_id = ?, woocommerce_product_id = ?, sync_status = 'synced', last_sync_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [result.id, result.id, latestProduct.id]
       );
-      run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
-      insertSyncLog({ ...latestProduct, woocommerce_product_id: result.id }, action, 'success', `${method === 'POST' ? 'Creado' : 'Actualizado'} en WooCommerce`);
+      await db.run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
+      await insertSyncLog({ ...latestProduct, woocommerce_product_id: result.id }, action, 'success', `${method === 'POST' ? 'Creado' : 'Actualizado'} en WooCommerce`);
 
-      if (persistChanges) saveDatabase();
+      if (persistChanges) await db.save();
 
       return {
         success: true,
@@ -501,26 +548,26 @@ async function syncProductSnapshotToWooCommerce(productSnapshot, options = {}) {
         && /lookup|tabla de b[uú]squeda|search/i.test(String(error.message || ''))
       ) {
         try {
-          const latestProduct = getProductById(productSnapshot.id) || productSnapshot;
+          const latestProduct = (await getProductById(productSnapshot.id)) || productSnapshot;
           const payload = await buildWooProductPayload(latestProduct, config);
           const bySku = await findWooProductBySku(config, payload.sku);
           if (bySku && bySku.id) {
             const rescued = await woocommerceRequest('PUT', `/products/${bySku.id}`, payload, config);
             if (rescued && rescued.id) {
-              run(
+              await db.run(
                 `UPDATE products
                  SET woocommerce_id = ?, woocommerce_product_id = ?, sync_status = 'synced', last_sync_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?`,
                 [rescued.id, rescued.id, latestProduct.id]
               );
-              run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
-              insertSyncLog(
+              await db.run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
+              await insertSyncLog(
                 { ...latestProduct, woocommerce_product_id: rescued.id },
                 action,
                 'success',
                 'Producto vinculado por SKU existente y actualizado en WooCommerce'
               );
-              if (persistChanges) saveDatabase();
+              if (persistChanges) await db.save();
               return {
                 success: true,
                 action: 'updated',
@@ -540,14 +587,14 @@ async function syncProductSnapshotToWooCommerce(productSnapshot, options = {}) {
     }
   }
 
-  run(
+  await db.run(
     `UPDATE products
      SET sync_status = 'error', last_sync_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
     [productSnapshot.id]
   );
-  insertSyncLog(productSnapshot, action, 'error', lastError.message);
-  if (persistChanges) saveDatabase();
+  await insertSyncLog(productSnapshot, action, 'error', lastError.message);
+  if (persistChanges) await db.save();
 
   return {
     success: false,
@@ -557,7 +604,7 @@ async function syncProductSnapshotToWooCommerce(productSnapshot, options = {}) {
 }
 
 async function syncProductToWooCommerce(productId, options = {}) {
-  const product = getProductById(productId);
+  const product = await getProductById(productId);
   if (!product) {
     return { success: false, productId, error: 'Producto no encontrado' };
   }
@@ -566,12 +613,13 @@ async function syncProductToWooCommerce(productId, options = {}) {
 }
 
 async function deleteProductFromWooCommerce(productSnapshot, options = {}) {
+  const db = getDatabaseAccess();
   const { action = 'product_delete', persistChanges = true } = options;
   if (!productSnapshot || !productSnapshot.id) {
     throw new Error('Producto invalido para eliminar en WooCommerce');
   }
 
-  const config = getActiveWooConfig();
+  const config = await getActiveWooConfigAsync();
   const wooProductId = productSnapshot.woocommerce_product_id || productSnapshot.woocommerce_id || null;
 
   if (!config || !config.store_url || !wooProductId) {
@@ -580,12 +628,12 @@ async function deleteProductFromWooCommerce(productSnapshot, options = {}) {
 
   try {
     await woocommerceRequest('DELETE', `/products/${wooProductId}?force=true`, null, config);
-    insertSyncLog(productSnapshot, action, 'success', 'Producto eliminado en WooCommerce');
-    if (persistChanges) saveDatabase();
+    await insertSyncLog(productSnapshot, action, 'success', 'Producto eliminado en WooCommerce');
+    if (persistChanges) await db.save();
     return { success: true, productId: productSnapshot.id, woocommerce_id: wooProductId };
   } catch (error) {
-    insertSyncLog(productSnapshot, action, 'error', error.message || 'No se pudo eliminar en WooCommerce');
-    if (persistChanges) saveDatabase();
+    await insertSyncLog(productSnapshot, action, 'error', error.message || 'No se pudo eliminar en WooCommerce');
+    if (persistChanges) await db.save();
     return { success: false, productId: productSnapshot.id, error: error.message };
   }
 }
@@ -600,12 +648,14 @@ module.exports = {
   ensureWooCategoryFromLocal,
   findWooProductBySku,
   getActiveWooConfig,
+  getActiveWooConfigAsync,
   getWooPrimaryBrand,
   getWooPrimaryCategory,
   getWooPrimaryColor,
   getWooProductImages,
   isWooExportEnabled,
   normalizeWooText: normalizeCatalogText,
+  setRuntimeDatabase,
   syncProductSnapshotToWooCommerce,
   syncProductToWooCommerce,
   woocommerceRequest

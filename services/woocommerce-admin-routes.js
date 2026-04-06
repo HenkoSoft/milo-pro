@@ -1,23 +1,38 @@
+function getDatabaseAccess(req, deps) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => deps.get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => deps.all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => deps.run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => deps.saveDatabase()
+  };
+}
+
 function registerWooAdminRoutes(router, deps) {
   const {
-    all,
     authenticate,
     buildWooStatusResponse,
-    get,
     getWooOrderSyncConfig,
     initializeWooAutomation,
     isWooPollingActive,
     normalizeWooConfigPayload,
     normalizeWooConnectionTestPayload,
-    run,
-    saveDatabase,
     stopWooPolling,
     woocommerceRequest
   } = deps;
 
-  router.get('/status', authenticate, (req, res) => {
-    const config = get('SELECT * FROM woocommerce_sync WHERE id = 1');
-    const logs = all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
+  router.get('/status', authenticate, async (req, res) => {
+    const db = getDatabaseAccess(req, deps);
+    const config = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
+    const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
     const orderConfig = getWooOrderSyncConfig();
     res.json(buildWooStatusResponse(config, { logs, orderConfig, pollingActive: isWooPollingActive() }));
   });
@@ -96,11 +111,12 @@ function registerWooAdminRoutes(router, deps) {
       return res.status(403).json({ error: 'Solo el administrador puede modificar configuraciones' });
     }
 
-    const existing = get('SELECT * FROM woocommerce_sync WHERE id = 1');
+    const db = getDatabaseAccess(req, deps);
+    const existing = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
     const payload = normalizeWooConfigPayload(req.body, existing);
 
     if (existing) {
-      run(
+      await db.run(
         `UPDATE woocommerce_sync SET
          store_url = ?, consumer_key = ?, consumer_secret = ?, wp_username = ?, wp_app_password = ?,
          api_version = ?, sync_direction = ?, sync_products = ?, sync_customers = ?, sync_orders = ?,
@@ -143,7 +159,7 @@ function registerWooAdminRoutes(router, deps) {
         ]
       );
     } else {
-      run(
+      await db.run(
         `INSERT INTO woocommerce_sync (
           id, store_url, consumer_key, consumer_secret, wp_username, wp_app_password, api_version, sync_direction,
           sync_products, sync_customers, sync_orders, sync_stock, sync_prices,
@@ -187,10 +203,10 @@ function registerWooAdminRoutes(router, deps) {
       );
     }
 
-    saveDatabase();
+    await db.save();
     initializeWooAutomation();
-    const updated = get('SELECT * FROM woocommerce_sync WHERE id = 1');
-    const logs = all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
+    const updated = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
+    const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
     const orderConfig = getWooOrderSyncConfig();
     res.json({
       success: true,
@@ -199,14 +215,15 @@ function registerWooAdminRoutes(router, deps) {
     });
   });
 
-  router.delete('/disconnect', authenticate, (req, res) => {
+  router.delete('/disconnect', authenticate, async (req, res) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Solo el administrador puede modificar configuraciones' });
     }
 
+    const db = getDatabaseAccess(req, deps);
     stopWooPolling('disconnect');
-    run('DELETE FROM woocommerce_sync WHERE id = 1');
-    saveDatabase();
+    await db.run('DELETE FROM woocommerce_sync WHERE id = 1');
+    await db.save();
     res.json({ success: true });
   });
 }

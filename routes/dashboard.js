@@ -4,6 +4,18 @@ const { authenticate } = require('../auth');
 
 const router = express.Router();
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params)
+  };
+}
+
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
   return String(value).trim();
@@ -68,66 +80,75 @@ function sanitizeActivity(record, type) {
   };
 }
 
-router.get('/stats', authenticate, (req, res) => {
+router.get('/stats', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const today = new Date().toISOString().split('T')[0];
 
-  const todaySales = get(`
+  const todaySales = await db.get(`
     SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as count
     FROM sales WHERE date(created_at) = ?
   `, [today]);
 
+  const totalProducts = await db.get('SELECT COUNT(*) as count FROM products');
+  const totalCustomers = await db.get('SELECT COUNT(*) as count FROM customers');
+  const lowStockProducts = await db.get('SELECT COUNT(*) as count FROM products WHERE stock <= min_stock');
+  const activeRepairs = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status NOT IN ('delivered')");
+  const readyForPickup = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'ready'");
+
   const stats = buildDashboardStats({
-    todaySales: todaySales.total,
-    todayTransactions: todaySales.count,
-    totalProducts: get('SELECT COUNT(*) as count FROM products').count,
-    totalCustomers: get('SELECT COUNT(*) as count FROM customers').count,
-    lowStockProducts: get('SELECT COUNT(*) as count FROM products WHERE stock <= min_stock').count,
-    activeRepairs: get("SELECT COUNT(*) as count FROM repairs WHERE status NOT IN ('delivered')").count,
-    readyForPickup: get("SELECT COUNT(*) as count FROM repairs WHERE status = 'ready'").count
+    todaySales: todaySales ? todaySales.total : 0,
+    todayTransactions: todaySales ? todaySales.count : 0,
+    totalProducts: totalProducts ? totalProducts.count : 0,
+    totalCustomers: totalCustomers ? totalCustomers.count : 0,
+    lowStockProducts: lowStockProducts ? lowStockProducts.count : 0,
+    activeRepairs: activeRepairs ? activeRepairs.count : 0,
+    readyForPickup: readyForPickup ? readyForPickup.count : 0
   });
 
   res.json(stats);
 });
 
-router.get('/alerts', authenticate, (req, res) => {
-  const lowStock = all(`
+router.get('/alerts', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const lowStock = (await db.all(`
     SELECT p.*, c.name as category_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
     WHERE p.stock <= p.min_stock
     ORDER BY p.stock ASC
     LIMIT 10
-  `).map(sanitizeLowStockProduct);
+  `)).map(sanitizeLowStockProduct);
 
-  const readyForPickup = all(`
+  const readyForPickup = (await db.all(`
     SELECT r.*, c.name as customer_name, c.phone as customer_phone
     FROM repairs r
     LEFT JOIN customers c ON r.customer_id = c.id
     WHERE r.status = 'ready'
     ORDER BY r.created_at DESC
     LIMIT 10
-  `).map(sanitizeReadyRepair);
+  `)).map(sanitizeReadyRepair);
 
   res.json({ lowStock, readyForPickup });
 });
 
-router.get('/recent-activity', authenticate, (req, res) => {
-  const recentSales = all(`
+router.get('/recent-activity', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const recentSales = (await db.all(`
     SELECT s.*, c.name as customer_name, u.name as user_name
     FROM sales s
     LEFT JOIN customers c ON s.customer_id = c.id
     LEFT JOIN users u ON s.user_id = u.id
     ORDER BY s.created_at DESC
     LIMIT 5
-  `).map((sale) => sanitizeActivity(sale, 'sale'));
+  `)).map((sale) => sanitizeActivity(sale, 'sale'));
 
-  const recentRepairs = all(`
+  const recentRepairs = (await db.all(`
     SELECT r.*, c.name as customer_name
     FROM repairs r
     LEFT JOIN customers c ON r.customer_id = c.id
     ORDER BY r.created_at DESC
     LIMIT 5
-  `).map((repair) => sanitizeActivity(repair, 'repair'));
+  `)).map((repair) => sanitizeActivity(repair, 'repair'));
 
   const activities = [...recentSales, ...recentRepairs]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))

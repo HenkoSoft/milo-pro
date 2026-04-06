@@ -4,6 +4,18 @@ const { authenticate } = require('../auth');
 
 const router = express.Router();
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params)
+  };
+}
+
 function toNumber(value, fallback = 0) {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
@@ -18,7 +30,8 @@ function sanitizeRevenuePoint(record) {
   };
 }
 
-router.get('/sales', authenticate, (req, res) => {
+router.get('/sales', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const startDate = String(req.query.startDate || '').trim();
   const endDate = String(req.query.endDate || '').trim();
 
@@ -43,9 +56,9 @@ router.get('/sales', authenticate, (req, res) => {
 
   query += ' ORDER BY s.created_at DESC';
 
-  const sales = all(query, params);
+  const sales = await db.all(query, params);
 
-  const summary = get(`
+  const summary = await db.get(`
     SELECT
       COALESCE(SUM(total), 0) as totalRevenue,
       COUNT(*) as totalTransactions,
@@ -56,50 +69,52 @@ router.get('/sales', authenticate, (req, res) => {
     ${endDate ? 'AND s.created_at <= ?' : ''}
   `, params);
 
-  const salesWithItems = sales.map((sale) => {
-    const items = all(`
+  const salesWithItems = [];
+  for (const sale of sales) {
+    const items = await db.all(`
       SELECT si.*, p.name as product_name, p.sku
       FROM sale_items si
       JOIN products p ON si.product_id = p.id
       WHERE si.sale_id = ?
     `, [sale.id]);
-    return { ...sale, items };
-  });
+    salesWithItems.push({ ...sale, items });
+  }
 
   res.json({
     sales: salesWithItems,
     summary: {
-      totalRevenue: toNumber(summary.totalRevenue),
-      totalTransactions: toNumber(summary.totalTransactions),
-      averageSale: toNumber(summary.averageSale)
+      totalRevenue: toNumber(summary ? summary.totalRevenue : 0),
+      totalTransactions: toNumber(summary ? summary.totalTransactions : 0),
+      averageSale: toNumber(summary ? summary.averageSale : 0)
     }
   });
 });
 
-router.get('/repairs', authenticate, (req, res) => {
-  const byStatus = all(`
+router.get('/repairs', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const byStatus = (await db.all(`
     SELECT status, COUNT(*) as count,
            COALESCE(SUM(final_price), 0) as totalRevenue
     FROM repairs
     GROUP BY status
-  `).map((item) => ({
+  `)).map((item) => ({
     ...item,
     count: toNumber(item.count),
     totalRevenue: toNumber(item.totalRevenue)
   }));
 
-  const byDeviceType = all(`
+  const byDeviceType = (await db.all(`
     SELECT device_type, COUNT(*) as count,
            COALESCE(SUM(final_price), 0) as totalRevenue
     FROM repairs
     GROUP BY device_type
-  `).map((item) => ({
+  `)).map((item) => ({
     ...item,
     count: toNumber(item.count),
     totalRevenue: toNumber(item.totalRevenue)
   }));
 
-  const summary = get(`
+  const summary = await db.get(`
     SELECT
       COUNT(*) as totalRepairs,
       COALESCE(SUM(final_price), 0) as totalRevenue,
@@ -111,15 +126,16 @@ router.get('/repairs', authenticate, (req, res) => {
     byStatus,
     byDeviceType,
     summary: {
-      totalRepairs: toNumber(summary.totalRepairs),
-      totalRevenue: toNumber(summary.totalRevenue),
-      averagePrice: toNumber(summary.averagePrice)
+      totalRepairs: toNumber(summary ? summary.totalRepairs : 0),
+      totalRevenue: toNumber(summary ? summary.totalRevenue : 0),
+      averagePrice: toNumber(summary ? summary.averagePrice : 0)
     }
   });
 });
 
-router.get('/products', authenticate, (req, res) => {
-  const topSelling = all(`
+router.get('/products', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const topSelling = (await db.all(`
     SELECT p.id, p.name, p.sku, p.stock, p.sale_price,
            COALESCE(SUM(si.quantity), 0) as totalSold,
            COALESCE(SUM(si.subtotal), 0) as totalRevenue
@@ -129,7 +145,7 @@ router.get('/products', authenticate, (req, res) => {
     GROUP BY p.id
     ORDER BY totalSold DESC
     LIMIT 20
-  `).map((item) => ({
+  `)).map((item) => ({
     ...item,
     id: toNumber(item.id),
     stock: toNumber(item.stock),
@@ -138,13 +154,13 @@ router.get('/products', authenticate, (req, res) => {
     totalRevenue: toNumber(item.totalRevenue)
   }));
 
-  const lowStock = all(`
+  const lowStock = (await db.all(`
     SELECT p.*, c.name as category_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
     WHERE p.stock <= p.min_stock
     ORDER BY p.stock ASC
-  `).map((item) => ({
+  `)).map((item) => ({
     ...item,
     id: toNumber(item.id),
     stock: toNumber(item.stock),
@@ -152,7 +168,7 @@ router.get('/products', authenticate, (req, res) => {
     sale_price: toNumber(item.sale_price)
   }));
 
-  const byCategory = all(`
+  const byCategory = (await db.all(`
     SELECT c.name as category,
            COUNT(p.id) as productCount,
            COALESCE(SUM(p.stock), 0) as totalStock,
@@ -161,7 +177,7 @@ router.get('/products', authenticate, (req, res) => {
     LEFT JOIN products p ON c.id = p.category_id
     GROUP BY c.id
     ORDER BY totalValue DESC
-  `).map((item) => ({
+  `)).map((item) => ({
     ...item,
     productCount: toNumber(item.productCount),
     totalStock: toNumber(item.totalStock),
@@ -171,7 +187,8 @@ router.get('/products', authenticate, (req, res) => {
   res.json({ topSelling, lowStock, byCategory });
 });
 
-router.get('/revenue', authenticate, (req, res) => {
+router.get('/revenue', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const period = String(req.query.period || '').trim();
 
   let dateFilter = '';
@@ -185,32 +202,32 @@ router.get('/revenue', authenticate, (req, res) => {
     dateFilter = " WHERE strftime('%Y', created_at) = strftime('%Y', 'now')";
   }
 
-  const salesRevenue = get(`
+  const salesRevenue = await db.get(`
     SELECT COALESCE(SUM(total), 0) as revenue, COUNT(*) as count
     FROM sales ${dateFilter || ''}
   `);
 
-  const repairsRevenue = get(`
+  const repairsRevenue = await db.get(`
     SELECT COALESCE(SUM(final_price), 0) as revenue, COUNT(*) as count
     FROM repairs WHERE status = 'delivered'
   `);
 
-  const dailySales = all(`
+  const dailySales = (await db.all(`
     SELECT date(created_at) as date, SUM(total) as revenue, COUNT(*) as count
     FROM sales
     WHERE created_at >= date('now', '-30 days')
     GROUP BY date(created_at)
     ORDER BY date
-  `).map(sanitizeRevenuePoint);
+  `)).map(sanitizeRevenuePoint);
 
-  const safeSalesRevenue = toNumber(salesRevenue.revenue);
-  const safeRepairsRevenue = toNumber(repairsRevenue.revenue);
+  const safeSalesRevenue = toNumber(salesRevenue ? salesRevenue.revenue : 0);
+  const safeRepairsRevenue = toNumber(repairsRevenue ? repairsRevenue.revenue : 0);
 
   res.json({
     salesRevenue: safeSalesRevenue,
-    salesCount: toNumber(salesRevenue.count),
+    salesCount: toNumber(salesRevenue ? salesRevenue.count : 0),
     repairsRevenue: safeRepairsRevenue,
-    repairsCount: toNumber(repairsRevenue.count),
+    repairsCount: toNumber(repairsRevenue ? repairsRevenue.count : 0),
     totalRevenue: safeSalesRevenue + safeRepairsRevenue,
     dailySales
   });

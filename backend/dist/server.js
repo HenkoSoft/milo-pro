@@ -5,19 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { initializeDatabase } = require('../../database');
-const authRoutes = require('../../routes/auth');
-const categoryRoutes = require('../../routes/categories');
-const productRoutes = require('../../routes/products');
-const saleRoutes = require('../../routes/sales');
-const customerRoutes = require('../../routes/customers');
-const repairRoutes = require('../../routes/repairs');
-const dashboardRoutes = require('../../routes/dashboard');
-const reportRoutes = require('../../routes/reports');
-const settingsRoutes = require('../../routes/settings');
-const woocommerceRoutes = require('../../routes/woocommerce');
-const deviceOptionsRoutes = require('../../routes/deviceOptions');
-const purchaseRoutes = require('../../routes/purchases');
+const { initializeRuntimeDatabase } = require('./db');
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const rootDir = path.resolve(__dirname, '../..');
@@ -25,7 +13,7 @@ const publicDir = path.join(rootDir, 'public');
 const reactDistDir = path.join(rootDir, 'frontend', 'dist');
 const legacyIndexPath = path.join(publicDir, 'index.html');
 const reactIndexPath = path.join(reactDistDir, 'index.html');
-const frontendMode = String(process.env.FRONTEND_MODE || 'auto').trim().toLowerCase();
+const frontendMode = String(process.env.FRONTEND_MODE || 'legacy').trim().toLowerCase();
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({
@@ -72,7 +60,32 @@ function frontendRequestHandler(strategy) {
 }
 async function startServer() {
     try {
-        await initializeDatabase();
+        const databaseState = await initializeRuntimeDatabase();
+        const authRoutes = require('../../routes/auth');
+        const categoryRoutes = require('../../routes/categories');
+        const productRoutes = require('../../routes/products');
+        const saleRoutes = require('../../routes/sales');
+        const customerRoutes = require('../../routes/customers');
+        const repairRoutes = require('../../routes/repairs');
+        const dashboardRoutes = require('../../routes/dashboard');
+        const reportRoutes = require('../../routes/reports');
+        const settingsRoutes = require('../../routes/settings');
+        const woocommerceRoutes = require('../../routes/woocommerce');
+        const deviceOptionsRoutes = require('../../routes/deviceOptions');
+        const purchaseRoutes = require('../../routes/purchases');
+        const catalogService = require('../../services/catalog');
+        const woocommerceSyncService = require('../../services/woocommerce-sync');
+        const wooOrderSyncService = require('../../services/woo-order-sync');
+        app.locals.database = databaseState.adapter;
+        if (typeof catalogService.setRuntimeDatabase === 'function') {
+            catalogService.setRuntimeDatabase(databaseState.adapter);
+        }
+        if (typeof woocommerceSyncService.setRuntimeDatabase === 'function') {
+            woocommerceSyncService.setRuntimeDatabase(databaseState.adapter);
+        }
+        if (typeof wooOrderSyncService.setRuntimeDatabase === 'function') {
+            wooOrderSyncService.setRuntimeDatabase(databaseState.adapter);
+        }
         const frontendStrategy = resolveFrontendStrategy();
         if (frontendMode === 'react' && !frontendStrategy.buildAvailable) {
             throw new Error('FRONTEND_MODE=react requiere un build existente en frontend/dist');
@@ -83,7 +96,10 @@ async function startServer() {
                 frontend_mode: frontendStrategy.mode,
                 requested_frontend_mode: frontendMode,
                 react_build_available: frontendStrategy.buildAvailable,
-                legacy_entry: '/legacy-app'
+                legacy_entry: '/legacy-app',
+                requested_db_dialect: databaseState.requestedDialect,
+                active_db_dialect: databaseState.activeDialect,
+                postgres_runtime_ready: databaseState.postgresRuntimeReady
             });
         });
         app.use('/api/auth', authRoutes);
@@ -95,11 +111,14 @@ async function startServer() {
         app.use('/api/dashboard', dashboardRoutes);
         app.use('/api/reports', reportRoutes);
         app.use('/api/settings', settingsRoutes);
+        if (typeof woocommerceRoutes.setRuntimeDatabase === 'function') {
+            woocommerceRoutes.setRuntimeDatabase(databaseState.adapter);
+        }
         app.use('/api/woocommerce', woocommerceRoutes);
         app.use('/api/device-options', deviceOptionsRoutes);
         app.use('/api/purchases', purchaseRoutes);
         if (typeof woocommerceRoutes.initializeWooAutomation === 'function') {
-            woocommerceRoutes.initializeWooAutomation();
+            await woocommerceRoutes.initializeWooAutomation();
         }
         app.use('/api', (_req, res) => {
             res.status(404).json({ error: 'Endpoint not found' });
@@ -124,6 +143,7 @@ async function startServer() {
         app.listen(PORT, () => {
             console.log('milo-pro running on http://localhost:' + PORT);
             console.log(`[FRONTEND] mode=${frontendStrategy.mode} requested=${frontendMode} react_build=${frontendStrategy.buildAvailable ? 'yes' : 'no'} legacy=/legacy-app`);
+            console.log(`[DB] requested=${databaseState.requestedDialect} active=${databaseState.activeDialect} postgres_ready=${databaseState.postgresRuntimeReady ? 'yes' : 'no'}`);
         });
     }
     catch (error) {

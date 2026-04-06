@@ -19,6 +19,24 @@ const {
 
 const router = express.Router();
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => saveDatabase()
+  };
+}
+
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
   return String(value).trim();
@@ -84,7 +102,7 @@ function buildProductsQuery({ search, category, lowStock }) {
   return { query, params };
 }
 
-function buildProductPayload(body = {}) {
+async function buildProductPayload(db, body = {}) {
   const primaryCategoryId = body.category_primary_id || body.category_id || null;
   const isGenericUncategorized = (value) => {
     const normalized = String(value || '')
@@ -99,13 +117,22 @@ function buildProductPayload(body = {}) {
     ...(Array.isArray(body.additional_category_ids) ? body.additional_category_ids : []),
     primaryCategoryId
   ];
-  const filteredCategoryIds = rawCategoryIds.filter((item) => {
-    if (!primaryCategoryId) return true;
-    if (String(item) === String(primaryCategoryId)) return true;
-    const categoryRecord = item ? get('SELECT name FROM categories WHERE id = ?', [item]) : null;
+  const filteredCategoryIds = [];
+  for (const item of rawCategoryIds) {
+    if (!primaryCategoryId) {
+      filteredCategoryIds.push(item);
+      continue;
+    }
+    if (String(item) === String(primaryCategoryId)) {
+      filteredCategoryIds.push(item);
+      continue;
+    }
+    const categoryRecord = item ? await db.get('SELECT name FROM categories WHERE id = ?', [item]) : null;
     const rawName = categoryRecord ? categoryRecord.name : '';
-    return !isGenericUncategorized(rawName);
-  });
+    if (!isGenericUncategorized(rawName)) {
+      filteredCategoryIds.push(item);
+    }
+  }
   const categoryIds = toIntegerList(filteredCategoryIds);
 
   const images = Array.isArray(body.images)
@@ -157,7 +184,7 @@ function buildProductPayload(body = {}) {
   };
 }
 
-async function persistProduct(payload, productId = null) {
+async function persistProduct(db, payload, productId = null) {
   if (!payload.name) {
     throw new Error('El nombre es requerido');
   }
@@ -168,9 +195,9 @@ async function persistProduct(payload, productId = null) {
   }
 
   if (productId) {
-    const existingProduct = getProductById(productId);
-    const nextSku = payload.sku || (existingProduct && existingProduct.sku) || getNextAutomaticProductSku(all('SELECT sku FROM products'));
-    run(
+    const existingProduct = await getProductById(productId);
+    const nextSku = payload.sku || (existingProduct && existingProduct.sku) || getNextAutomaticProductSku(await db.all('SELECT sku FROM products'));
+    await db.run(
       `UPDATE products
        SET sku = ?, barcode = ?, name = ?, description = ?, short_description = ?, color = ?, category_id = ?, category_primary_id = ?,
            brand_id = ?, supplier = ?, purchase_price = ?, sale_price = ?, stock = ?, min_stock = ?, woocommerce_id = ?,
@@ -213,8 +240,8 @@ async function persistProduct(payload, productId = null) {
       ]
     );
   } else {
-    const nextSku = payload.sku || getNextAutomaticProductSku(all('SELECT sku FROM products'));
-    const result = run(
+    const nextSku = payload.sku || getNextAutomaticProductSku(await db.all('SELECT sku FROM products'));
+    const result = await db.run(
       `INSERT INTO products (
         sku, barcode, name, description, short_description, color, category_id, category_primary_id, brand_id, supplier,
         purchase_price, sale_price, sale_price_includes_tax, sale_price_2, sale_price_2_includes_tax, sale_price_3, sale_price_3_includes_tax,
@@ -261,34 +288,36 @@ async function persistProduct(payload, productId = null) {
   if (Array.isArray(payload.images) && payload.images.length > 0 && processedImages.length === 0) {
     throw new Error('Las imagenes no se pudieron procesar en el servidor.');
   }
-  syncProductCategories(productId, payload.category_ids, payload.category_primary_id);
-  syncProductImages(productId, processedImages);
-  saveDatabase();
-  return getProductById(productId);
+  await syncProductCategories(productId, payload.category_ids, payload.category_primary_id);
+  await syncProductImages(productId, processedImages);
+  await db.save();
+  return await getProductById(productId);
 }
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   const { query, params } = buildProductsQuery(req.query || {});
-  res.json(listProductsWithCatalog(query, params).map((product) => sanitizeProductSummary(product)));
+  res.json((await listProductsWithCatalog(query, params)).map((product) => sanitizeProductSummary(product)));
 });
 
-router.get('/next-sku/value', authenticate, (req, res) => {
-  const nextSku = getNextAutomaticProductSku(all('SELECT sku FROM products'));
+router.get('/next-sku/value', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const nextSku = getNextAutomaticProductSku(await db.all('SELECT sku FROM products'));
   res.json({ sku: nextSku });
 });
 
-router.get('/:id', authenticate, (req, res) => {
-  const product = getProductById(req.params.id);
+router.get('/:id', authenticate, async (req, res) => {
+  const product = await getProductById(req.params.id);
   if (!product) return res.status(404).json({ error: 'Product not found' });
   res.json(sanitizeProductSummary(product));
 });
 
 router.post('/', authenticate, async (req, res) => {
   try {
-    const payload = buildProductPayload(req.body || {});
-    const product = await persistProduct(payload);
+    const db = getDatabaseAccess(req);
+    const payload = await buildProductPayload(db, req.body || {});
+    const product = await persistProduct(db, payload);
     const syncResult = await syncProductSnapshotToWooCommerce(product, { action: 'product_create' });
-    const refreshedProduct = sanitizeProductSummary(getProductById(product.id) || product);
+    const refreshedProduct = sanitizeProductSummary(await getProductById(product.id) || product);
 
     if (!syncResult.success && !syncResult.skipped) {
       return res.status(201).json({
@@ -305,10 +334,11 @@ router.post('/', authenticate, async (req, res) => {
 
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const payload = buildProductPayload(req.body || {});
-    const product = await persistProduct(payload, req.params.id);
+    const db = getDatabaseAccess(req);
+    const payload = await buildProductPayload(db, req.body || {});
+    const product = await persistProduct(db, payload, req.params.id);
     const syncResult = await syncProductSnapshotToWooCommerce(product, { action: 'product_update' });
-    const refreshedProduct = sanitizeProductSummary(getProductById(product.id) || product);
+    const refreshedProduct = sanitizeProductSummary(await getProductById(product.id) || product);
 
     if (!syncResult.success && !syncResult.skipped) {
       return res.json({
@@ -324,15 +354,16 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 router.delete('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   if (req.params.id === 'all') {
-    run('DELETE FROM product_images');
-    run('DELETE FROM product_categories');
-    run('DELETE FROM products');
-    saveDatabase();
+    await db.run('DELETE FROM product_images');
+    await db.run('DELETE FROM product_categories');
+    await db.run('DELETE FROM products');
+    await db.save();
     return res.json({ success: true, message: 'Todos los productos eliminados' });
   }
 
-  const product = getProductById(req.params.id);
+  const product = await getProductById(req.params.id);
   if (!product) {
     return res.status(404).json({ error: 'Product not found' });
   }
@@ -347,23 +378,27 @@ router.delete('/:id', authenticate, async (req, res) => {
       : '';
   }
 
-  run('DELETE FROM product_images WHERE product_id = ?', [req.params.id]);
-  run('DELETE FROM product_categories WHERE product_id = ?', [req.params.id]);
-  run('DELETE FROM products WHERE id = ?', [req.params.id]);
-  saveDatabase();
+  await db.run('DELETE FROM product_images WHERE product_id = ?', [req.params.id]);
+  await db.run('DELETE FROM product_categories WHERE product_id = ?', [req.params.id]);
+  await db.run('DELETE FROM products WHERE id = ?', [req.params.id]);
+  await db.save();
   res.json({ success: true, remote_delete_warning: remoteDeleteWarning || '' });
 });
 
-router.get('/low-stock/alerts', authenticate, (req, res) => {
-  const products = listProductsWithCatalog(
+router.get('/low-stock/alerts', authenticate, async (req, res) => {
+  const products = (await listProductsWithCatalog(
     `SELECT p.*, c.name as category_name, b.name as brand_name
      FROM products p
      LEFT JOIN categories c ON p.category_id = c.id
      LEFT JOIN brands b ON p.brand_id = b.id
      WHERE COALESCE(p.active, 1) = 1 AND p.stock <= p.min_stock
      ORDER BY p.stock ASC`
-  ).map((product) => sanitizeProductSummary(product));
+  )).map((product) => sanitizeProductSummary(product));
   res.json(products);
 });
 
 module.exports = router;
+
+
+
+

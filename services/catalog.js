@@ -1,5 +1,25 @@
 const { get, all, run } = require('../database');
 
+let runtimeDatabase = null;
+
+function setRuntimeDatabase(adapter) {
+  runtimeDatabase = adapter || null;
+}
+
+function getDatabaseAccess() {
+  return {
+    get: runtimeDatabase && typeof runtimeDatabase.get === 'function'
+      ? (sql, params = []) => runtimeDatabase.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDatabase && typeof runtimeDatabase.all === 'function'
+      ? (sql, params = []) => runtimeDatabase.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDatabase && typeof runtimeDatabase.run === 'function'
+      ? (sql, params = []) => runtimeDatabase.run(sql, params)
+      : async (sql, params = []) => run(sql, params)
+  };
+}
+
 function normalizeCatalogText(value) {
   return String(value || '')
     .trim()
@@ -20,43 +40,51 @@ function toIntegerList(values) {
     .filter((value) => Number.isFinite(value) && value > 0))];
 }
 
-function getAllCategoriesRaw() {
-  return all('SELECT * FROM categories ORDER BY name, id');
+async function getAllCategoriesRaw() {
+  const db = getDatabaseAccess();
+  return db.all('SELECT * FROM categories ORDER BY name, id');
 }
 
-function getCategoryById(categoryId) {
-  return get('SELECT * FROM categories WHERE id = ?', [categoryId]);
+async function getCategoryById(categoryId) {
+  const db = getDatabaseAccess();
+  return db.get('SELECT * FROM categories WHERE id = ?', [categoryId]);
 }
 
-function getCategoryByWooId(woocommerceCategoryId) {
-  return get('SELECT * FROM categories WHERE woocommerce_category_id = ?', [woocommerceCategoryId]);
+async function getCategoryByWooId(woocommerceCategoryId) {
+  const db = getDatabaseAccess();
+  return db.get('SELECT * FROM categories WHERE woocommerce_category_id = ?', [woocommerceCategoryId]);
 }
 
-function getBrandById(brandId) {
-  return get('SELECT * FROM brands WHERE id = ?', [brandId]);
+async function getBrandById(brandId) {
+  const db = getDatabaseAccess();
+  return db.get('SELECT * FROM brands WHERE id = ?', [brandId]);
 }
 
-function getBrandByWooId(woocommerceBrandId) {
-  return get('SELECT * FROM brands WHERE woocommerce_brand_id = ?', [woocommerceBrandId]);
+async function getBrandByWooId(woocommerceBrandId) {
+  const db = getDatabaseAccess();
+  return db.get('SELECT * FROM brands WHERE woocommerce_brand_id = ?', [woocommerceBrandId]);
 }
 
-function findCategoryByNameAndParent(name, parentId = null) {
+async function findCategoryByNameAndParent(name, parentId = null) {
   const normalized = normalizeCatalogText(name);
   if (!normalized) return null;
-  return getAllCategoriesRaw().find((item) => {
+  const categories = await getAllCategoriesRaw();
+  return categories.find((item) => {
     return normalizeCatalogText(item.name) === normalized
       && Number(item.parent_id || 0) === Number(parentId || 0);
   }) || null;
 }
 
-function findBrandByName(name) {
+async function findBrandByName(name) {
   const normalized = normalizeCatalogText(name);
   if (!normalized) return null;
-  return all('SELECT * FROM brands ORDER BY name, id').find((item) => normalizeCatalogText(item.name) === normalized) || null;
+  const db = getDatabaseAccess();
+  const brands = await db.all('SELECT * FROM brands ORDER BY name, id');
+  return brands.find((item) => normalizeCatalogText(item.name) === normalized) || null;
 }
 
-function getCategoryTrail(categoryId) {
-  const categories = getAllCategoriesRaw();
+async function getCategoryTrail(categoryId) {
+  const categories = await getAllCategoriesRaw();
   const byId = new Map(categories.map((item) => [Number(item.id), item]));
   const trail = [];
   let current = byId.get(Number(categoryId));
@@ -71,26 +99,29 @@ function getCategoryTrail(categoryId) {
   return trail;
 }
 
-function getCategoryFullName(categoryId) {
-  const trail = getCategoryTrail(categoryId);
+async function getCategoryFullName(categoryId) {
+  const trail = await getCategoryTrail(categoryId);
   return trail.map((item) => item.name).join(' / ');
 }
 
-function collapseCategoryIdsToLeaves(categoryIds = []) {
+async function collapseCategoryIdsToLeaves(categoryIds = []) {
   const normalizedIds = toIntegerList(categoryIds);
   if (normalizedIds.length <= 1) return normalizedIds;
 
-  return normalizedIds.filter((categoryId) => {
-    return !normalizedIds.some((otherId) => {
+  const leafChecks = await Promise.all(normalizedIds.map(async (categoryId) => {
+    const isAncestor = await Promise.all(normalizedIds.map(async (otherId) => {
       if (Number(otherId) === Number(categoryId)) return false;
-      const trail = getCategoryTrail(otherId);
+      const trail = await getCategoryTrail(otherId);
       return trail.some((item) => Number(item.id) === Number(categoryId));
-    });
-  });
+    }));
+    return { categoryId, keep: !isAncestor.some(Boolean) };
+  }));
+
+  return leafChecks.filter((item) => item.keep).map((item) => item.categoryId);
 }
 
-function listCategoriesTree() {
-  const categories = getAllCategoriesRaw();
+async function listCategoriesTree() {
+  const categories = await getAllCategoriesRaw();
   const childrenMap = new Map();
 
   categories.forEach((item) => {
@@ -100,25 +131,26 @@ function listCategoriesTree() {
   });
 
   const rows = [];
-  const visit = (parentId = 0, depth = 0) => {
+  const visit = async (parentId = 0, depth = 0) => {
     const children = (childrenMap.get(Number(parentId || 0)) || [])
       .slice()
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-    children.forEach((item) => {
+    for (const item of children) {
       rows.push({
         ...item,
         depth,
-        full_name: getCategoryFullName(item.id)
+        full_name: await getCategoryFullName(item.id)
       });
-      visit(item.id, depth + 1);
-    });
+      await visit(item.id, depth + 1);
+    }
   };
 
-  visit(0, 0);
+  await visit(0, 0);
   return rows;
 }
 
-function ensureCategoryRecord(payload = {}) {
+async function ensureCategoryRecord(payload = {}) {
+  const db = getDatabaseAccess();
   const name = String(payload.name || '').trim();
   if (!name) return null;
   const parentId = payload.parent_id ? Number(payload.parent_id) : null;
@@ -127,13 +159,13 @@ function ensureCategoryRecord(payload = {}) {
   const description = payload.description || null;
   const wooId = payload.woocommerce_category_id ? Number(payload.woocommerce_category_id) : null;
 
-  let existing = wooId ? getCategoryByWooId(wooId) : null;
+  let existing = wooId ? await getCategoryByWooId(wooId) : null;
   if (!existing) {
-    existing = findCategoryByNameAndParent(name, parentId);
+    existing = await findCategoryByNameAndParent(name, parentId);
   }
 
   if (existing) {
-    run(
+    await db.run(
       `UPDATE categories
        SET name = ?, slug = ?, description = ?, parent_id = ?, woocommerce_category_id = COALESCE(?, woocommerce_category_id),
            active = ?, updated_at = CURRENT_TIMESTAMP
@@ -143,7 +175,7 @@ function ensureCategoryRecord(payload = {}) {
     return getCategoryById(existing.id);
   }
 
-  const result = run(
+  const result = await db.run(
     `INSERT INTO categories (name, slug, description, parent_id, woocommerce_category_id, active)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [name, slug, description, parentId, wooId, active]
@@ -151,20 +183,21 @@ function ensureCategoryRecord(payload = {}) {
   return getCategoryById(result.lastInsertRowid);
 }
 
-function ensureBrandRecord(payload = {}) {
+async function ensureBrandRecord(payload = {}) {
+  const db = getDatabaseAccess();
   const name = String(payload.name || '').trim();
   if (!name) return null;
   const slug = String(payload.slug || slugify(name) || '');
   const active = payload.active === false || payload.active === 0 ? 0 : 1;
   const wooId = payload.woocommerce_brand_id ? Number(payload.woocommerce_brand_id) : null;
 
-  let existing = wooId ? getBrandByWooId(wooId) : null;
+  let existing = wooId ? await getBrandByWooId(wooId) : null;
   if (!existing) {
-    existing = findBrandByName(name);
+    existing = await findBrandByName(name);
   }
 
   if (existing) {
-    run(
+    await db.run(
       `UPDATE brands
        SET name = ?, slug = ?, woocommerce_brand_id = COALESCE(?, woocommerce_brand_id), active = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
@@ -173,29 +206,33 @@ function ensureBrandRecord(payload = {}) {
     return getBrandById(existing.id);
   }
 
-  const result = run(
+  const result = await db.run(
     'INSERT INTO brands (name, slug, woocommerce_brand_id, active) VALUES (?, ?, ?, ?)',
     [name, slug, wooId, active]
   );
   return getBrandById(result.lastInsertRowid);
 }
 
-function getProductCategories(productId) {
-  return all(
+async function getProductCategories(productId) {
+  const db = getDatabaseAccess();
+  const categories = await db.all(
     `SELECT c.*, pc.es_principal, pc.orden
      FROM product_categories pc
      JOIN categories c ON c.id = pc.category_id
      WHERE pc.product_id = ?
      ORDER BY pc.es_principal DESC, pc.orden ASC, c.name ASC`,
     [productId]
-  ).map((item) => ({
+  );
+
+  return Promise.all(categories.map(async (item) => ({
     ...item,
-    full_name: getCategoryFullName(item.id)
-  }));
+    full_name: await getCategoryFullName(item.id)
+  })));
 }
 
-function getProductImages(productId) {
-  return all(
+async function getProductImages(productId) {
+  const db = getDatabaseAccess();
+  return db.all(
     `SELECT *
      FROM product_images
      WHERE product_id = ?
@@ -204,28 +241,30 @@ function getProductImages(productId) {
   );
 }
 
-function syncProductCategories(productId, categoryIds = [], primaryCategoryId = null) {
-  const normalizedIds = collapseCategoryIdsToLeaves(categoryIds);
+async function syncProductCategories(productId, categoryIds = [], primaryCategoryId = null) {
+  const db = getDatabaseAccess();
+  const normalizedIds = await collapseCategoryIdsToLeaves(categoryIds);
   const nextPrimaryId = primaryCategoryId ? Number(primaryCategoryId) : (normalizedIds[0] || null);
   const finalIds = nextPrimaryId && !normalizedIds.includes(nextPrimaryId)
     ? [nextPrimaryId, ...normalizedIds]
     : normalizedIds;
 
-  run('DELETE FROM product_categories WHERE product_id = ?', [productId]);
-  finalIds.forEach((categoryId, index) => {
-    run(
+  await db.run('DELETE FROM product_categories WHERE product_id = ?', [productId]);
+  for (const [index, categoryId] of finalIds.entries()) {
+    await db.run(
       'INSERT INTO product_categories (product_id, category_id, es_principal, orden) VALUES (?, ?, ?, ?)',
       [productId, categoryId, Number(categoryId) === Number(nextPrimaryId || 0) ? 1 : 0, index]
     );
-  });
+  }
 
-  run(
+  await db.run(
     'UPDATE products SET category_id = ?, category_primary_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
     [nextPrimaryId, nextPrimaryId, productId]
   );
 }
 
-function syncProductImages(productId, images = []) {
+async function syncProductImages(productId, images = []) {
+  const db = getDatabaseAccess();
   const normalized = (Array.isArray(images) ? images : []).map((item, index) => {
     if (typeof item === 'string') {
       return {
@@ -256,32 +295,33 @@ function syncProductImages(productId, images = []) {
     normalized[0].es_principal = 1;
   }
 
-  run('DELETE FROM product_images WHERE product_id = ?', [productId]);
-  normalized.forEach((item) => {
-    run(
+  await db.run('DELETE FROM product_images WHERE product_id = ?', [productId]);
+  for (const item of normalized) {
+    await db.run(
       `INSERT INTO product_images (product_id, nombre_archivo, ruta_local, url_publica, url_local, url_remote, woocommerce_media_id, orden, es_principal)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [productId, item.nombre_archivo, item.ruta_local, item.url_publica, item.url_local, item.url_remote, item.woocommerce_media_id, item.orden, item.es_principal]
     );
-  });
+  }
 
   const primary = normalized.find((item) => item.es_principal) || normalized[0] || null;
-  run(
+  await db.run(
     'UPDATE products SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
     [primary ? (primary.url_publica || primary.url_remote || primary.url_local || null) : null, productId]
   );
 }
 
-function hydrateProductRecord(product) {
+async function hydrateProductRecord(product) {
   if (!product) return null;
-  const categories = getProductCategories(product.id);
-  const images = getProductImages(product.id);
+  const categories = await getProductCategories(product.id);
+  const images = await getProductImages(product.id);
   const primaryCategory = categories.find((item) => Number(item.es_principal) === 1)
     || (product.category_id ? categories.find((item) => Number(item.id) === Number(product.category_id)) : null)
     || categories[0]
-    || (product.category_id ? getCategoryById(product.category_id) : null);
+    || (product.category_id ? await getCategoryById(product.category_id) : null);
   const primaryImage = images.find((item) => Number(item.es_principal) === 1) || images[0] || null;
   const categoryNames = categories.map((item) => item.full_name || item.name).filter(Boolean);
+  const brand = product.brand_id ? await getBrandById(product.brand_id) : null;
 
   return {
     ...product,
@@ -295,12 +335,13 @@ function hydrateProductRecord(product) {
     categories,
     images,
     image_url: product.image_url || (primaryImage ? (primaryImage.url_publica || primaryImage.url_remote || primaryImage.url_local || null) : null),
-    brand_name: product.brand_name || ((product.brand_id ? getBrandById(product.brand_id) : null) || {}).name || null
+    brand_name: product.brand_name || (brand ? brand.name : null)
   };
 }
 
-function getProductById(productId) {
-  const product = get(
+async function getProductById(productId) {
+  const db = getDatabaseAccess();
+  const product = await db.get(
     `SELECT p.*, c.name AS category_name, b.name AS brand_name
      FROM products p
      LEFT JOIN categories c ON c.id = p.category_id
@@ -311,8 +352,10 @@ function getProductById(productId) {
   return hydrateProductRecord(product);
 }
 
-function listProductsWithCatalog(baseSql, params = []) {
-  return all(baseSql, params).map((item) => hydrateProductRecord(item));
+async function listProductsWithCatalog(baseSql, params = []) {
+  const db = getDatabaseAccess();
+  const products = await db.all(baseSql, params);
+  return Promise.all(products.map((item) => hydrateProductRecord(item)));
 }
 
 module.exports = {
@@ -334,6 +377,7 @@ module.exports = {
   listCategoriesTree,
   listProductsWithCatalog,
   normalizeCatalogText,
+  setRuntimeDatabase,
   slugify,
   syncProductCategories,
   syncProductImages,

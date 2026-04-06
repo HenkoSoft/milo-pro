@@ -4,6 +4,30 @@ const { authenticate } = require('../auth');
 
 const router = express.Router();
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => saveDatabase(),
+    transaction: runtimeDb && typeof runtimeDb.transaction === 'function'
+      ? (fn) => runtimeDb.transaction(fn)
+      : async (fn) => {
+          const wrapped = transaction(() => fn(getDatabaseAccess(req)));
+          return wrapped();
+        }
+  };
+}
+
 function getErrorMessage(error, fallback) {
   if (!error) {
     return fallback;
@@ -118,26 +142,26 @@ function normalizeSupplierCreditPayload(body) {
   };
 }
 
-function recalculateSupplierAccount(supplierId) {
+async function recalculateSupplierAccount(db, supplierId) {
   if (!supplierId) return;
 
-  const purchases = get('SELECT COALESCE(SUM(total), 0) as total FROM purchases WHERE supplier_id = ?', [supplierId]).total;
-  const credits = get('SELECT COALESCE(SUM(total), 0) as total FROM supplier_credits WHERE supplier_id = ?', [supplierId]).total;
-  const payments = get('SELECT COALESCE(SUM(amount), 0) as total FROM supplier_payments WHERE supplier_id = ?', [supplierId]).total;
-  const balance = purchases - credits - payments;
+  const purchases = await db.get('SELECT COALESCE(SUM(total), 0) as total FROM purchases WHERE supplier_id = ?', [supplierId]);
+  const credits = await db.get('SELECT COALESCE(SUM(total), 0) as total FROM supplier_credits WHERE supplier_id = ?', [supplierId]);
+  const payments = await db.get('SELECT COALESCE(SUM(amount), 0) as total FROM supplier_payments WHERE supplier_id = ?', [supplierId]);
+  const balance = Number((purchases && purchases.total) || 0) - Number((credits && credits.total) || 0) - Number((payments && payments.total) || 0);
 
-  const existing = get('SELECT id FROM supplier_account WHERE supplier_id = ?', [supplierId]);
+  const existing = await db.get('SELECT id FROM supplier_account WHERE supplier_id = ?', [supplierId]);
   if (existing) {
-    run(`
+    await db.run(`
       UPDATE supplier_account
       SET total_purchases = ?, total_credits = ?, total_payments = ?, balance = ?, updated_at = CURRENT_TIMESTAMP
       WHERE supplier_id = ?
-    `, [purchases, credits, payments, balance, supplierId]);
+    `, [Number((purchases && purchases.total) || 0), Number((credits && credits.total) || 0), Number((payments && payments.total) || 0), balance, supplierId]);
   } else {
-    run(`
+    await db.run(`
       INSERT INTO supplier_account (supplier_id, total_purchases, total_credits, total_payments, balance)
       VALUES (?, ?, ?, ?, ?)
-    `, [supplierId, purchases, credits, payments, balance]);
+    `, [supplierId, Number((purchases && purchases.total) || 0), Number((credits && credits.total) || 0), Number((payments && payments.total) || 0), balance]);
   }
 }
 
@@ -162,12 +186,14 @@ function normalizePurchaseTotals(purchase) {
   return purchase;
 }
 
-router.get('/suppliers', authenticate, (req, res) => {
-  const suppliers = all('SELECT * FROM suppliers ORDER BY name').map((supplier) => sanitizeSupplier(supplier));
+router.get('/suppliers', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const suppliers = (await db.all('SELECT * FROM suppliers ORDER BY name')).map((supplier) => sanitizeSupplier(supplier));
   res.json(suppliers);
 });
 
-router.post('/suppliers', authenticate, (req, res) => {
+router.post('/suppliers', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeSupplierPayload(req.body);
 
   if (!payload.name) {
@@ -175,7 +201,7 @@ router.post('/suppliers', authenticate, (req, res) => {
   }
 
   try {
-    const result = run(`
+    const result = await db.run(`
       INSERT INTO suppliers (name, phone, email, address, city, tax_id, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [
@@ -188,8 +214,8 @@ router.post('/suppliers', authenticate, (req, res) => {
       toNullableString(payload.notes)
     ]);
 
-    saveDatabase();
-    const supplier = get('SELECT * FROM suppliers WHERE id = ?', [result.lastInsertRowid]);
+    await db.save();
+    const supplier = await db.get('SELECT * FROM suppliers WHERE id = ?', [result.lastInsertRowid]);
     res.status(201).json(sanitizeSupplier(supplier || { id: result.lastInsertRowid, ...payload }));
   } catch (err) {
     console.error('Create supplier failed:', err);
@@ -197,7 +223,8 @@ router.post('/suppliers', authenticate, (req, res) => {
   }
 });
 
-router.put('/suppliers/:id', authenticate, (req, res) => {
+router.put('/suppliers/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeSupplierPayload(req.body);
 
   if (!payload.name) {
@@ -205,7 +232,7 @@ router.put('/suppliers/:id', authenticate, (req, res) => {
   }
 
   try {
-    run(`
+    await db.run(`
       UPDATE suppliers SET name = ?, phone = ?, email = ?, address = ?, city = ?, tax_id = ?, notes = ?
       WHERE id = ?
     `, [
@@ -219,8 +246,8 @@ router.put('/suppliers/:id', authenticate, (req, res) => {
       req.params.id
     ]);
 
-    saveDatabase();
-    const supplier = get('SELECT * FROM suppliers WHERE id = ?', [req.params.id]);
+    await db.save();
+    const supplier = await db.get('SELECT * FROM suppliers WHERE id = ?', [req.params.id]);
     res.json(sanitizeSupplier(supplier));
   } catch (err) {
     console.error('Update supplier failed:', err);
@@ -228,20 +255,21 @@ router.put('/suppliers/:id', authenticate, (req, res) => {
   }
 });
 
-router.delete('/suppliers/:id', authenticate, (req, res) => {
+router.delete('/suppliers/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   try {
     const supplierId = Number(req.params.id);
-    const purchaseCount = get('SELECT COUNT(*) as count FROM purchases WHERE supplier_id = ?', [supplierId]).count;
-    const creditCount = get('SELECT COUNT(*) as count FROM supplier_credits WHERE supplier_id = ?', [supplierId]).count;
-    const paymentCount = get('SELECT COUNT(*) as count FROM supplier_payments WHERE supplier_id = ?', [supplierId]).count;
+    const purchaseCount = await db.get('SELECT COUNT(*) as count FROM purchases WHERE supplier_id = ?', [supplierId]);
+    const creditCount = await db.get('SELECT COUNT(*) as count FROM supplier_credits WHERE supplier_id = ?', [supplierId]);
+    const paymentCount = await db.get('SELECT COUNT(*) as count FROM supplier_payments WHERE supplier_id = ?', [supplierId]);
 
-    if (purchaseCount || creditCount || paymentCount) {
+    if ((purchaseCount && purchaseCount.count) || (creditCount && creditCount.count) || (paymentCount && paymentCount.count)) {
       return res.status(400).json({ error: 'No se puede eliminar un proveedor con movimientos asociados' });
     }
 
-    run('DELETE FROM suppliers WHERE id = ?', [req.params.id]);
-    run('DELETE FROM supplier_account WHERE supplier_id = ?', [req.params.id]);
-    saveDatabase();
+    await db.run('DELETE FROM suppliers WHERE id = ?', [req.params.id]);
+    await db.run('DELETE FROM supplier_account WHERE supplier_id = ?', [req.params.id]);
+    await db.save();
     res.json({ success: true });
   } catch (err) {
     console.error('Delete supplier failed:', err);
@@ -249,13 +277,15 @@ router.delete('/suppliers/:id', authenticate, (req, res) => {
   }
 });
 
-router.get('/suppliers/:id', authenticate, (req, res) => {
-  const supplier = get('SELECT * FROM suppliers WHERE id = ?', [req.params.id]);
+router.get('/suppliers/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const supplier = await db.get('SELECT * FROM suppliers WHERE id = ?', [req.params.id]);
   if (!supplier) return res.status(404).json({ error: 'Proveedor no encontrado' });
   res.json(sanitizeSupplier(supplier));
 });
 
-router.get('/credits', authenticate, (req, res) => {
+router.get('/credits', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const supplier = String(req.query.supplier || '').trim();
   const date_from = String(req.query.date_from || '').trim();
   const date_to = String(req.query.date_to || '').trim();
@@ -285,12 +315,13 @@ router.get('/credits', authenticate, (req, res) => {
 
   query += ' ORDER BY c.created_at DESC';
 
-  const credits = all(query, params);
+  const credits = await db.all(query, params);
   res.json(credits);
 });
 
-router.get('/credits/:id', authenticate, (req, res) => {
-  const credit = get(`
+router.get('/credits/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const credit = await db.get(`
     SELECT c.*, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.tax_id as supplier_tax_id
     FROM supplier_credits c
     LEFT JOIN suppliers s ON c.supplier_id = s.id
@@ -299,13 +330,14 @@ router.get('/credits/:id', authenticate, (req, res) => {
 
   if (!credit) return res.status(404).json({ error: 'NC no encontrada' });
 
-  const items = all('SELECT * FROM supplier_credit_items WHERE credit_id = ?', [req.params.id]);
+  const items = await db.all('SELECT * FROM supplier_credit_items WHERE credit_id = ?', [req.params.id]);
   credit.items = items;
 
   res.json(credit);
 });
 
-router.post('/credits', authenticate, (req, res) => {
+router.post('/credits', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeSupplierCreditPayload(req.body);
 
   if (!payload.items || payload.items.length === 0) {
@@ -321,99 +353,103 @@ router.post('/credits', authenticate, (req, res) => {
   const total = subtotal + iva;
 
   try {
-    const result = run(`
-      INSERT INTO supplier_credits (supplier_id, credit_note_number, reference_invoice, invoice_date, subtotal, iva, total, notes, user_id, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
-    `, [
-      payload.supplier_id,
-      toNullableString(payload.credit_note_number),
-      toNullableString(payload.reference_invoice),
-      toNullableString(payload.invoice_date),
-      subtotal,
-      iva,
-      total,
-      toNullableString(payload.notes),
-      req.user.id
-    ]);
+    const credit = await db.transaction(async (tx) => {
+      const result = await tx.run(`
+        INSERT INTO supplier_credits (supplier_id, credit_note_number, reference_invoice, invoice_date, subtotal, iva, total, notes, user_id, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
+      `, [
+        payload.supplier_id,
+        toNullableString(payload.credit_note_number),
+        toNullableString(payload.reference_invoice),
+        toNullableString(payload.invoice_date),
+        subtotal,
+        iva,
+        total,
+        toNullableString(payload.notes),
+        req.user.id
+      ]);
 
-    const credit_id = result.lastInsertRowid;
+      const credit_id = result.lastInsertRowid;
 
-    payload.items.forEach((item) => {
-      run(`
-        INSERT INTO supplier_credit_items (credit_id, product_id, product_name, product_code, quantity, unit_price, subtotal)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [credit_id, item.product_id || null, item.product_name, item.product_code, item.quantity, item.unit_price, item.quantity * item.unit_price]);
+      for (const item of payload.items) {
+        await tx.run(`
+          INSERT INTO supplier_credit_items (credit_id, product_id, product_name, product_code, quantity, unit_price, subtotal)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [credit_id, item.product_id || null, item.product_name, item.product_code, item.quantity, item.unit_price, item.quantity * item.unit_price]);
 
-      if (payload.update_stock && item.product_id) {
-        run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
+        if (payload.update_stock && item.product_id) {
+          await tx.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
+        }
       }
+
+      if (payload.supplier_id) {
+        let account = await tx.get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
+
+        if (account) {
+          account.balance -= total;
+          account.total_credits += total;
+          await tx.run(`
+            UPDATE supplier_account
+            SET balance = ?, total_credits = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE supplier_id = ?
+          `, [account.balance, account.total_credits, payload.supplier_id]);
+        } else {
+          account = { balance: -total, total_credits: total };
+          await tx.run(`
+            INSERT INTO supplier_account (supplier_id, balance, total_credits)
+            VALUES (?, ?, ?)
+          `, [payload.supplier_id, account.balance, account.total_credits]);
+        }
+
+        await tx.run(`
+          INSERT INTO supplier_account_movements (supplier_id, type, reference_id, reference_number, description, credit, balance)
+          VALUES (?, 'credit', ?, ?, ?, ?, ?)
+        `, [payload.supplier_id, credit_id, payload.credit_note_number, `NC - ${payload.credit_note_number}`, total, account.balance]);
+      }
+
+      return tx.get('SELECT * FROM supplier_credits WHERE id = ?', [credit_id]);
     });
 
-    if (payload.supplier_id) {
-      let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
-
-      if (account) {
-        account.balance -= total;
-        account.total_credits += total;
-        run(`
-          UPDATE supplier_account
-          SET balance = ?, total_credits = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE supplier_id = ?
-        `, [account.balance, account.total_credits, payload.supplier_id]);
-      } else {
-        account = { balance: -total, total_credits: total };
-        run(`
-          INSERT INTO supplier_account (supplier_id, balance, total_credits)
-          VALUES (?, ?, ?)
-        `, [payload.supplier_id, account.balance, account.total_credits]);
-      }
-
-      run(`
-        INSERT INTO supplier_account_movements (supplier_id, type, reference_id, reference_number, description, credit, balance)
-        VALUES (?, 'credit', ?, ?, ?, ?, ?)
-      `, [payload.supplier_id, credit_id, payload.credit_note_number, `NC - ${payload.credit_note_number}`, total, account.balance]);
-    }
-
-    saveDatabase();
-
-    const credit = get('SELECT * FROM supplier_credits WHERE id = ?', [credit_id]);
+    await db.save();
     res.status(201).json(credit);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.delete('/credits/:id', authenticate, (req, res) => {
+router.delete('/credits/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   try {
-    const credit = get('SELECT id, supplier_id FROM supplier_credits WHERE id = ?', [req.params.id]);
+    const credit = await db.get('SELECT id, supplier_id FROM supplier_credits WHERE id = ?', [req.params.id]);
     if (!credit) {
       return res.status(404).json({ error: 'NC no encontrada' });
     }
 
-    transaction(() => {
-      const items = all('SELECT * FROM supplier_credit_items WHERE credit_id = ?', [req.params.id]);
+    await db.transaction(async (tx) => {
+      const items = await tx.all('SELECT * FROM supplier_credit_items WHERE credit_id = ?', [req.params.id]);
 
-      items.forEach(item => {
+      for (const item of items) {
         if (item.product_id) {
-          run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+          await tx.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
         }
-      });
+      }
 
-      run("DELETE FROM supplier_account_movements WHERE type = 'credit' AND reference_id = ?", [req.params.id]);
-      run('DELETE FROM supplier_credit_items WHERE credit_id = ?', [req.params.id]);
-      run('DELETE FROM supplier_credits WHERE id = ?', [req.params.id]);
-      recalculateSupplierAccount(credit.supplier_id);
-    })();
+      await tx.run("DELETE FROM supplier_account_movements WHERE type = 'credit' AND reference_id = ?", [req.params.id]);
+      await tx.run('DELETE FROM supplier_credit_items WHERE credit_id = ?', [req.params.id]);
+      await tx.run('DELETE FROM supplier_credits WHERE id = ?', [req.params.id]);
+      await recalculateSupplierAccount(tx, credit.supplier_id);
+    });
 
-    saveDatabase();
+    await db.save();
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message || 'No se pudo eliminar la NC' });
   }
 });
 
-router.get('/supplier-account', authenticate, (req, res) => {
-  const suppliers = all(`
+router.get('/supplier-account', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const suppliers = (await db.all(`
     SELECT s.*,
       COALESCE(acc.balance, 0) as balance,
       COALESCE(acc.total_purchases, 0) as total_purchases,
@@ -422,12 +458,13 @@ router.get('/supplier-account', authenticate, (req, res) => {
     FROM suppliers s
     LEFT JOIN supplier_account acc ON s.id = acc.supplier_id
     ORDER BY s.name
-  `).map((supplier) => sanitizeSupplier(supplier));
+  `)).map((supplier) => sanitizeSupplier(supplier));
   res.json(suppliers);
 });
 
-router.get('/supplier-account/:id', authenticate, (req, res) => {
-  const supplier = get(`
+router.get('/supplier-account/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const supplier = await db.get(`
     SELECT s.*,
       COALESCE(acc.balance, 0) as balance,
       COALESCE(acc.total_purchases, 0) as total_purchases,
@@ -440,7 +477,7 @@ router.get('/supplier-account/:id', authenticate, (req, res) => {
 
   if (!supplier) return res.status(404).json({ error: 'Proveedor no encontrado' });
 
-  const movements = all(`
+  const movements = await db.all(`
     SELECT * FROM supplier_account_movements
     WHERE supplier_id = ?
     ORDER BY created_at DESC
@@ -449,7 +486,8 @@ router.get('/supplier-account/:id', authenticate, (req, res) => {
   res.json({ supplier: sanitizeSupplier(supplier), movements });
 });
 
-router.post('/supplier-payments', authenticate, (req, res) => {
+router.post('/supplier-payments', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeSupplierPaymentPayload(req.body);
 
   if (!payload.supplier_id || !payload.amount) {
@@ -457,50 +495,54 @@ router.post('/supplier-payments', authenticate, (req, res) => {
   }
 
   try {
-    run(`
-      INSERT INTO supplier_payments (supplier_id, amount, payment_method, reference, notes, user_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, [
-      payload.supplier_id,
-      payload.amount,
-      payload.payment_method,
-      toNullableString(payload.reference),
-      toNullableString(payload.notes),
-      req.user.id
-    ]);
+    const balance = await db.transaction(async (tx) => {
+      await tx.run(`
+        INSERT INTO supplier_payments (supplier_id, amount, payment_method, reference, notes, user_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        payload.supplier_id,
+        payload.amount,
+        payload.payment_method,
+        toNullableString(payload.reference),
+        toNullableString(payload.notes),
+        req.user.id
+      ]);
 
-    let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
+      let account = await tx.get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
 
-    if (account) {
-      account.balance -= payload.amount;
-      account.total_payments += payload.amount;
-      run(`
-        UPDATE supplier_account
-        SET balance = ?, total_payments = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE supplier_id = ?
-      `, [account.balance, account.total_payments, payload.supplier_id]);
-    } else {
-      account = { balance: -payload.amount, total_payments: payload.amount };
-      run(`
-        INSERT INTO supplier_account (supplier_id, balance, total_payments)
-        VALUES (?, ?, ?)
-      `, [payload.supplier_id, account.balance, account.total_payments]);
-    }
+      if (account) {
+        account.balance -= payload.amount;
+        account.total_payments += payload.amount;
+        await tx.run(`
+          UPDATE supplier_account
+          SET balance = ?, total_payments = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE supplier_id = ?
+        `, [account.balance, account.total_payments, payload.supplier_id]);
+      } else {
+        account = { balance: -payload.amount, total_payments: payload.amount };
+        await tx.run(`
+          INSERT INTO supplier_account (supplier_id, balance, total_payments)
+          VALUES (?, ?, ?)
+        `, [payload.supplier_id, account.balance, account.total_payments]);
+      }
 
-    run(`
-      INSERT INTO supplier_account_movements (supplier_id, type, reference_id, description, credit, balance)
-      VALUES (?, 'payment', ?, ?, ?, ?)
-    `, [payload.supplier_id, null, `Pago - ${payload.reference || ''}`, payload.amount, account.balance]);
+      await tx.run(`
+        INSERT INTO supplier_account_movements (supplier_id, type, reference_id, description, credit, balance)
+        VALUES (?, 'payment', ?, ?, ?, ?)
+      `, [payload.supplier_id, null, `Pago - ${payload.reference || ''}`, payload.amount, account.balance]);
 
-    saveDatabase();
+      return account.balance;
+    });
 
-    res.status(201).json({ success: true, balance: account.balance });
+    await db.save();
+    res.status(201).json({ success: true, balance });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.get('/payments', authenticate, (req, res) => {
+router.get('/payments', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const supplier = String(req.query.supplier || '').trim();
   const date_from = String(req.query.date_from || '').trim();
   const date_to = String(req.query.date_to || '').trim();
@@ -530,11 +572,12 @@ router.get('/payments', authenticate, (req, res) => {
 
   query += ' ORDER BY p.created_at DESC';
 
-  const payments = all(query, params);
+  const payments = await db.all(query, params);
   res.json(payments);
 });
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const supplier = String(req.query.supplier || '').trim();
   const date_from = String(req.query.date_from || '').trim();
   const date_to = String(req.query.date_to || '').trim();
@@ -570,11 +613,12 @@ router.get('/', authenticate, (req, res) => {
 
   query += ' ORDER BY p.created_at DESC';
 
-  const purchases = all(query, params).map(normalizePurchaseTotals);
+  const purchases = (await db.all(query, params)).map(normalizePurchaseTotals);
   res.json(purchases);
 });
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizePurchasePayload(req.body);
 
   if (!payload.items || payload.items.length === 0) {
@@ -591,73 +635,76 @@ router.post('/', authenticate, (req, res) => {
   const total = subtotal + iva;
 
   try {
-    const result = run(`
-      INSERT INTO purchases (supplier_id, invoice_type, invoice_number, invoice_date, subtotal, iva, total, notes, user_id, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
-    `, [
-      payload.supplier_id,
-      normalizedInvoiceType,
-      toNullableString(payload.invoice_number),
-      toNullableString(payload.invoice_date),
-      subtotal,
-      iva,
-      total,
-      toNullableString(payload.notes),
-      req.user.id
-    ]);
+    const purchase = await db.transaction(async (tx) => {
+      const result = await tx.run(`
+        INSERT INTO purchases (supplier_id, invoice_type, invoice_number, invoice_date, subtotal, iva, total, notes, user_id, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')
+      `, [
+        payload.supplier_id,
+        normalizedInvoiceType,
+        toNullableString(payload.invoice_number),
+        toNullableString(payload.invoice_date),
+        subtotal,
+        iva,
+        total,
+        toNullableString(payload.notes),
+        req.user.id
+      ]);
 
-    const purchase_id = result.lastInsertRowid;
+      const purchase_id = result.lastInsertRowid;
 
-    payload.items.forEach((item) => {
-      run(`
-        INSERT INTO purchase_items (purchase_id, product_id, product_name, product_code, quantity, unit_cost, subtotal)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [purchase_id, item.product_id || null, item.product_name, item.product_code, item.quantity, item.unit_cost, item.quantity * item.unit_cost]);
+      for (const item of payload.items) {
+        await tx.run(`
+          INSERT INTO purchase_items (purchase_id, product_id, product_name, product_code, quantity, unit_cost, subtotal)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [purchase_id, item.product_id || null, item.product_name, item.product_code, item.quantity, item.unit_cost, item.quantity * item.unit_cost]);
 
-      if (item.product_id) {
-        const current = get('SELECT stock FROM products WHERE id = ?', [item.product_id]);
-        if (current) {
-          run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+        if (item.product_id) {
+          const current = await tx.get('SELECT stock FROM products WHERE id = ?', [item.product_id]);
+          if (current) {
+            await tx.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+          }
         }
       }
-    });
 
-    if (payload.supplier_id) {
-      let account = get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
+      if (payload.supplier_id) {
+        let account = await tx.get('SELECT * FROM supplier_account WHERE supplier_id = ?', [payload.supplier_id]);
 
-      if (account) {
-        account.balance += total;
-        account.total_purchases += total;
-        run(`
-          UPDATE supplier_account
-          SET balance = ?, total_purchases = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE supplier_id = ?
-        `, [account.balance, account.total_purchases, payload.supplier_id]);
-      } else {
-        account = { balance: total, total_purchases: total };
-        run(`
-          INSERT INTO supplier_account (supplier_id, balance, total_purchases)
-          VALUES (?, ?, ?)
-        `, [payload.supplier_id, account.balance, account.total_purchases]);
+        if (account) {
+          account.balance += total;
+          account.total_purchases += total;
+          await tx.run(`
+            UPDATE supplier_account
+            SET balance = ?, total_purchases = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE supplier_id = ?
+          `, [account.balance, account.total_purchases, payload.supplier_id]);
+        } else {
+          account = { balance: total, total_purchases: total };
+          await tx.run(`
+            INSERT INTO supplier_account (supplier_id, balance, total_purchases)
+            VALUES (?, ?, ?)
+          `, [payload.supplier_id, account.balance, account.total_purchases]);
+        }
+
+        await tx.run(`
+          INSERT INTO supplier_account_movements (supplier_id, type, reference_id, reference_number, description, debit, balance)
+          VALUES (?, 'purchase', ?, ?, ?, ?, ?)
+        `, [payload.supplier_id, purchase_id, payload.invoice_number, `${normalizedInvoiceType} - ${payload.invoice_number || ''}`, total, account.balance]);
       }
 
-      run(`
-        INSERT INTO supplier_account_movements (supplier_id, type, reference_id, reference_number, description, debit, balance)
-        VALUES (?, 'purchase', ?, ?, ?, ?, ?)
-      `, [payload.supplier_id, purchase_id, payload.invoice_number, `${normalizedInvoiceType} - ${payload.invoice_number || ''}`, total, account.balance]);
-    }
+      return tx.get('SELECT * FROM purchases WHERE id = ?', [purchase_id]);
+    });
 
-    saveDatabase();
-
-    const purchase = get('SELECT * FROM purchases WHERE id = ?', [purchase_id]);
+    await db.save();
     res.status(201).json(purchase);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.get('/:id', authenticate, (req, res) => {
-  const purchase = normalizePurchaseTotals(get(`
+router.get('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const purchase = normalizePurchaseTotals(await db.get(`
     SELECT p.*, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.tax_id as supplier_tax_id
     FROM purchases p
     LEFT JOIN suppliers s ON p.supplier_id = s.id
@@ -666,42 +713,43 @@ router.get('/:id', authenticate, (req, res) => {
 
   if (!purchase) return res.status(404).json({ error: 'Compra no encontrada' });
 
-  const items = all('SELECT * FROM purchase_items WHERE purchase_id = ?', [req.params.id]);
+  const items = await db.all('SELECT * FROM purchase_items WHERE purchase_id = ?', [req.params.id]);
   purchase.items = items;
 
   res.json(purchase);
 });
 
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   try {
-    const purchase = get('SELECT id, supplier_id FROM purchases WHERE id = ?', [req.params.id]);
+    const purchase = await db.get('SELECT id, supplier_id FROM purchases WHERE id = ?', [req.params.id]);
     if (!purchase) {
       return res.status(404).json({ error: 'Compra no encontrada' });
     }
 
-    transaction(() => {
-      const items = all('SELECT * FROM purchase_items WHERE purchase_id = ?', [req.params.id]);
+    await db.transaction(async (tx) => {
+      const items = await tx.all('SELECT * FROM purchase_items WHERE purchase_id = ?', [req.params.id]);
 
-      items.forEach(item => {
+      for (const item of items) {
         if (item.product_id) {
-          const product = get('SELECT id, name, stock FROM products WHERE id = ?', [item.product_id]);
+          const product = await tx.get('SELECT id, name, stock FROM products WHERE id = ?', [item.product_id]);
           if (!product) {
-            return;
+            continue;
           }
           if (product.stock < item.quantity) {
             throw new Error(`No hay stock suficiente para revertir ${product.name}`);
           }
-          run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
+          await tx.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
         }
-      });
+      }
 
-      run("DELETE FROM supplier_account_movements WHERE type = 'purchase' AND reference_id = ?", [req.params.id]);
-      run('DELETE FROM purchase_items WHERE purchase_id = ?', [req.params.id]);
-      run('DELETE FROM purchases WHERE id = ?', [req.params.id]);
-      recalculateSupplierAccount(purchase.supplier_id);
-    })();
+      await tx.run("DELETE FROM supplier_account_movements WHERE type = 'purchase' AND reference_id = ?", [req.params.id]);
+      await tx.run('DELETE FROM purchase_items WHERE purchase_id = ?', [req.params.id]);
+      await tx.run('DELETE FROM purchases WHERE id = ?', [req.params.id]);
+      await recalculateSupplierAccount(tx, purchase.supplier_id);
+    });
 
-    saveDatabase();
+    await db.save();
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message || 'No se pudo eliminar la compra' });

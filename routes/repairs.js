@@ -22,6 +22,24 @@ const STATUS_LABELS = {
   delivered: 'Entregado'
 };
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => saveDatabase()
+  };
+}
+
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
   return String(value).trim();
@@ -101,7 +119,8 @@ function generateTicketNumber() {
   return 'TF-' + year + month + '-' + random;
 }
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const status = String(req.query.status || '').trim();
   const search = String(req.query.search || '').trim();
 
@@ -125,24 +144,33 @@ router.get('/', authenticate, (req, res) => {
 
   query += ' ORDER BY r.created_at DESC';
 
-  const repairs = all(query, params).map((repair) => sanitizeRepair(repair));
+  const repairs = (await db.all(query, params)).map((repair) => sanitizeRepair(repair));
   res.json(repairs);
 });
 
-router.get('/stats', authenticate, (req, res) => {
+router.get('/stats', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const received = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'received'");
+  const diagnosing = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'diagnosing'");
+  const waitingParts = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'waiting_parts'");
+  const repairing = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'repairing'");
+  const ready = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'ready'");
+  const delivered = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'delivered'");
+
   const stats = {
-    received: Number(get("SELECT COUNT(*) as count FROM repairs WHERE status = 'received'").count || 0),
-    diagnosing: Number(get("SELECT COUNT(*) as count FROM repairs WHERE status = 'diagnosing'").count || 0),
-    waiting_parts: Number(get("SELECT COUNT(*) as count FROM repairs WHERE status = 'waiting_parts'").count || 0),
-    repairing: Number(get("SELECT COUNT(*) as count FROM repairs WHERE status = 'repairing'").count || 0),
-    ready: Number(get("SELECT COUNT(*) as count FROM repairs WHERE status = 'ready'").count || 0),
-    delivered: Number(get("SELECT COUNT(*) as count FROM repairs WHERE status = 'delivered'").count || 0)
+    received: Number((received && received.count) || 0),
+    diagnosing: Number((diagnosing && diagnosing.count) || 0),
+    waiting_parts: Number((waitingParts && waitingParts.count) || 0),
+    repairing: Number((repairing && repairing.count) || 0),
+    ready: Number((ready && ready.count) || 0),
+    delivered: Number((delivered && delivered.count) || 0)
   };
   res.json(stats);
 });
 
-router.get('/ticket/:ticketNumber', authenticate, (req, res) => {
-  const repair = get(`
+router.get('/ticket/:ticketNumber', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const repair = await db.get(`
     SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
     FROM repairs r
     LEFT JOIN customers c ON r.customer_id = c.id
@@ -151,15 +179,16 @@ router.get('/ticket/:ticketNumber', authenticate, (req, res) => {
 
   if (!repair) return res.status(404).json({ error: 'Repair not found' });
 
-  const logs = all(`
+  const logs = (await db.all(`
     SELECT * FROM repair_logs WHERE repair_id = ? ORDER BY created_at ASC
-  `, [repair.id]).map((log) => sanitizeRepairLog(log));
+  `, [repair.id])).map((log) => sanitizeRepairLog(log));
 
   res.json(sanitizeRepair(repair, logs));
 });
 
-router.get('/:id', authenticate, (req, res) => {
-  const repair = get(`
+router.get('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const repair = await db.get(`
     SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, c.address as customer_address
     FROM repairs r
     LEFT JOIN customers c ON r.customer_id = c.id
@@ -168,14 +197,15 @@ router.get('/:id', authenticate, (req, res) => {
 
   if (!repair) return res.status(404).json({ error: 'Repair not found' });
 
-  const logs = all(`
+  const logs = (await db.all(`
     SELECT * FROM repair_logs WHERE repair_id = ? ORDER BY created_at ASC
-  `, [req.params.id]).map((log) => sanitizeRepairLog(log));
+  `, [req.params.id])).map((log) => sanitizeRepairLog(log));
 
   res.json(sanitizeRepair(repair, logs));
 });
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeRepairPayload(req.body);
 
   if (!payload.customer_id || !payload.device_type || !payload.problem_description) {
@@ -184,7 +214,7 @@ router.post('/', authenticate, (req, res) => {
 
   const ticket_number = generateTicketNumber();
 
-  const result = run(`
+  const result = await db.run(`
     INSERT INTO repairs (
       ticket_number, customer_id, device_type, brand, model, serial_number, imei,
       password, pattern, problem_description, accessories, estimated_price, status
@@ -207,20 +237,21 @@ router.post('/', authenticate, (req, res) => {
 
   const repairId = result.lastInsertRowid;
 
-  run(`
+  await db.run(`
     INSERT INTO repair_logs (repair_id, status, notes)
     VALUES (?, 'received', 'Dispositivo recibido')
   `, [repairId]);
 
-  const repair = get('SELECT * FROM repairs WHERE id = ?', [repairId]);
-  saveDatabase();
+  const repair = await db.get('SELECT * FROM repairs WHERE id = ?', [repairId]);
+  await db.save();
   res.status(201).json(sanitizeRepair(repair));
 });
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeRepairPayload(req.body);
 
-  run(`
+  await db.run(`
     UPDATE repairs
     SET device_type = ?, brand = ?, model = ?, serial_number = ?, imei = ?,
         password = ?, pattern = ?,
@@ -243,12 +274,13 @@ router.put('/:id', authenticate, (req, res) => {
     req.params.id
   ]);
 
-  const repair = get('SELECT * FROM repairs WHERE id = ?', [req.params.id]);
-  saveDatabase();
+  const repair = await db.get('SELECT * FROM repairs WHERE id = ?', [req.params.id]);
+  await db.save();
   res.json(sanitizeRepair(repair));
 });
 
-router.put('/:id/status', authenticate, (req, res) => {
+router.put('/:id/status', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const status = String((req.body || {}).status || '').trim();
   const notes = toNullableString((req.body || {}).notes);
 
@@ -256,29 +288,30 @@ router.put('/:id/status', authenticate, (req, res) => {
     return res.status(400).json({ error: 'Invalid status' });
   }
 
-  const repair = get('SELECT * FROM repairs WHERE id = ?', [req.params.id]);
+  const repair = await db.get('SELECT * FROM repairs WHERE id = ?', [req.params.id]);
   if (!repair) return res.status(404).json({ error: 'Repair not found' });
 
   const delivery_date = status === 'delivered' ? new Date().toISOString() : null;
 
-  run(`
+  await db.run(`
     UPDATE repairs SET status = ?, delivery_date = ? WHERE id = ?
   `, [status, delivery_date, req.params.id]);
 
-  run(`
+  await db.run(`
     INSERT INTO repair_logs (repair_id, status, notes)
     VALUES (?, ?, ?)
   `, [req.params.id, status, notes || STATUS_LABELS[status]]);
 
-  const updatedRepair = get('SELECT * FROM repairs WHERE id = ?', [req.params.id]);
-  saveDatabase();
+  const updatedRepair = await db.get('SELECT * FROM repairs WHERE id = ?', [req.params.id]);
+  await db.save();
   res.json(sanitizeRepair(updatedRepair));
 });
 
-router.delete('/:id', authenticate, (req, res) => {
-  run('DELETE FROM repair_logs WHERE repair_id = ?', [req.params.id]);
-  run('DELETE FROM repairs WHERE id = ?', [req.params.id]);
-  saveDatabase();
+router.delete('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  await db.run('DELETE FROM repair_logs WHERE repair_id = ?', [req.params.id]);
+  await db.run('DELETE FROM repairs WHERE id = ?', [req.params.id]);
+  await db.save();
   res.json({ success: true });
 });
 

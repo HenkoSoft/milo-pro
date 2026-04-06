@@ -4,6 +4,24 @@ const { authenticate } = require('../auth');
 
 const router = express.Router();
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => saveDatabase()
+  };
+}
+
 function toNull(value) {
   return value === undefined || value === null || value === '' ? null : String(value).trim();
 }
@@ -63,7 +81,8 @@ function buildCustomerParams(payload, { allowEmptyName = false } = {}) {
   ];
 }
 
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const search = String(req.query.search || '').trim();
 
   let query = 'SELECT * FROM customers WHERE 1=1';
@@ -76,15 +95,16 @@ router.get('/', authenticate, (req, res) => {
 
   query += ' ORDER BY created_at DESC';
 
-  const customers = all(query, params);
+  const customers = await db.all(query, params);
   res.json(customers);
 });
 
-router.get('/:id', authenticate, (req, res) => {
-  const customer = get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+router.get('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-  const sales = all(`
+  const sales = await db.all(`
     SELECT s.*, u.name as user_name
     FROM sales s
     LEFT JOIN users u ON s.user_id = u.id
@@ -93,7 +113,7 @@ router.get('/:id', authenticate, (req, res) => {
     LIMIT 10
   `, [req.params.id]);
 
-  const repairs = all(`
+  const repairs = await db.all(`
     SELECT * FROM repairs
     WHERE customer_id = ?
     ORDER BY created_at DESC
@@ -103,12 +123,13 @@ router.get('/:id', authenticate, (req, res) => {
   res.json({ ...customer, sales, repairs });
 });
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeCustomerPayload(req.body);
 
   if (!payload.name) return res.status(400).json({ error: 'Name is required' });
 
-  const result = run(`
+  const result = await db.run(`
     INSERT INTO customers (
       name, phone, email, address, contact, city, province, country, tax_id,
       iva_condition, instagram, transport, credit_limit, zone, discount_percent,
@@ -117,15 +138,16 @@ router.post('/', authenticate, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, buildCustomerParams(payload));
 
-  const customer = get('SELECT * FROM customers WHERE id = ?', [result.lastInsertRowid]);
-  saveDatabase();
+  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [result.lastInsertRowid]);
+  await db.save();
   res.status(201).json(customer);
 });
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
   const payload = normalizeCustomerPayload(req.body);
 
-  run(`
+  await db.run(`
     UPDATE customers SET
       name = ?, phone = ?, email = ?, address = ?, contact = ?, city = ?, province = ?, country = ?,
       tax_id = ?, iva_condition = ?, instagram = ?, transport = ?, credit_limit = ?, zone = ?,
@@ -136,14 +158,15 @@ router.put('/:id', authenticate, (req, res) => {
     req.params.id
   ]);
 
-  const customer = get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
-  saveDatabase();
+  const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+  await db.save();
   res.json(customer);
 });
 
-router.delete('/:id', authenticate, (req, res) => {
-  run('DELETE FROM customers WHERE id = ?', [req.params.id]);
-  saveDatabase();
+router.delete('/:id', authenticate, async (req, res) => {
+  const db = getDatabaseAccess(req);
+  await db.run('DELETE FROM customers WHERE id = ?', [req.params.id]);
+  await db.save();
   res.json({ success: true });
 });
 

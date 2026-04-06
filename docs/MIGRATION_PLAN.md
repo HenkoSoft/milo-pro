@@ -31,6 +31,8 @@ Estado alcanzado:
 - `npm start` y `npm run dev:backend*` ya usan el backend compilado desde TypeScript
 - `shared/types` centraliza contratos compartidos
 - WooCommerce conserva runtime JS estable, pero con amplia cobertura de helpers tipados y modularizacion por rutas/servicios
+- `backend/src/db` prepara una capa tipada para migrar la persistencia desde SQLite hacia PostgreSQL por etapas
+- `backend/src/db/runtime.ts` centraliza el arranque actual y bloquea la activacion prematura de PostgreSQL con un error explicito
 
 Criterios de aceptacion cumplidos:
 
@@ -48,6 +50,7 @@ Validacion realizada:
 - `npm run typecheck:frontend`
 - `npm run check:syntax`
 - `npm test`
+- `npm run validate`
 - smoke start del runtime compilado en `backend/dist/server.js`
 
 ## Estado consolidado de WooCommerce
@@ -68,6 +71,35 @@ WooCommerce hoy queda repartido asi:
 - `backend/src/services/woocommerce-sync-utils.ts`
 - `backend/src/services/woocommerce-request.ts`
 
+## Hoja de ruta PostgreSQL
+
+Fase PG-1:
+
+- definir capa comun en `backend/src/db`
+- mantener SQLite como default
+- preparar config y adapters tipados
+
+Fase PG-2:
+
+- centralizar el arranque del backend en la nueva capa de DB
+- exponer el dialecto activo desde `/api/health`
+- bloquear la activacion prematura de PostgreSQL mientras el runtime aun dependa de `database.js`
+
+Fase PG-3:
+
+- mover el runtime a consumir la abstraccion comun en lugar de depender directo de `database.js`
+- adaptar placeholders, transacciones y semantica de inserts para PostgreSQL
+
+Fase PG-4:
+
+- portar schema y datos a PostgreSQL
+- validar auth, products, repairs, sales, purchases y WooCommerce sobre PostgreSQL
+
+Fase PG-5:
+
+- habilitar PostgreSQL por configuracion en entornos reales
+- dejar SQLite solo como fallback o fixture local si sigue teniendo sentido
+
 ## Que queda despues de la migracion
 
 Lo que sigue desde este punto ya no es “terminar la migracion”, sino mejora incremental:
@@ -76,3 +108,5 @@ Lo que sigue desde este punto ya no es “terminar la migracion”, sino mejora incr
 - ampliar tests fuera de Woo
 - decidir cuando retirar definitivamente el fallback legacy
 - seguir reduciendo deuda tecnica interna
+- avanzar con la hoja de ruta PostgreSQL hasta que el runtime deje de depender de `database.js`
+

@@ -1,15 +1,29 @@
+function getDatabaseAccess(req, deps) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => deps.get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => deps.all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => deps.run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => deps.saveDatabase()
+  };
+}
+
 function registerWooProductRoutes(router, deps) {
   const {
     authenticate,
-    all,
-    get,
     getActiveWooConfig,
     getProductById,
     findWooProductBySku,
     hydrateWooProductForImport,
     parseWooBoolean,
-    run,
-    saveDatabase,
     sanitizeWooProductSyncLog,
     syncProductSnapshotToWooCommerce,
     unlinkWooProductFromLocal,
@@ -18,6 +32,7 @@ function registerWooProductRoutes(router, deps) {
   } = deps;
 
   router.post('/sync', authenticate, async (req, res) => {
+    const db = getDatabaseAccess(req, deps);
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Transfer-Encoding', 'chunked');
 
@@ -26,7 +41,7 @@ function registerWooProductRoutes(router, deps) {
     };
 
     try {
-      const config = get('SELECT * FROM woocommerce_sync WHERE id = 1');
+      const config = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
       if (!config || !config.store_url) {
         sendProgress({ error: 'WooCommerce not configured', done: true });
         return res.end();
@@ -48,7 +63,7 @@ function registerWooProductRoutes(router, deps) {
       }
 
       if (isExport) {
-        const localProducts = all('SELECT * FROM products');
+        const localProducts = await db.all('SELECT * FROM products');
         sendProgress({ status: 'Exportando cambios a WooCommerce...', progress: 0 });
 
         for (let i = 0; i < localProducts.length; i += 1) {
@@ -107,8 +122,8 @@ function registerWooProductRoutes(router, deps) {
         }
       }
 
-      run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
-      saveDatabase();
+      await db.run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
+      await db.save();
       sendProgress({ status: 'Sincronizacion completada', progress: 100, results, done: true });
       res.end();
     } catch (err) {
@@ -139,6 +154,7 @@ function registerWooProductRoutes(router, deps) {
   });
 
   router.post('/reconcile-product/:id', authenticate, async (req, res) => {
+    const db = getDatabaseAccess(req, deps);
     try {
       const product = getProductById(req.params.id);
       if (!product) {
@@ -156,21 +172,21 @@ function registerWooProductRoutes(router, deps) {
       }
 
       if (matchedWoo && matchedWoo.id) {
-        run(
+        await db.run(
           `UPDATE products
            SET woocommerce_id = ?, woocommerce_product_id = ?, sync_status = 'pending', updated_at = CURRENT_TIMESTAMP
            WHERE id = ?`,
           [matchedWoo.id, matchedWoo.id, product.id]
         );
-        saveDatabase();
+        await db.save();
       } else {
-        run(
+        await db.run(
           `UPDATE products
            SET woocommerce_id = NULL, woocommerce_product_id = NULL, sync_status = 'pending', updated_at = CURRENT_TIMESTAMP
            WHERE id = ?`,
           [product.id]
         );
-        saveDatabase();
+        await db.save();
       }
 
       const refreshed = getProductById(product.id);
@@ -193,6 +209,7 @@ function registerWooProductRoutes(router, deps) {
   });
 
   router.post('/retry-product-images/:id', authenticate, async (req, res) => {
+    const db = getDatabaseAccess(req, deps);
     try {
       const product = getProductById(req.params.id);
       if (!product) {
@@ -203,14 +220,14 @@ function registerWooProductRoutes(router, deps) {
         return res.status(400).json({ error: 'El producto no tiene imagenes para reintentar.' });
       }
 
-      run('UPDATE product_images SET woocommerce_media_id = NULL WHERE product_id = ?', [product.id]);
-      run(
+      await db.run('UPDATE product_images SET woocommerce_media_id = NULL WHERE product_id = ?', [product.id]);
+      await db.run(
         `UPDATE products
          SET sync_status = 'pending', updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [product.id]
       );
-      saveDatabase();
+      await db.save();
 
       const refreshed = getProductById(product.id);
       const result = await syncProductSnapshotToWooCommerce(refreshed, {
@@ -227,12 +244,14 @@ function registerWooProductRoutes(router, deps) {
     }
   });
 
-  router.get('/logs', authenticate, (req, res) => {
-    const logs = all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
+  router.get('/logs', authenticate, async (req, res) => {
+    const db = getDatabaseAccess(req, deps);
+    const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
     res.json(logs.map((log) => sanitizeWooProductSyncLog(log)));
   });
 
   router.post('/webhook', async (req, res) => {
+    const db = getDatabaseAccess(req, deps);
     res.status(200).json({ received: true });
 
     try {
@@ -241,8 +260,8 @@ function registerWooProductRoutes(router, deps) {
 
       if ((topic === 'product.updated' || topic === 'product.created') && product && product.id) {
         await upsertWooProductIntoLocal(product, 'webhook_import');
-        run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
-        saveDatabase();
+        await db.run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
+        await db.save();
         console.log('[WOO-WEBHOOK] Product imported from WooCommerce:', product.id);
         return;
       }
@@ -250,8 +269,8 @@ function registerWooProductRoutes(router, deps) {
       if (topic === 'product.deleted' && product && product.id) {
         const changed = unlinkWooProductFromLocal(product.id, 'webhook_delete');
         if (changed) {
-          run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
-          saveDatabase();
+          await db.run('UPDATE woocommerce_sync SET last_sync = CURRENT_TIMESTAMP WHERE id = 1');
+          await db.save();
         }
         console.log('[WOO-WEBHOOK] Product deleted in WooCommerce:', product.id);
       }

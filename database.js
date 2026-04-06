@@ -4,6 +4,12 @@ const path = require('path');
 const fs2 = require('fs');
 const { buildAutomaticProductSku } = require('./services/product-sku');
 
+const DATABASE_DIALECT = String(process.env.DATABASE_DIALECT || 'sqlite').trim().toLowerCase();
+
+if (DATABASE_DIALECT === 'postgres') {
+  throw new Error('database.js no soporta PostgreSQL todavia. Usa SQLite mientras el runtime termina de migrarse a backend/src/db.');
+}
+
 let db = null;
 const DATABASE_FILENAME = process.env.MILO_DB_FILENAME || 'milo-pro.db';
 const LEGACY_DATABASE_FILENAME = 'techfix.db';
@@ -1045,3 +1051,4 @@ function saveDatabase() {
 }
 
 module.exports = { initializeDatabase, run, get, all, transaction, saveDatabase };
+

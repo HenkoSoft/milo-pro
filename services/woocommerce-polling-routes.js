@@ -1,21 +1,35 @@
+function getDatabaseAccess(req, deps) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => deps.get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => deps.all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => deps.run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => deps.saveDatabase()
+  };
+}
+
 function registerWooPollingRoutes(router, deps) {
   const {
-    all,
     authenticate,
-    get,
     getWooPollingIntervalSeconds,
     isWooPollingActive,
-    run,
     sanitizeWooPollingResult,
     sanitizeWooPollingStatus,
-    saveDatabase,
     startWooPolling,
     stopWooPolling,
     woocommerceRequest
   } = deps;
 
-  router.post('/start-polling', authenticate, (req, res) => {
-    const result = sanitizeWooPollingResult(startWooPolling({ manual: true }));
+  router.post('/start-polling', authenticate, async (req, res) => {
+    const result = sanitizeWooPollingResult(await startWooPolling({ manual: true }));
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
@@ -41,13 +55,15 @@ function registerWooPollingRoutes(router, deps) {
       return res.status(403).json({ error: 'Solo el administrador puede ejecutar esta operacion' });
     }
 
+    const db = getDatabaseAccess(req, deps);
+
     try {
-      const config = get('SELECT * FROM woocommerce_sync WHERE id = 1');
+      const config = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
       if (!config || !config.store_url) {
         return res.status(400).json({ error: 'WooCommerce no configurado' });
       }
 
-      const productsWithWoo = all('SELECT id, woocommerce_id FROM products WHERE woocommerce_id IS NOT NULL');
+      const productsWithWoo = await db.all('SELECT id, woocommerce_id FROM products WHERE woocommerce_id IS NOT NULL');
       let cleaned = 0;
       let verified = 0;
 
@@ -57,16 +73,16 @@ function registerWooPollingRoutes(router, deps) {
           if (result && result.id) {
             verified += 1;
           } else {
-            run('UPDATE products SET woocommerce_id = NULL WHERE id = ?', [product.id]);
+            await db.run('UPDATE products SET woocommerce_id = NULL WHERE id = ?', [product.id]);
             cleaned += 1;
           }
         } catch (err) {
-          run('UPDATE products SET woocommerce_id = NULL WHERE id = ?', [product.id]);
+          await db.run('UPDATE products SET woocommerce_id = NULL WHERE id = ?', [product.id]);
           cleaned += 1;
         }
       }
 
-      saveDatabase();
+      await db.save();
       res.json({ success: true, message: `Limpieza completada: ${verified} verificados, ${cleaned} limpiados` });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -77,3 +93,4 @@ function registerWooPollingRoutes(router, deps) {
 module.exports = {
   registerWooPollingRoutes
 };
+

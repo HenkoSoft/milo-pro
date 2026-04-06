@@ -6,6 +6,24 @@ const { JWT_SECRET, authenticate, getBearerToken } = require('../auth');
 
 const router = express.Router();
 
+function getDatabaseAccess(req) {
+  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
+  return {
+    get: runtimeDb && typeof runtimeDb.get === 'function'
+      ? (sql, params = []) => runtimeDb.get(sql, params)
+      : async (sql, params = []) => get(sql, params),
+    all: runtimeDb && typeof runtimeDb.all === 'function'
+      ? (sql, params = []) => runtimeDb.all(sql, params)
+      : async (sql, params = []) => all(sql, params),
+    run: runtimeDb && typeof runtimeDb.run === 'function'
+      ? (sql, params = []) => runtimeDb.run(sql, params)
+      : async (sql, params = []) => run(sql, params),
+    save: runtimeDb && typeof runtimeDb.save === 'function'
+      ? () => runtimeDb.save()
+      : async () => saveDatabase()
+  };
+}
+
 function sanitizeAuthUser(user) {
   return {
     id: Number(user.id || 0),
@@ -33,9 +51,10 @@ function normalizeCreateUserRequest(body) {
   };
 }
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
+  const db = getDatabaseAccess(req);
   const { username, password } = normalizeLoginRequest(req.body);
-  const user = get('SELECT * FROM users WHERE username = ?', [username]);
+  const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
 
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: 'Invalid credentials' });
@@ -47,11 +66,12 @@ router.post('/login', (req, res) => {
   res.json({ token, user: safeUser });
 });
 
-router.post('/logout', (req, res) => {
+router.post('/logout', (_req, res) => {
   res.json({ success: true });
 });
 
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
+  const db = getDatabaseAccess(req);
   const token = getBearerToken(req.headers.authorization);
 
   if (!token) {
@@ -60,7 +80,7 @@ router.get('/me', (req, res) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = get('SELECT id, username, role, name FROM users WHERE id = ?', [decoded.id]);
+    const user = await db.get('SELECT id, username, role, name FROM users WHERE id = ?', [decoded.id]);
     res.json(sanitizeAuthUser(user || decoded));
   } catch (err) {
     console.log('Token verification error:', err.message);
@@ -68,19 +88,21 @@ router.get('/me', (req, res) => {
   }
 });
 
-router.get('/users', authenticate, (req, res) => {
+router.get('/users', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
-  const users = all('SELECT id, username, role, name, created_at FROM users').map((user) => ({
+  const db = getDatabaseAccess(req);
+  const users = (await db.all('SELECT id, username, role, name, created_at FROM users')).map((user) => ({
     ...sanitizeAuthUser(user),
     created_at: user.created_at
   }));
   res.json(users);
 });
 
-router.post('/users', authenticate, (req, res) => {
+router.post('/users', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
+  const db = getDatabaseAccess(req);
   const { username, password, role, name } = normalizeCreateUserRequest(req.body);
   if (!username || !password || !name) {
     return res.status(400).json({ error: 'Username, password and name are required' });
@@ -90,13 +112,13 @@ router.post('/users', authenticate, (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, 10);
 
     try {
-      const result = run('INSERT INTO users (username, password, role, name) VALUES (?, ?, ?, ?)', [username, hashedPassword, role, name]);
-      saveDatabase();
+      const result = await db.run('INSERT INTO users (username, password, role, name) VALUES (?, ?, ?, ?)', [username, hashedPassword, role, name]);
+      await db.save();
       res.json({ id: result.lastInsertRowid, username, role, name });
-    } catch (err) {
+    } catch (_err) {
       res.status(400).json({ error: 'Username already exists' });
     }
-  } catch (err) {
+  } catch (_err) {
     res.status(400).json({ error: 'User creation failed' });
   }
 });
