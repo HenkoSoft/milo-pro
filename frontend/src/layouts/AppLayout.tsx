@@ -25,7 +25,7 @@ type MenuGroup = {
   id: string;
   label: string;
   icon: string;
-  items: MenuItem[];
+  items: Array<MenuItem | MenuGroup>;
   adminOnly?: boolean;
 };
 
@@ -146,15 +146,15 @@ const navEntries: NavEntry[] = [
       label: 'Reportes',
       icon: '&#128200;',
       items: [
-        { id: 'reports', label: 'Dashboard', icon: '&#128202;', title: 'Dashboard de Reportes' },
+        { id: 'reports', label: 'Articulos', icon: '&#128230;', title: 'Articulos' },
         { id: 'reports-sales', label: 'Ventas', icon: '&#128176;', title: 'Reporte de Ventas' },
         { id: 'reports-purchases', label: 'Compras', icon: '&#128722;', title: 'Reporte de Compras' },
         { id: 'reports-customers', label: 'Clientes', icon: '&#128101;', title: 'Reporte de Clientes' },
         { id: 'reports-delivery-notes', label: 'Remitos', icon: '&#128203;', title: 'Reporte de Remitos' },
-        { id: 'reports-accounts', label: 'Ctas Ctes', icon: '&#128179;', title: 'Reporte de Cuentas Corrientes' },
-        { id: 'reports-ranking', label: 'Ranking de Productos', icon: '&#127942;', title: 'Ranking de Productos' },
+        { id: 'reports-accounts', label: 'Cuentas Corrientes', icon: '&#129534;', title: 'Reporte de Cuentas Corrientes' },
+        { id: 'reports-ranking', label: 'Ranking de Ventas', icon: '&#129351;', title: 'Ranking de Ventas' },
         { id: 'reports-cash', label: 'Caja', icon: '&#128181;', title: 'Reporte de Caja' },
-        { id: 'reports-excel', label: 'Excel', icon: '&#128190;', title: 'Exportacion Excel' }
+        { id: 'reports-excel', label: 'Reportes a Excel', icon: '&#128228;', title: 'Reportes a Excel' }
       ]
     }
   },
@@ -166,37 +166,33 @@ const navEntries: NavEntry[] = [
       icon: '&#9881;',
       adminOnly: true,
       items: [
-        { id: 'admin-users', label: 'Usuarios', icon: '&#128101;', title: 'Usuarios', adminOnly: true },
-        { id: 'admin-device-options', label: 'Tipos de equipos', icon: '&#128187;', title: 'Tipos de equipos', adminOnly: true },
-        { id: 'admin-categories', label: 'Rubros', icon: '&#128193;', title: 'Rubros', adminOnly: true },
-        { id: 'admin-integrations-woocommerce', label: 'WooCommerce', icon: '&#128722;', title: 'WooCommerce', adminOnly: true }
+        { id: 'admin-users', label: 'Modificar Usuarios', icon: '&#128100;', title: 'Modificar Usuarios', adminOnly: true },
+        { id: 'admin-users-connected', label: 'Usuarios Conectados', icon: '&#128274;', title: 'Usuarios Conectados', adminOnly: true },
+        { id: 'admin-aux-tables', label: 'Tablas Auxiliares', icon: '&#128218;', title: 'Tablas Auxiliares', adminOnly: true },
+        { id: 'admin-config-general', label: 'Datos Generales', icon: '&#127970;', title: 'Datos Generales', adminOnly: true },
+        { id: 'admin-config-documents', label: 'Configuracion de Comprobantes', icon: '&#129534;', title: 'Configuracion de Comprobantes', adminOnly: true },
+        { id: 'admin-config-mail', label: 'Mail', icon: '&#9993;', title: 'Mail', adminOnly: true },
+        {
+          id: 'admin-integrations-group',
+          label: 'Integraciones',
+          icon: '&#128279;',
+          adminOnly: true,
+          items: [
+            { id: 'admin-integrations-woocommerce', label: 'WooCommerce', icon: '&#128722;', title: 'WooCommerce', adminOnly: true }
+          ]
+        },
+        { id: 'admin-reset-data', label: 'Borrar datos iniciales', icon: '&#128465;', title: 'Borrar datos iniciales', adminOnly: true },
+        { id: 'admin-troubleshoot', label: 'Solucionar Problemas', icon: '&#128736;', title: 'Solucionar Problemas', adminOnly: true }
       ]
     }
   },
   {
-    type: 'group',
-    group: {
-      id: 'tools-group',
-      label: 'Herramientas',
-      icon: '&#128736;',
-      items: [
-        { id: 'tools-import', label: 'Importar datos', icon: '&#128228;', title: 'Importar datos' },
-        { id: 'tools-export', label: 'Exportar datos', icon: '&#128229;', title: 'Exportar datos' },
-        { id: 'tools-backup', label: 'Backups', icon: '&#128190;', title: 'Backups' }
-      ]
-    }
+    type: 'item',
+    item: { id: 'tools', label: 'Herramientas', icon: '&#128296;', title: 'Herramientas' }
   },
   {
-    type: 'group',
-    group: {
-      id: 'help-group',
-      label: 'Ayuda',
-      icon: '&#10067;',
-      items: [
-        { id: 'help-center', label: 'Centro de ayuda', icon: '&#128214;', title: 'Centro de ayuda' },
-        { id: 'help-shortcuts', label: 'Atajos', icon: '&#9000;', title: 'Atajos' }
-      ]
-    }
+    type: 'item',
+    item: { id: 'help', label: 'Ayuda', icon: '&#10067;', title: 'Ayuda' }
   }
 ];
 
@@ -209,14 +205,35 @@ for (const entry of navEntries) {
     continue;
   }
 
-  for (const item of entry.group.items) {
-    pageGroupMap.set(item.id, entry.group.id);
+  registerGroupPages(entry.group, entry.group.id);
+}
+
+function isMenuGroup(item: MenuItem | MenuGroup): item is MenuGroup {
+  return 'items' in item;
+}
+
+function registerGroupPages(group: MenuGroup, rootGroupId: string): void {
+  for (const item of group.items) {
+    if (isMenuGroup(item)) {
+      registerGroupPages(item, rootGroupId);
+      continue;
+    }
+
+    pageGroupMap.set(item.id, rootGroupId);
     pageTitleMap.set(item.id, item.title);
   }
 }
 
+pageTitleMap.set('tools-import', 'Herramientas');
+pageTitleMap.set('tools-export', 'Herramientas');
+pageTitleMap.set('tools-backup', 'Herramientas');
+pageTitleMap.set('help-center', 'Ayuda');
+pageTitleMap.set('help-shortcuts', 'Ayuda');
+
 function normalizePage(page: string) {
   if (page === 'settings') return 'admin-integrations-woocommerce';
+  if (page === 'tools') return 'tools-import';
+  if (page === 'help') return 'help-center';
   return page || 'dashboard';
 }
 
@@ -240,20 +257,20 @@ function PagePlaceholder({ pageId, title }: { pageId: string; title: string }) {
       <div className="card-header">
         <div>
           <h3>{title}</h3>
-          <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
-            Esta vista todavia no fue reconstruida con paridad 1:1 en React.
+          <p className="page-placeholder-copy">
+            Esta vista no esta disponible dentro del modulo actual.
           </p>
         </div>
       </div>
       <div className="alert alert-warning">
-        Mientras termina la migracion visual, esta pantalla debe seguir usandose desde el frontend legacy.
+        Usa una de las opciones principales del menu para continuar trabajando.
       </div>
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <a href={`/legacy-app#${pageId}`} className="btn btn-primary">
-          Abrir pantalla legacy
+      <div className="page-placeholder-actions">
+        <a href="#dashboard" className="btn btn-primary">
+          Ir a inicio
         </a>
-        <a href="/legacy-app" className="btn btn-secondary">
-          Abrir sistema legacy completo
+        <a href="#products" className="btn btn-secondary">
+          Ir a articulos
         </a>
       </div>
     </div>
@@ -309,8 +326,16 @@ function renderPage(pageId: string): ReactNode {
     return <ToolsPage pageId={pageId} />;
   }
 
+  if (pageId === 'tools') {
+    return <ToolsPage pageId="tools-import" />;
+  }
+
   if (pageId.startsWith('help-')) {
     return <HelpPage pageId={pageId} />;
+  }
+
+  if (pageId === 'help') {
+    return <HelpPage pageId="help-center" />;
   }
 
   const title = pageTitleMap.get(pageId) || 'Inicio';
@@ -319,6 +344,77 @@ function renderPage(pageId: string): ReactNode {
 
 function isAdminRole(role?: string) {
   return String(role || '').toLowerCase() === 'admin';
+}
+
+function renderGroupItem(
+  item: MenuItem | MenuGroup,
+  currentPage: string,
+  isAdmin: boolean,
+  openGroups: Record<string, boolean>,
+  toggleGroup: (groupId: string) => void,
+  navigateToPage: (pageId: string) => void
+): ReactNode {
+  if (isMenuGroup(item)) {
+    if (item.adminOnly && !isAdmin) {
+      return null;
+    }
+
+    const groupIsOpen = Boolean(openGroups[item.id]);
+
+    return (
+      <div key={item.id} className={`nav-group${groupIsOpen ? ' open' : ''}`} id={item.id}>
+        <div
+          className="nav-group-header"
+          role="button"
+          tabIndex={0}
+          onClick={() => toggleGroup(item.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              toggleGroup(item.id);
+            }
+          }}
+        >
+          <span className="nav-icon" dangerouslySetInnerHTML={{ __html: item.icon }} />
+          <span>{item.label}</span>
+          <span className="nav-arrow">&#9654;</span>
+        </div>
+        <div className="nav-group-items">
+          {item.items.map((child) =>
+            renderGroupItem(child, currentPage, isAdmin, openGroups, toggleGroup, navigateToPage)
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (item.adminOnly && !isAdmin) {
+    return null;
+  }
+
+  const isActive = currentPage === item.id;
+  const showWebOrdersBadge = item.id === 'sales-web-orders';
+
+  return (
+    <a
+      key={item.id}
+      href={`#${item.id}`}
+      className={`nav-item nav-group-item${isActive ? ' active' : ''}`}
+      data-page={item.id}
+      onClick={(event) => {
+        event.preventDefault();
+        navigateToPage(item.id);
+      }}
+    >
+      <span dangerouslySetInnerHTML={{ __html: item.icon }} />
+      <span>{item.label}</span>
+      {showWebOrdersBadge ? (
+        <span id="sales-web-orders-badge" className="nav-counter-badge" hidden>
+          0
+        </span>
+      ) : null}
+    </a>
+  );
 }
 
 export function AppLayout() {
@@ -434,50 +530,27 @@ export function AppLayout() {
                   <span className="nav-arrow">&#9654;</span>
                 </div>
                 <div className="nav-group-items">
-                  {entry.group.items.map((item) => {
-                    if (item.adminOnly && !isAdmin) {
-                      return null;
-                    }
-
-                    const isActive = currentPage === item.id;
-                    const showWebOrdersBadge = item.id === 'sales-web-orders';
-
-                    return (
-                      <a
-                        key={item.id}
-                        href={`#${item.id}`}
-                        className={`nav-item nav-group-item${isActive ? ' active' : ''}`}
-                        data-page={item.id}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          navigateToPage(item.id);
-                        }}
-                      >
-                        <span dangerouslySetInnerHTML={{ __html: item.icon }} />
-                        <span>{item.label}</span>
-                        {showWebOrdersBadge ? (
-                          <span id="sales-web-orders-badge" className="nav-counter-badge" hidden>
-                            0
-                          </span>
-                        ) : null}
-                      </a>
-                    );
-                  })}
+                  {entry.group.items.map((item) =>
+                    renderGroupItem(item, currentPage, isAdmin, openGroups, toggleGroup, navigateToPage)
+                  )}
                 </div>
               </div>
             );
           })}
-        </nav>
-        <div className="sidebar-footer">
-          <button
+          <a
+            href="#"
+            className="nav-item"
             id="logout-btn-sidebar"
-            type="button"
-            className="btn btn-secondary btn-block"
-            onClick={() => void logout()}
+            onClick={(event) => {
+              event.preventDefault();
+              void logout();
+            }}
           >
-            Salir
-          </button>
-        </div>
+            <span className="nav-icon">&#128682;</span>
+            <span>Salir</span>
+          </a>
+        </nav>
+        <div className="sidebar-footer" />
       </aside>
 
       <main className="main-content">
@@ -491,9 +564,9 @@ export function AppLayout() {
         <div id="page-content" className="page-content">
           {renderPage(currentPage)}
         </div>
-
-        <div id="modal-container" />
       </main>
+
+      <div id="modal-container" />
     </div>
   );
 }

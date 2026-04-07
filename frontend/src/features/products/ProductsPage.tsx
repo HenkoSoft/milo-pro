@@ -221,27 +221,6 @@ function printProductRows(title: string, rows: Array<{ code: string; name: strin
   popup.print();
 }
 
-function ProductLegacyPlaceholder({ pageId, title, subtitle }: { pageId: string; title: string; subtitle: string }) {
-  return (
-    <div className="products-document-stub card">
-      <div className="products-module-head">
-        <div>
-          <p className="products-module-kicker">Articulos</p>
-          <h2>{title}</h2>
-          <p>{subtitle}</p>
-        </div>
-      </div>
-      <div className="alert alert-warning">
-        Esta pantalla todavia no fue reconstruida dentro del modulo React.
-      </div>
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <a href={`#${pageId}`} className="btn btn-primary">Recargar pantalla</a>
-        <a href="#products" className="btn btn-secondary">Volver a planilla</a>
-      </div>
-    </div>
-  );
-}
-
 function ProductModuleTabs({ currentPage }: { currentPage: string }) {
   return (
     <div className="products-section-tabs" role="tablist" aria-label="Modulos de articulos">
@@ -340,7 +319,7 @@ function ProductPrintPanel({
         <div>
           <p className="products-module-kicker">Articulos</p>
           <h2>{title}</h2>
-          <p>Cargar articulos y preparar una planilla visual antes de abrir la impresion definitiva del sistema legacy.</p>
+          <p>Cargar articulos y preparar una planilla visual para la impresion definitiva dentro del mismo modulo.</p>
         </div>
       </div>
 
@@ -595,7 +574,7 @@ function PriceUpdatePanel({ products }: { products: Product[] }) {
       </div>
 
       <div className="alert alert-info">
-        Esta pantalla replica el calculo visual del legacy para referencia operativa. La aplicacion masiva de precios todavia debe seguir controlandose con cuidado hasta cerrar la paridad completa.
+        Esta pantalla replica el calculo visual del modulo para referencia operativa. La aplicacion masiva de precios sigue requiriendo control operativo antes de una actualizacion general.
       </div>
     </div>
   );
@@ -805,7 +784,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
         <div>
           <p className="products-module-kicker">Articulos</p>
           <h2>Salida de Mercaderia</h2>
-          <p>Preparar una salida con la misma estructura operativa visible del modulo legacy.</p>
+          <p>Preparar una salida con la misma estructura operativa visible del modulo.</p>
         </div>
       </div>
 
@@ -925,7 +904,7 @@ function StockQueryPanel({ products }: { products: Product[] }) {
         <div>
           <p className="products-module-kicker">Articulos</p>
           <h2>Consulta de Salidas</h2>
-          <p>Historial visual de salidas preparado para la misma lectura operativa del modulo legacy.</p>
+          <p>Historial visual de salidas preparado para la misma lectura operativa del modulo.</p>
         </div>
       </div>
 
@@ -1177,15 +1156,6 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
     );
   }
 
-  if (pageId !== 'products') {
-    return (
-      <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
-        <ProductLegacyPlaceholder pageId={pageId} title={moduleConfig.title} subtitle={moduleConfig.subtitle} />
-      </section>
-    );
-  }
-
   return (
     <section className="products-admin-content">
       <ProductModuleTabs currentPage={pageId} />
@@ -1297,7 +1267,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
 
       {isModalOpen ? (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '720px' }}>
+          <div className="modal modal-medium">
             <div className="modal-header">
               <div>
                 <h3>{selectedProduct ? 'Editar Articulo' : 'Nuevo Articulo'}</h3>

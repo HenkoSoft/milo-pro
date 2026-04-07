@@ -260,8 +260,8 @@ export function RepairsPage() {
 
       {isCreateModalOpen ? (
         <div className="modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
-          <div id="repair-modal" className="modal" style={{ maxWidth: '600px' }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div id="repair-modal" className="modal modal-narrow">
+            <div className="modal-header modal-header-tight">
               <h3>Nueva Reparacion</h3>
               <button className="modal-close" type="button" onClick={closeCreateModal}>&times;</button>
             </div>
@@ -346,14 +346,14 @@ export function RepairsPage() {
 
       {selectedRepairId ? (
         <div className="modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) closeDetailModal(); }}>
-          <div id="repair-detail-modal" className="modal" style={{ maxWidth: '600px' }}>
+          <div id="repair-detail-modal" className="modal modal-narrow">
             {repairDetailQuery.isLoading ? (
               <div className="modal-body">Cargando detalle...</div>
             ) : repairDetailQuery.isError || !repairDetailQuery.data ? (
               <div className="modal-body">{repairDetailQuery.error instanceof Error ? repairDetailQuery.error.message : 'No se pudo cargar el detalle.'}</div>
             ) : (
               <>
-                <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="modal-header modal-header-tight">
                   <h3>Detalle de Reparacion</h3>
                   <button className="modal-close" type="button" onClick={closeDetailModal}>&times;</button>
                 </div>
@@ -467,7 +467,7 @@ export function RepairsPage() {
                         <p>No hay historial</p>
                       )}
                     </div>
-                    {feedback ? <div className="alert alert-warning" style={{ marginTop: '16px' }}>{feedback}</div> : null}
+                    {feedback ? <div className="alert alert-warning repair-feedback-alert">{feedback}</div> : null}
                     <div className="modal-footer">
                       <button className="btn btn-secondary" type="button" onClick={closeDetailModal}>Cerrar</button>
                       <button className="btn btn-warning" type="button" onClick={() => void handleDeleteSelected()} disabled={deleteMutation.isPending}>Eliminar</button>

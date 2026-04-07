@@ -31,7 +31,7 @@ import type {
 } from '../../types/purchase';
 
 const PURCHASE_MODULES = [
-  { id: 'merchandise-entry', label: 'Ingreso de Mercaderia', title: 'Ingreso de Mercaderia', subtitle: 'Carga de compras con la misma estructura visible del sistema legacy.' },
+  { id: 'merchandise-entry', label: 'Ingreso de Mercaderia', title: 'Ingreso de Mercaderia', subtitle: 'Carga de compras con la misma estructura visible del sistema.' },
   { id: 'nc-proveedor', label: 'N/C Proveedor (Carga)', title: 'N/C Proveedor (Carga)', subtitle: 'Carga de notas de credito sobre proveedores con la misma estructura operativa del sistema.' },
   { id: 'purchase-query', label: 'Consulta de Compras', title: 'Consulta de Compras', subtitle: 'Consulta administrativa de compras y detalle del comprobante.' },
   { id: 'nc-query', label: 'Consulta de N/C', title: 'Consulta de N/C', subtitle: 'Consulta administrativa de notas de credito a proveedor.' },
@@ -155,21 +155,6 @@ function PurchasesModuleHeader({ title, subtitle }: { title: string; subtitle: s
   );
 }
 
-function PurchasesPlaceholder({ pageId, title, subtitle }: { pageId: string; title: string; subtitle: string }) {
-  return (
-    <div className="purchases-document-stub card">
-      <PurchasesModuleHeader title={title} subtitle={subtitle} />
-      <div className="alert alert-warning">
-        Esta pantalla todavia debe seguir usandose desde el frontend legacy para conservar paridad total.
-      </div>
-      <div className="purchases-placeholder-actions">
-        <a href={`/legacy-app#${pageId}`} className="btn btn-primary">Abrir pantalla legacy</a>
-        <a href="/legacy-app#merchandise-entry" className="btn btn-secondary">Abrir modulo compras legacy</a>
-      </div>
-    </div>
-  );
-}
-
 function PurchaseQueryPanel({
   purchases,
   search,
@@ -202,7 +187,7 @@ function PurchaseQueryPanel({
         <div className="purchases-query-toolbar">
           <div>
             <h2 className="purchases-title">Consulta de Compras</h2>
-            <p>Listado y detalle con la misma lectura administrativa del sistema legacy.</p>
+            <p>Listado y detalle con la misma lectura administrativa del sistema.</p>
           </div>
           <input
             value={search}
@@ -577,10 +562,10 @@ function CreditsQueryPanel({
   return (
     <div className="card purchases-card">
       <div className="purchases-query-toolbar">
-        <div>
-          <h2 className="purchases-title">Consulta de N/C</h2>
-          <p>Listado administrativo de notas de credito con la misma lectura operativa del legacy.</p>
-        </div>
+          <div>
+            <h2 className="purchases-title">Consulta de N/C</h2>
+            <p>Listado administrativo de notas de credito con la misma lectura operativa del sistema.</p>
+          </div>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -1100,10 +1085,6 @@ export function PurchasesPage({ pageId }: { pageId: string }) {
           setPaymentFeedback={setPaymentFeedback}
         />
       );
-    }
-
-    if (pageId !== 'merchandise-entry') {
-      return <PurchasesPlaceholder pageId={pageId} title={moduleConfig.title} subtitle={moduleConfig.subtitle} />;
     }
 
     return (

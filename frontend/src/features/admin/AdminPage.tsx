@@ -23,7 +23,7 @@ import type { WooConfigPayload } from '../../types/woocommerce';
 const ADMIN_MODULES = [
   { id: 'admin-users', label: 'Usuarios', title: 'Usuarios', subtitle: 'Administracion de usuarios con la misma lectura tabular del sistema.' },
   { id: 'admin-device-options', label: 'Tipos de equipos', title: 'Tipos de equipos', subtitle: 'ABM operativo de tipos, marcas y modelos.' },
-  { id: 'admin-categories', label: 'Rubros', title: 'Rubros', subtitle: 'ABM de categorias conservando la estructura del modulo legacy.' },
+  { id: 'admin-categories', label: 'Rubros', title: 'Rubros', subtitle: 'ABM de categorias conservando la estructura del modulo.' },
   { id: 'admin-integrations-woocommerce', label: 'WooCommerce', title: 'WooCommerce', subtitle: 'Configuracion administrativa de la integracion, conservando la API y el flujo actuales.' }
 ] as const;
 

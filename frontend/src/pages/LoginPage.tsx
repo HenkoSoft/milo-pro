@@ -29,7 +29,7 @@ export function LoginPage() {
       navigate(redirectPath, { replace: true });
     } catch (submitError) {
       setError(
-        submitError instanceof Error ? submitError.message : 'No se pudo iniciar sesion'
+        submitError instanceof Error ? submitError.message : 'No se pudo iniciar sesi\u00F3n'
       );
     } finally {
       setIsSubmitting(false);
@@ -41,7 +41,7 @@ export function LoginPage() {
       <div className="login-container">
         <div className="login-header">
           <h1>Milo Pro</h1>
-          <p>Sistema de Gestion</p>
+          <p>{'Sistema de Gesti\u00F3n'}</p>
         </div>
         <form id="login-form" onSubmit={handleSubmit}>
           <div className="form-group">
@@ -57,7 +57,7 @@ export function LoginPage() {
             />
           </div>
           <div className="form-group">
-            <label htmlFor="password">Contraseña</label>
+            <label htmlFor="password">{'Contrase\u00F1a'}</label>
             <input
               id="password"
               type="password"
@@ -69,7 +69,7 @@ export function LoginPage() {
             />
           </div>
           <button type="submit" className="btn btn-primary btn-block" disabled={isSubmitting}>
-            {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
+            {'Iniciar Sesi\u00F3n'}
           </button>
           <div id="login-error" className="error-message">
             {error}

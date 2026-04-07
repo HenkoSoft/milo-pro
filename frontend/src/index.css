@@ -19,41 +19,20 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.1);
   --radius: 8px;
+  --border-color: var(--border);
+  --text-color: var(--text-primary);
+  --accent-color: var(--primary);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-html,
-body,
-#root {
-  min-height: 100vh;
-}
+html, body, #root { min-height: 100vh; }
 
-body {
-  margin: 0;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  font-size: 14px;
-  color: var(--text-primary);
-  background: var(--bg);
-}
+body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; color: var(--text-primary); background: var(--bg); }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
+button, input, select, textarea { font: inherit; }
 
-.login-screen {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--sidebar-bg);
-  padding: 24px;
-}
+.login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--sidebar-bg); }
 
 .login-container {
   background: var(--card-bg);
@@ -69,16 +48,9 @@ textarea {
   margin-bottom: 30px;
 }
 
-.login-header h1 {
-  margin: 0 0 8px;
-  font-size: 28px;
-  color: var(--primary);
-}
+.login-header h1 { font-size: 28px; color: var(--primary); }
 
-.login-header p {
-  margin: 0;
-  color: var(--text-secondary);
-}
+.login-header p { color: var(--text-secondary); }
 
 .form-group {
   margin-bottom: 15px;
@@ -115,22 +87,8 @@ textarea {
   font-size: 13px;
 }
 
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: var(--radius);
-  font-size: 14px;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
+.btn { padding: 10px 20px; border: none; border-radius: var(--radius); font-size: 14px; cursor: pointer; }
 
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
 
 .btn-primary {
   background: var(--primary);
@@ -140,6 +98,31 @@ textarea {
 .btn-secondary {
   background: var(--secondary);
   color: white;
+}
+
+.btn-success {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: white;
+}
+
+.btn-info {
+  background: #06b6d4;
+  color: white;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 .btn-block {
@@ -166,9 +149,7 @@ textarea {
   text-align: center;
 }
 
-.sidebar-header h2 {
-  margin: 0 0 10px;
-}
+.sidebar-header h2 { margin-bottom: 10px; text-align: center; }
 
 .user-role {
   font-size: 11px;
@@ -191,11 +172,9 @@ textarea {
   cursor: pointer;
 }
 
-.nav-item:hover,
-.nav-item.active,
-.nav-group-header:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
+.nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); }
+
+.nav-group-header:hover { background: rgba(255,255,255,0.1); }
 
 .nav-icon {
   margin-right: 10px;
@@ -263,19 +242,9 @@ textarea {
   margin-left: 250px;
 }
 
-.top-bar {
-  background: var(--card-bg);
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-}
+.top-bar { background: var(--card-bg); padding: 12px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
 
-#page-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-}
+#page-title { font-size: 22px; font-weight: 600; }
 
 .header-actions {
   margin-left: auto;
@@ -684,24 +653,24 @@ textarea {
 .customer-modal {
   width: min(960px, calc(100vw - 32px));
   max-width: 960px;
-  border-radius: 18px;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
 
 .customer-modal-header {
   align-items: flex-start;
-  gap: 16px;
-  padding-bottom: 18px;
+  gap: 12px;
+  padding-bottom: 20px;
 }
 
 .customer-modal-header h3 {
   margin: 0;
-  font-size: 24px;
+  font-size: 18px;
 }
 
 .customer-modal-subtitle {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: var(--text-secondary);
   font-size: 13px;
 }
@@ -713,9 +682,9 @@ textarea {
 
 .customer-tabs {
   display: flex;
-  gap: 10px;
-  padding: 16px 20px 0;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  gap: 6px;
+  padding: 0 20px;
+  background: #ffffff;
   border-bottom: 1px solid var(--border);
 }
 
@@ -724,16 +693,16 @@ textarea {
   border-bottom: none;
   background: #f8fafc;
   color: var(--text-secondary);
-  padding: 12px 18px;
-  border-radius: 14px 14px 0 0;
+  padding: 10px 16px;
+  border-radius: 8px 8px 0 0;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .customer-tab.is-active {
   background: #ffffff;
   color: var(--primary);
-  border-color: #bfdbfe;
+  border-color: var(--border);
 }
 
 .customer-tab-panel {
@@ -745,13 +714,13 @@ textarea {
 }
 
 .customer-modal-body {
-  padding: 22px 20px 24px;
+  padding: 20px;
 }
 
 .customer-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 15px;
 }
 
 .customer-field-span-2 {
@@ -760,12 +729,12 @@ textarea {
 
 .customer-fieldset {
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: var(--radius);
+  padding: 14px;
 }
 
 .customer-fieldset legend {
-  padding: 0 8px;
+  padding: 0 6px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -818,16 +787,16 @@ textarea {
 .customer-radio-group {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .customer-radio-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid #dbeafe;
-  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   background: #ffffff;
   cursor: pointer;
 }
@@ -840,11 +809,11 @@ textarea {
 }
 
 .customer-notes-group textarea {
-  min-height: 320px;
+  min-height: 220px;
 }
 
 .customer-modal-footer {
-  padding-top: 18px;
+  padding-top: 20px;
 }
 
 .table-container {
@@ -2720,4 +2689,991 @@ textarea {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+/* Legacy parity overrides */
+.products-module-head,
+.sales-module-head,
+.purchases-module-head,
+.reports-module-head,
+.admin-module-head,
+.tools-module-head,
+.help-module-head,
+.sellers-module-head,
+.cash-module-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.products-module-head h2,
+.sales-module-head h2,
+.purchases-module-head h2,
+.reports-module-head h2,
+.admin-module-head h2,
+.tools-module-head h2,
+.help-module-head h2,
+.sellers-module-head h2,
+.cash-module-head h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.products-module-head p:last-child,
+.sales-module-head p,
+.purchases-module-head p,
+.reports-module-head p,
+.admin-module-head p,
+.tools-module-head p,
+.help-module-head p,
+.sellers-module-head p,
+.cash-module-head p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+}
+
+.products-module-kicker,
+.sales-module-kicker,
+.purchases-module-kicker,
+.reports-module-kicker,
+.admin-module-kicker,
+.tools-module-kicker,
+.help-module-kicker,
+.sellers-module-kicker,
+.cash-module-kicker {
+  margin: 0 0 8px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.products-section-tabs,
+.sales-section-tabs,
+.purchases-section-tabs,
+.reports-section-tabs,
+.admin-section-tabs,
+.tools-section-tabs,
+.help-section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.products-tab-button,
+.sales-tab-button,
+.purchases-tab-button,
+.reports-tab-button,
+.admin-tab-button,
+.tools-tab-button,
+.help-tab-button {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text-primary);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.products-tab-button.active,
+.sales-tab-button.active,
+.purchases-tab-button.active,
+.reports-tab-button.active,
+.admin-tab-button.active,
+.tools-tab-button.active,
+.help-tab-button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.products-sheet-toolbar,
+.products-config-card,
+.products-split-panel,
+.sales-form-card,
+.sales-summary-card,
+.purchases-card,
+.supplier-info-card,
+.reports-panel,
+.reports-summary-card,
+.admin-panel,
+.admin-status-card,
+.tools-panel,
+.tools-summary-card,
+.help-filter-card,
+.help-contact-card,
+.help-info-card,
+.help-empty-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.products-sheet-table-wrap,
+.products-sheet-table,
+.sales-lines-table,
+.tools-table {
+  background: #ffffff;
+}
+
+.products-sheet-table th,
+.sales-lines-table th,
+.tools-table th {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.products-price-search-item,
+.purchase-search-result,
+.sales-search-result,
+.help-contact-item,
+.tools-switcher-button,
+.admin-tool-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.products-price-search-item.is-active,
+.sales-search-result.is-active,
+.tools-switcher-button.is-active {
+  border-color: var(--primary);
+  background: #ffffff;
+}
+
+.sales-addon-button,
+.customer-addon-button,
+.products-addon-button {
+  border-radius: var(--radius);
+}
+
+.modal {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.products-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+.products-table th,
+.products-table td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.products-table tr:hover {
+  background: #f8fafc;
+}
+
+.products-table tfoot {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.products-table tfoot td {
+  border-top: 2px solid var(--border);
+}
+
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.btn-group {
+  display: flex;
+  gap: 5px;
+}
+
+.btn-action {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-action:hover {
+  transform: scale(1.1);
+}
+
+.btn-view,
+.btn-edit {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.btn-view:hover,
+.btn-edit:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn-delete {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.btn-delete:hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-box input {
+  padding: 10px 15px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 250px;
+  transition: border-color 0.2s;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.customer-modal {
+  width: min(960px, calc(100vw - 32px));
+  max-width: 960px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.customer-tabs {
+  gap: 8px;
+  padding: 0 0 12px;
+  background: transparent;
+  border-bottom: none;
+}
+
+.customer-tab {
+  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text-primary);
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+.customer-tab.is-active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.customer-fieldset,
+.products-split-panel,
+.products-config-card,
+.products-sheet-toolbar,
+.products-sheet-table-wrap,
+.sales-form-card,
+.sales-summary-card,
+.purchases-card,
+.supplier-info-card,
+.reports-panel,
+.reports-summary-card,
+.admin-panel,
+.admin-status-card,
+.tools-panel,
+.tools-summary-card,
+.help-filter-card,
+.help-contact-card,
+.help-info-card,
+.help-empty-card,
+.products-price-summary-card,
+.products-price-search-item,
+.sales-search-result,
+.purchase-search-result,
+.help-contact-item,
+.tools-switcher-button,
+.admin-tool-card,
+.sales-web-item-row,
+.dashboard-list-item,
+.dashboard-board-card,
+.dashboard-feed-card,
+.dashboard-pulse-card,
+.dashboard-hero-panel,
+.dashboard-action-card {
+  border-radius: var(--radius) !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.customer-radio-card,
+.products-sheet-thumb,
+.products-sheet-thumb--empty,
+.sales-customer-summary,
+.products-summary-strip,
+.tools-connection-indicator,
+.tools-inline-status,
+.tools-table-badge,
+.sales-web-priority-pill,
+.admin-woo-tab {
+  border-radius: var(--radius) !important;
+}
+
+.products-tab-button,
+.sales-tab-button,
+.purchases-tab-button,
+.reports-tab-button,
+.admin-tab-button,
+.tools-tab-button,
+.help-tab-button,
+.customer-tab {
+  box-shadow: none !important;
+}
+
+.products-module-head,
+.sales-module-head,
+.purchases-module-head,
+.reports-module-head,
+.admin-module-head,
+.tools-module-head,
+.help-module-head,
+.sellers-module-head,
+.cash-module-head {
+  margin-bottom: 18px;
+}
+
+.products-module-head h2,
+.sales-module-head h2,
+.purchases-module-head h2,
+.reports-module-head h2,
+.admin-module-head h2,
+.tools-module-head h2,
+.help-module-head h2,
+.sellers-module-head h2,
+.cash-module-head h2 {
+  font-size: 22px;
+}
+
+.products-module-head p:last-child,
+.sales-module-head p,
+.purchases-module-head p,
+.reports-module-head p,
+.admin-module-head p,
+.tools-module-head p,
+.help-module-head p,
+.sellers-module-head p,
+.cash-module-head p {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.products-price-config-grid input,
+.products-price-config-grid select,
+.products-price-table-wrap input,
+.sales-compact-grid input,
+.sales-compact-grid select,
+.sales-inline-combo input,
+.purchases-card input,
+.purchases-card select,
+.purchases-card textarea,
+.reports-panel input,
+.reports-panel select,
+.admin-panel input,
+.admin-panel select,
+.admin-panel textarea,
+.tools-panel input,
+.help-filter-card input,
+.help-filter-card select {
+  border-radius: var(--radius);
+  min-height: 40px;
+}
+
+.products-admin-panel,
+.sales-admin-panel,
+.purchases-card,
+.reports-panel,
+.admin-panel,
+.tools-panel,
+.help-filter-card,
+.help-contact-card,
+.help-empty-card,
+.sellers-admin-panel,
+.cash-admin-panel,
+.products-sheet-toolbar,
+.products-config-card,
+.sales-form-card,
+.sales-summary-card {
+  padding: 20px !important;
+}
+
+.products-sheet-table th,
+.products-sheet-table td,
+.sales-lines-table th,
+.sales-lines-table td,
+.tools-table th,
+.tools-table td,
+.products-table th,
+.products-table td,
+th,
+td {
+  padding: 10px;
+}
+
+.btn,
+.products-tab-button,
+.sales-tab-button,
+.purchases-tab-button,
+.reports-tab-button,
+.admin-tab-button,
+.tools-tab-button,
+.help-tab-button,
+.customer-tab {
+  font-size: 13px;
+}
+
+.customer-radio-card {
+  padding: 10px 12px;
+  border: 1px solid var(--border) !important;
+}
+
+.customer-fieldset {
+  padding: 14px;
+}
+
+.customer-modal-body,
+.modal-body {
+  padding: 20px;
+}
+
+.customer-modal-header,
+.modal-header,
+.modal-footer {
+  padding: 20px;
+}
+
+.modal-narrow {
+  max-width: 600px;
+}
+
+.modal-medium {
+  max-width: 720px;
+}
+
+.modal-header-tight {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-placeholder-copy {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.page-placeholder-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.customer-modal-feedback {
+  margin-bottom: 0;
+  margin-right: auto;
+}
+
+.repair-feedback-alert {
+  margin-top: 16px;
+}
+
+.dashboard-hero-main,
+.dashboard-hero-panel.is-accent,
+.dashboard-action-card,
+.dashboard-pulse-card,
+.dashboard-board-card,
+.dashboard-feed-card,
+.dashboard-list-item,
+.dashboard-hero-pill,
+.dashboard-empty-state,
+.reports-summary-card,
+.admin-status-card,
+.tools-summary-card,
+.help-info-card {
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--text-primary) !important;
+}
+
+.dashboard-hero-main {
+  padding: 20px !important;
+}
+
+.dashboard-hero-main h2,
+.dashboard-section-head h3,
+.dashboard-board-head h4 {
+  color: var(--text-primary) !important;
+}
+
+.dashboard-hero-copy,
+.dashboard-feed-main p,
+.dashboard-feed-side small,
+.dashboard-list-item p,
+.dashboard-action-card p,
+.dashboard-empty-state,
+.dashboard-hero-panel p {
+  color: var(--text-secondary) !important;
+}
+
+.dashboard-action-meta {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  background: #eff6ff;
+  color: #1d4ed8 !important;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dashboard-action-link,
+.dashboard-board-head a {
+  color: var(--primary) !important;
+  text-decoration: none;
+}
+
+.dashboard-feed-item,
+.dashboard-list-item {
+  border-radius: var(--radius) !important;
+}
+
+.products-sheet-toolbar,
+.products-config-card,
+.products-split-panel,
+.sellers-filter-card,
+.sellers-table-card,
+.cash-filter-card,
+.cash-table-card,
+.sales-stat-card,
+.sales-empty-block,
+.sales-web-summary-card,
+.sales-web-item-row,
+.sales-form-card,
+.sales-summary-card,
+.reports-summary-card,
+.admin-status-card,
+.cash-summary-card,
+.cash-dashboard-panel,
+.products-price-summary-card {
+  border-radius: var(--radius) !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.products-sheet-toolbar,
+.products-config-card,
+.products-split-panel,
+.sellers-filter-card,
+.sellers-table-card,
+.cash-filter-card,
+.cash-table-card,
+.cash-dashboard-panel,
+.sales-form-card,
+.reports-panel,
+.admin-panel {
+  padding: 18px !important;
+}
+
+.products-sheet-table-wrap,
+.products-price-summary-card,
+.cash-summary-card,
+.sales-stat-card,
+.sales-web-summary-card,
+.sales-web-item-row,
+.sales-empty-block {
+  border-radius: var(--radius) !important;
+}
+
+.products-sheet-thumb,
+.sales-web-item-row,
+.sales-search-result,
+.purchase-search-result,
+.products-price-search-item {
+  border-radius: var(--radius) !important;
+}
+
+.products-tab-button,
+.sales-tab-button,
+.purchases-tab-button,
+.reports-tab-button,
+.admin-tab-button,
+.tools-tab-button,
+.help-tab-button,
+.sales-mini-tab {
+  border-radius: 6px !important;
+  padding: 9px 14px !important;
+  font-weight: 500 !important;
+}
+
+.products-tab-button.active,
+.sales-tab-button.active,
+.purchases-tab-button.active,
+.reports-tab-button.active,
+.admin-tab-button.active,
+.tools-tab-button.active,
+.help-tab-button.active,
+.sales-mini-tab.is-active {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.sales-module-head h2,
+.purchases-module-head h2,
+.purchases-title,
+.reports-module-head h2,
+.admin-module-head h2,
+.sellers-module-head h2,
+.cash-module-head h2,
+.products-module-head h2,
+.help-module-head h2,
+.tools-module-head h2 {
+  font-size: 22px !important;
+}
+
+.sales-module-kicker,
+.purchases-module-kicker,
+.reports-module-kicker,
+.reports-panel-kicker,
+.admin-module-kicker,
+.admin-panel-kicker,
+.sellers-module-kicker,
+.cash-module-kicker,
+.products-module-kicker,
+.tools-module-kicker,
+.help-module-kicker {
+  color: var(--primary) !important;
+  font-size: 12px !important;
+}
+
+.sales-stat-card strong,
+.sales-web-summary-card strong,
+.reports-summary-card strong,
+.cash-summary-card strong,
+.products-price-summary-card strong {
+  font-size: 22px !important;
+}
+
+.products-summary-strip,
+.supplier-info-card,
+.sales-customer-summary {
+  border-radius: var(--radius) !important;
+  background: #f8fafc !important;
+}
+
+.sales-addon-button {
+  background: var(--primary) !important;
+  border-radius: var(--radius) !important;
+}
+
+.products-price-search-item.is-active,
+.sales-web-priority-pill {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+
+.products-sheet-table th,
+.sales-lines-table th {
+  background: #f8fafc !important;
+  color: var(--text-secondary) !important;
+}
+
+.nav-counter-badge,
+.sales-web-priority-pill,
+.status-step,
+.badge,
+.user-role {
+  border-radius: 10px !important;
+}
+
+.nav-counter-badge {
+  min-width: 20px !important;
+  height: 20px !important;
+  padding: 0 6px !important;
+  font-size: 10px !important;
+}
+
+.status-step {
+  background: #f8fafc !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.status-step.active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
+}
+
+.badge,
+.user-role,
+.sales-web-priority-pill {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.badge-blue,
+.badge-yellow,
+.badge-purple,
+.badge-green,
+.badge-red,
+.badge-success,
+.badge-danger,
+.badge-gray {
+  border: 1px solid transparent;
+}
+
+.badge-blue {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+
+.badge-yellow {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border-color: #fcd34d !important;
+}
+
+.badge-purple {
+  background: #f5f3ff !important;
+  color: #6d28d9 !important;
+  border-color: #ddd6fe !important;
+}
+
+.badge-green,
+.badge-success {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.badge-red,
+.badge-danger {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+}
+
+.badge-gray {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  border-color: #e2e8f0 !important;
+}
+
+.dashboard-kicker,
+.dashboard-action-meta {
+  color: var(--primary) !important;
+}
+
+.dashboard-hero-pill,
+.dashboard-list-item,
+.dashboard-feed-item {
+  border-radius: var(--radius) !important;
+}
+
+.dashboard-pulse-card strong,
+.dashboard-hero-pill strong,
+.dashboard-hero-panel strong {
+  font-size: 22px !important;
+}
+
+.products-admin-panel,
+.sellers-admin-panel,
+.cash-admin-panel,
+.sales-admin-panel,
+.purchases-card,
+.reports-panel,
+.admin-panel,
+.tools-panel,
+.help-filter-card,
+.help-contact-card {
+  padding: 20px !important;
+}
+
+.products-module-head,
+.sales-module-head,
+.purchases-module-head,
+.reports-module-head,
+.admin-module-head,
+.tools-module-head,
+.help-module-head,
+.sellers-module-head,
+.cash-module-head {
+  margin-bottom: 18px !important;
+  gap: 14px !important;
+}
+
+.products-module-head p:last-child,
+.sales-module-head p,
+.purchases-module-head p,
+.reports-module-head p,
+.admin-module-head p,
+.tools-module-head p,
+.help-module-head p,
+.sellers-module-head p,
+.cash-module-head p {
+  margin-top: 6px !important;
+  font-size: 13px !important;
+}
+
+.products-section-tabs,
+.sales-section-tabs,
+.purchases-section-tabs,
+.reports-section-tabs,
+.admin-section-tabs,
+.tools-section-tabs,
+.help-section-tabs,
+.sales-mini-tabs,
+.sales-web-filter-tabs {
+  gap: 8px !important;
+  margin-bottom: 14px !important;
+}
+
+.products-sheet-stats,
+.products-summary-strip,
+.sellers-actions-inline,
+.sellers-actions-row,
+.cash-summary-grid,
+.cash-dashboard-grid,
+.sales-collections-layout,
+.sales-panel-stack,
+.sales-stats-stack,
+.sales-web-summary-grid,
+.reports-grid,
+.reports-sales-summary,
+.admin-grid,
+.admin-status-grid,
+.tools-grid,
+.help-info-grid {
+  gap: 12px !important;
+}
+
+.sales-invoice-layout,
+.products-split-layout,
+.purchases-query-layout {
+  gap: 16px !important;
+}
+
+.products-sheet-empty,
+.suppliers-empty-row,
+.reports-empty-row,
+.admin-empty-row,
+.tools-empty-row,
+.help-empty-card,
+.sales-empty-block {
+  padding: 20px !important;
+}
+
+.sales-web-filter-summary,
+.purchases-query-toolbar,
+.reports-panel-head,
+.suppliers-header-row,
+.suppliers-footer-row,
+.tools-actions-row,
+.help-module-actions,
+.help-contact-grid {
+  gap: 10px !important;
+}
+
+.sales-search-result,
+.purchase-search-result,
+.products-price-search-item,
+.help-contact-item {
+  padding: 9px 10px !important;
+}
+
+.sales-lines-table th,
+.sales-lines-table td,
+.products-table th,
+.products-table td,
+.products-sheet-table th,
+.products-sheet-table td,
+.tools-table th,
+.tools-table td {
+  padding: 10px !important;
+}
+
+.sales-summary-total,
+.purchase-totals-grand,
+.reports-summary-card strong,
+.cash-summary-card strong,
+.sales-web-summary-card strong,
+.products-price-summary-card strong,
+.tools-summary-card strong,
+.help-info-card strong {
+  font-size: 20px !important;
 }

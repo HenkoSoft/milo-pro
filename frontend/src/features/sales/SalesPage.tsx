@@ -8,17 +8,17 @@ import { createSale } from '../../api/sales';
 import type { Sale, SalePayloadItem } from '../../types/sale';
 
 const SALES_MODULES = [
-  { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: 'Facturacion local con la misma estructura visible del sistema legacy.' },
+  { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: 'Facturacion local con la misma estructura visible del sistema.' },
   { id: 'sales-delivery-notes', label: 'Remitos', title: 'Remitos', subtitle: 'Misma logica visual que facturacion para entregar mercaderia con datos claros del cliente.' },
   { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: 'Preparado para carga rapida de propuestas comerciales con los mismos bloques del modulo principal.' },
   { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: 'Estructura alineada con remitos y presupuestos para simplificar entrenamiento y carga.' },
   { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: 'Pantalla visual consistente con facturacion para gestionar devoluciones y ajustes comerciales.' },
   { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: 'Vista dividida en tabs para navegar clientes y su cuenta corriente con la misma estetica del sistema.' },
-  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Consulta administrativa alineada con el legacy.' },
-  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Consulta administrativa alineada con el legacy.' },
-  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta administrativa alineada con el legacy.' },
-  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Consulta administrativa alineada con el legacy.' },
-  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta administrativa alineada con el legacy.' },
+  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
+  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
+  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
+  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
+  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
   { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Seguimiento de pedidos web usando la misma navegacion del sistema actual.' }
 ] as const;
 
@@ -109,27 +109,6 @@ function getCategoryLabel(product: Product) {
     return category?.name || 'Sin categoria';
   }
   return product.category_name || 'Sin categoria';
-}
-
-function SalesPlaceholder({ pageId, title, subtitle }: { pageId: string; title: string; subtitle: string }) {
-  return (
-    <div className="sales-document-stub card">
-      <div className="sales-module-head">
-        <div>
-          <p className="sales-module-kicker">Ventas</p>
-          <h2>{title}</h2>
-          <p>{subtitle}</p>
-        </div>
-      </div>
-      <div className="alert alert-warning">
-        Esta pantalla todavia debe seguir usandose desde el frontend legacy para conservar paridad total.
-      </div>
-      <div className="sales-placeholder-actions">
-        <a href={`/legacy-app#${pageId}`} className="btn btn-primary">Abrir pantalla legacy</a>
-        <a href="/legacy-app#sales" className="btn btn-secondary">Abrir modulo ventas legacy</a>
-      </div>
-    </div>
-  );
 }
 
 function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
@@ -617,7 +596,7 @@ function SalesQueryPanel({ pageId, title }: { pageId: string; title: string }) {
         <div>
           <p className="sales-module-kicker">Consultas</p>
           <h2>{title}</h2>
-          <p>Tabla estandar con buscador, paginacion y lectura administrativa alineada con el legacy.</p>
+          <p>Tabla estandar con buscador, paginacion y lectura administrativa alineada con el sistema.</p>
         </div>
       </div>
 
@@ -871,10 +850,6 @@ export function SalesPage({ pageId }: SalesPageProps) {
     || pageId === 'sales-query-orders'
   ) {
     return <SalesQueryPanel pageId={pageId} title={moduleConfig.title} />;
-  }
-
-  if (!mainDocumentPages.has(pageId)) {
-    return <SalesPlaceholder pageId={pageId} title={moduleConfig.title} subtitle={moduleConfig.subtitle} />;
   }
 
   return (

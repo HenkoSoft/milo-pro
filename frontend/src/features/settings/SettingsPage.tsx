@@ -1,5 +1,4 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { SectionCard } from '../../components/ui/SectionCard';
 import { useAuth } from '../auth/AuthContext';
 import { useSettings, useUpdateSettings } from './useSettings';
@@ -88,17 +87,11 @@ export function SettingsPage() {
         <div className="space-y-4 text-sm leading-7 text-slate-600">
           <p>
             Esta pantalla cubre solo datos generales. La configuracion de WooCommerce
-            sigue en el flujo legacy mientras modernizamos el resto del frontend.
+            se administra desde su modulo especifico dentro de Administracion.
           </p>
           <p>
-            Eso evita tocar una zona altamente acoplada antes de migrar ventas y pedidos web.
+            Eso evita mezclar datos generales con una zona altamente acoplada del sistema.
           </p>
-          <Link
-            to="/legacy"
-            className="inline-flex rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Ver nota de convivencia
-          </Link>
         </div>
       </SectionCard>
     </div>

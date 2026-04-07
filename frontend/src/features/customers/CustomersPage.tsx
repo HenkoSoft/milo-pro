@@ -397,7 +397,7 @@ export function CustomersPage() {
               </div>
 
               <div className="modal-footer customer-modal-footer">
-                {feedback ? <div className="alert alert-warning" style={{ marginBottom: 0, marginRight: 'auto' }}>{feedback}</div> : null}
+                {feedback ? <div className="alert alert-warning customer-modal-feedback">{feedback}</div> : null}
                 <button className="btn btn-secondary" type="button" onClick={closeModal}>Cancelar</button>
                 <button className="btn btn-success" type="submit" disabled={isSaving}>{isSaving ? 'Guardando...' : 'Guardar'}</button>
               </div>
