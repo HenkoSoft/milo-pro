@@ -5,7 +5,8 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 
 ## Estado actual
 
-- Frontend principal: React + TypeScript + Vite + Tailwind
+- Frontend por defecto con `npm start`: legacy en `public/`
+- Frontend React disponible en paralelo para la migracion visual con paridad
 - Backend runtime: Express con entrada compilada desde TypeScript en `backend/src/server.ts`
 - Base de datos activa: SQLite (`sql.js`)
 - Migracion de base futura: PostgreSQL planificado por etapas desde `backend/src/db`
@@ -53,7 +54,7 @@ Para validar el estado final del stack con un solo comando:
 Para desarrollo del frontend nuevo:
 
 1. `npm run dev:frontend`
-2. `npm run start:auto` o `npm start`
+2. `npm run start:auto` o `npm run start:react`
 
 ## PostgreSQL por etapas
 
@@ -105,7 +106,7 @@ La aplicacion sigue usando SQLite como runtime actual. La migracion a PostgreSQL
 
 ## Nota de migracion
 
-La migracion base al nuevo stack ya quedo cerrada. Desde este punto, los cambios pendientes se consideran mejoras incrementales o consolidacion tecnica, incluyendo la futura sustitucion de SQLite por PostgreSQL.
+La migracion tecnologica ya avanzo sobre el nuevo stack, pero por regla del proyecto la referencia visual sigue siendo el frontend legacy hasta cerrar la auditoria final de paridad. Desde este punto, los cambios pendientes se concentran en consolidacion visual, validacion manual y la futura sustitucion de SQLite por PostgreSQL.
 
 ## Licencia
 MIT

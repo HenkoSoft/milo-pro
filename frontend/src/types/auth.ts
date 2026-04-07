@@ -3,6 +3,7 @@ export interface AuthUser {
   username: string;
   role: string;
   name: string;
+  created_at?: string;
 }
 
 export interface AuthLoginPayload {
@@ -13,6 +14,13 @@ export interface AuthLoginPayload {
 export interface AuthLoginResponse {
   token: string;
   user: AuthUser;
+}
+
+export interface CreateAuthUserPayload {
+  username: string;
+  password: string;
+  role: string;
+  name: string;
 }
 
 export interface AuthContextValue {
