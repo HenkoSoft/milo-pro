@@ -8,14 +8,14 @@ export function HomePage() {
     <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
       <SectionCard
         title="Shell autenticado listo"
-        description="La app mantiene el mismo backend y los mismos contratos operativos."
+        description="La aplicacion mantiene el mismo backend y los mismos contratos operativos."
       >
         <div className="space-y-4 text-sm leading-7 text-slate-600">
           <p>
             Sesion iniciada como <strong>{currentUser?.name}</strong> ({currentUser?.role}).
           </p>
           <p>
-            El backend Express, la API REST, WooCommerce y SQLite siguen intactos en esta fase.
+            El backend Express, la API REST, WooCommerce y SQLite siguen intactos.
           </p>
         </div>
       </SectionCard>

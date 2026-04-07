@@ -770,7 +770,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
         code: getProductLookupCode(selectedProduct),
         description: selectedProduct.name,
         quantity: Number(quantity),
-        reference: reason || 'Salida registrada desde modulo React'
+        reference: reason || 'Salida registrada desde el modulo'
       }
     ]);
     setFeedback('Salida registrada en el historial auxiliar del modulo.');
@@ -959,7 +959,7 @@ function StockQueryPanel({ products }: { products: Product[] }) {
         <button className="btn btn-secondary" type="button" onClick={() => setSearch('')}>Limpiar filtro</button>
       </div>
       <div className="alert alert-info">
-        Esta consulta usa el historial auxiliar generado desde Ajuste de Stock y Salida de Mercaderia dentro del frontend React.
+        Esta consulta usa el historial auxiliar generado desde Ajuste de Stock y Salida de Mercaderia dentro del modulo.
       </div>
       {feedback ? <div className="alert alert-info">{feedback}</div> : null}
     </div>
@@ -1122,7 +1122,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
           pageId="products-labels"
           products={products}
           title="Impresion de Etiquetas"
-          summaryText="La carga y la impresion final ya ocurren dentro del modulo React, manteniendo el mismo alcance operativo visible del submodulo."
+          summaryText="La carga y la impresion final ya ocurren dentro del modulo, manteniendo el mismo alcance operativo visible del submodulo."
         />
       </section>
     );
@@ -1136,7 +1136,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
           pageId="products-barcodes"
           products={products}
           title="Impresion de Codigos de Barra"
-          summaryText="La seleccion de articulos y la impresion final ya ocurren dentro del modulo React."
+          summaryText="La seleccion de articulos y la impresion final ya ocurren dentro del modulo."
         />
       </section>
     );
@@ -1150,7 +1150,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
           pageId="products-qr"
           products={products}
           title="Impresion de Codigos QR"
-          summaryText="La carga de articulos, cantidades y la impresion final ya quedan resueltas dentro del modulo React."
+          summaryText="La carga de articulos, cantidades y la impresion final ya quedan resueltas dentro del modulo."
         />
       </section>
     );

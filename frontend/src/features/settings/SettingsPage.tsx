@@ -83,7 +83,7 @@ export function SettingsPage() {
         </form>
       </SectionCard>
 
-      <SectionCard title="WooCommerce" description="La integracion se conserva y queda fuera de esta fase para no mezclar riesgos.">
+      <SectionCard title="WooCommerce" description="La integracion se conserva y se administra por separado para no mezclar riesgos.">
         <div className="space-y-4 text-sm leading-7 text-slate-600">
           <p>
             Esta pantalla cubre solo datos generales. La configuracion de WooCommerce
