@@ -83,6 +83,7 @@ Script de importacion de datos ya disponible:
 - `npm run preflight:postgres`
 - `npm run verify:postgres`
 - `npm run smoke:postgres`
+- `npm run postgres:cutover-check`
 - usa `data/milo-pro.db` o fallback `data/techfix.db`
 - requiere `DATABASE_URL` o `PGHOST` + `PGDATABASE` + `PGUSER`
 - acepta `PG_MIGRATE_TRUNCATE=1` para reiniciar las tablas objetivo
@@ -91,6 +92,7 @@ Script de importacion de datos ya disponible:
 - `preflight:postgres` detecta patrones SQLite-specific residuales en runtime JS
 - `verify:postgres` compara conteos entre SQLite y PostgreSQL tabla por tabla
 - el smoke test valida arranque + `/api/health` + login base sobre PostgreSQL
+- `postgres:cutover-check` encadena validacion, importacion, verificacion y smoke sobre una instancia PG real
 - el bootstrap PG ya crea `admin / admin123` y `tech / tech123` sobre base vacia, igual que SQLite, salvo que `MILO_DISABLE_SEED=1`
 
 Limitacion actual importante:

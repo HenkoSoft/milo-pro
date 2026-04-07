@@ -73,6 +73,7 @@ Script disponible para importar datos:
 - `npm run preflight:postgres`
 - `npm run verify:postgres`
 - `npm run smoke:postgres`
+- `npm run postgres:cutover-check`
 
 Variables esperadas:
 
@@ -102,6 +103,11 @@ Validacion local del carril PostgreSQL:
 
 - `validate:postgres` encadena build backend, typecheck backend, preflight y tests del adapter/bootstrap
 - no requiere una instancia PostgreSQL real
+
+Ensayo completo contra una instancia PostgreSQL:
+
+- `postgres:cutover-check` ejecuta `validate:postgres` + `migrate:postgres` + `verify:postgres` + `smoke:postgres`
+- sirve como paso unico antes de promover PostgreSQL en serio
 
 ## Credenciales por defecto
 

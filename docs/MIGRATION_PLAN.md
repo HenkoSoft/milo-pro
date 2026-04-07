@@ -112,6 +112,7 @@ Estado PG actual:
 - `migrate:postgres` ahora falla si el destino ya tiene datos, salvo que se pida `PG_MIGRATE_TRUNCATE=1`
 - ya existe `npm run verify:postgres` para comparar conteos entre ambas bases despues de importar
 - ya existe `npm run smoke:postgres` para validar arranque, health y login sobre una instancia PG real
+- ya existe `npm run postgres:cutover-check` para ejecutar el ensayo completo de corte sobre una instancia PG real
 - el bootstrap PG ya replica el seed base de SQLite cuando la base esta vacia
 
 ## Que queda despues de la migracion

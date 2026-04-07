@@ -29,7 +29,8 @@
     "migrate:postgres": "npm run build:backend && node scripts/migrate-sqlite-to-postgres.js",
     "preflight:postgres": "node scripts/preflight-postgres-compat.js",
     "verify:postgres": "node scripts/verify-postgres-migration.js",
-    "smoke:postgres": "npm run build:backend && node scripts/smoke-postgres-runtime.js"
+    "smoke:postgres": "npm run build:backend && node scripts/smoke-postgres-runtime.js",
+    "postgres:cutover-check": "node scripts/postgres-cutover-check.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
