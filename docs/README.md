@@ -8,8 +8,8 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 - Frontend por defecto con `npm start`: legacy en `public/`
 - Frontend React disponible en paralelo para la migracion visual con paridad
 - Backend runtime: Express con entrada compilada desde TypeScript en `backend/src/server.ts`
-- Base de datos activa: SQLite (`sql.js`)
-- Migracion de base futura: PostgreSQL planificado por etapas desde `backend/src/db`
+- Base de datos activa por defecto: SQLite (`sql.js`)
+- PostgreSQL: disponible por configuracion para inicializar schema base desde `backend/src/db`
 - Autenticacion: JWT
 - Integracion externa: WooCommerce
 - Frontend legacy: disponible solo como fallback operativo en `/legacy-app`
@@ -58,12 +58,50 @@ Para desarrollo del frontend nuevo:
 
 ## PostgreSQL por etapas
 
-La aplicacion sigue usando SQLite como runtime actual. La migracion a PostgreSQL se va a hacer sin corte brusco. Si hoy alguien define `DATABASE_DIALECT=postgres`, el backend falla de forma explicita para evitar estados ambiguos:
+La aplicacion sigue usando SQLite como runtime por defecto. PostgreSQL ya puede activarse por configuracion para levantar schema base propio, pero la migracion de datos y la eliminacion final de caminos legacy todavia siguen en curso:
 
 1. crear adapters y config tipados en `backend/src/db`
 2. mover el runtime a una abstraccion comun de acceso a datos
-3. portar schema y datos a PostgreSQL
-4. activar PostgreSQL por configuracion cuando toda la validacion este verde
+3. bootstrapear schema PostgreSQL y validar arranque
+4. portar datos reales desde SQLite
+5. retirar dependencias residuales de `database.js`
+
+Script disponible para importar datos:
+
+- `npm run validate:postgres`
+- `npm run migrate:postgres`
+- `npm run preflight:postgres`
+- `npm run verify:postgres`
+- `npm run smoke:postgres`
+
+Variables esperadas:
+
+- `DATABASE_URL` o `PGHOST` + `PGDATABASE` + `PGUSER`
+- opcional: `PGPASSWORD`, `PGPORT`, `PGSCHEMA`
+- opcional: `PG_MIGRATE_TRUNCATE=1` para vaciar tablas antes de importar
+- sin `PG_MIGRATE_TRUNCATE=1`, la importacion falla si la base destino ya tiene datos
+
+Smoke test PostgreSQL:
+
+- levanta el backend con `DATABASE_DIALECT=postgres`
+- valida `/api/health`
+- valida login con `admin / admin123`
+- sobre una base vacia, el bootstrap PG ya replica el seed base de SQLite salvo que `MILO_DISABLE_SEED=1`
+
+Verificacion de importacion:
+
+- compara conteos tabla por tabla entre SQLite y PostgreSQL
+- sirve para validar la migracion antes del primer smoke completo
+
+Preflight de compatibilidad:
+
+- escanea `routes/`, `services/` y `auth.js`
+- detecta patrones SQLite-specific que todavia podrian romper en PostgreSQL
+
+Validacion local del carril PostgreSQL:
+
+- `validate:postgres` encadena build backend, typecheck backend, preflight y tests del adapter/bootstrap
+- no requiere una instancia PostgreSQL real
 
 ## Credenciales por defecto
 

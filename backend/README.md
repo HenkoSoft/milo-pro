@@ -10,7 +10,10 @@ Estado actual:
 - `npm start` y `npm run dev:backend*` ya usan el backend compilado desde TypeScript
 - las rutas y servicios JS existentes siguen preservados mientras avanza la migracion interna por bloques
 - `backend/src/db` ahora define la base tipada para una capa de datos dual SQLite/PostgreSQL
-- `backend/src/db/runtime.ts` centraliza el arranque actual de base y hoy mantiene SQLite como runtime activo`r`n- `routes/settings.js` y `routes/dashboard.js` ya pueden consumir el adapter expuesto en `app.locals.database` con fallback legacy
+- `backend/src/db/runtime.ts` centraliza el arranque actual de base
+- SQLite sigue siendo el runtime por defecto
+- PostgreSQL ya puede inicializar schema base propio desde `backend/src/db/postgres-schema.ts`
+- `routes/settings.js` y `routes/dashboard.js` ya pueden consumir el adapter expuesto en `app.locals.database` con fallback legacy
 
 Principios que se mantienen:
 
@@ -70,19 +73,36 @@ Migracion a PostgreSQL por etapas:
 1. preparar la capa `backend/src/db` con contratos comunes y adapters
 2. centralizar el arranque del backend en `backend/src/db/runtime.ts`
 3. mantener SQLite como runtime por defecto mientras se adapta el acceso a datos existente
-4. introducir PostgreSQL por configuracion (`DATABASE_DIALECT=postgres`) cuando el runtime ya consuma esa capa
-5. portar schema, datos y pruebas antes del corte final
+4. introducir PostgreSQL por configuracion (`DATABASE_DIALECT=postgres`) con schema bootstrap propio
+5. portar datos reales y terminar de eliminar caminos legacy antes del corte final
+
+Script de importacion de datos ya disponible:
+
+- `npm run validate:postgres`
+- `npm run migrate:postgres`
+- `npm run preflight:postgres`
+- `npm run verify:postgres`
+- `npm run smoke:postgres`
+- usa `data/milo-pro.db` o fallback `data/techfix.db`
+- requiere `DATABASE_URL` o `PGHOST` + `PGDATABASE` + `PGUSER`
+- acepta `PG_MIGRATE_TRUNCATE=1` para reiniciar las tablas objetivo
+- si el destino ya tiene datos y no se define `PG_MIGRATE_TRUNCATE=1`, la importacion falla de forma explicita
+- `validate:postgres` valida el carril PG sin requerir una base real
+- `preflight:postgres` detecta patrones SQLite-specific residuales en runtime JS
+- `verify:postgres` compara conteos entre SQLite y PostgreSQL tabla por tabla
+- el smoke test valida arranque + `/api/health` + login base sobre PostgreSQL
+- el bootstrap PG ya crea `admin / admin123` y `tech / tech123` sobre base vacia, igual que SQLite, salvo que `MILO_DISABLE_SEED=1`
 
 Limitacion actual importante:
 
-- si alguien define `DATABASE_DIALECT=postgres`, el backend falla de forma explicita
-- eso es intencional: hoy el runtime sigue dependiendo de rutas y servicios sincronicos sobre `database.js`
-- el proximo paso real es extender este patron a mas rutas y servicios hasta que el runtime deje de depender de `database.js`
+- `DATABASE_DIALECT=postgres` ya no esta bloqueado en el arranque del runtime
+- pero todavia pueden quedar caminos legacy que intenten usar `database.js` como fallback SQLite
+- el proximo paso real es portar datos y seguir eliminando esas dependencias residuales
 
 Interpretacion correcta desde este punto:
 
 - la migracion base al nuevo stack ya esta cerrada
-- el frontend principal ya es React
+- el frontend principal sigue controlado por `FRONTEND_MODE`
 - el backend runtime oficial ya arranca desde TypeScript compilado
 - lo pendiente a futuro es modernizacion interna adicional, no una migracion estructural base
 

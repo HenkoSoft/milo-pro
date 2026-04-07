@@ -7,3 +7,10 @@ declare const process: {
 declare const Buffer: {
   from(input: unknown): unknown;
 };
+
+declare module 'bcryptjs' {
+  const bcrypt: {
+    hashSync: (value: string, rounds: number) => string;
+  };
+  export default bcrypt;
+}

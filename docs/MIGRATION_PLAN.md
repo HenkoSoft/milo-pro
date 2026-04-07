@@ -32,7 +32,7 @@ Estado alcanzado:
 - `shared/types` centraliza contratos compartidos
 - WooCommerce conserva runtime JS estable, pero con amplia cobertura de helpers tipados y modularizacion por rutas/servicios
 - `backend/src/db` prepara una capa tipada para migrar la persistencia desde SQLite hacia PostgreSQL por etapas
-- `backend/src/db/runtime.ts` centraliza el arranque actual y bloquea la activacion prematura de PostgreSQL con un error explicito
+- `backend/src/db/runtime.ts` centraliza el arranque actual y ya permite inicializar PostgreSQL con schema bootstrap propio
 
 Criterios de aceptacion cumplidos:
 
@@ -99,6 +99,20 @@ Fase PG-5:
 
 - habilitar PostgreSQL por configuracion en entornos reales
 - dejar SQLite solo como fallback o fixture local si sigue teniendo sentido
+
+Estado PG actual:
+
+- `DATABASE_DIALECT=postgres` ya puede iniciar el adapter y bootstrapear schema base
+- `pg` pasa a ser dependencia del runtime
+- SQLite sigue siendo el default operativo
+- la deuda que queda ya no es el arranque, sino la migracion de datos y los caminos legacy residuales
+- ya existe `npm run validate:postgres` para validar localmente el carril PG sin instancia real
+- ya existe `npm run preflight:postgres` para escanear dialectismos SQLite residuales en runtime JS
+- ya existe `npm run migrate:postgres` para importar tablas desde SQLite a PostgreSQL respetando ids y orden relacional
+- `migrate:postgres` ahora falla si el destino ya tiene datos, salvo que se pida `PG_MIGRATE_TRUNCATE=1`
+- ya existe `npm run verify:postgres` para comparar conteos entre ambas bases despues de importar
+- ya existe `npm run smoke:postgres` para validar arranque, health y login sobre una instancia PG real
+- el bootstrap PG ya replica el seed base de SQLite cuando la base esta vacia
 
 ## Que queda despues de la migracion
 

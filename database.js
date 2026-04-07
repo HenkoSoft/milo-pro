@@ -5,10 +5,7 @@ const fs2 = require('fs');
 const { buildAutomaticProductSku } = require('./services/product-sku');
 
 const DATABASE_DIALECT = String(process.env.DATABASE_DIALECT || 'sqlite').trim().toLowerCase();
-
-if (DATABASE_DIALECT === 'postgres') {
-  throw new Error('database.js no soporta PostgreSQL todavia. Usa SQLite mientras el runtime termina de migrarse a backend/src/db.');
-}
+const POSTGRES_BRIDGE_MODE = DATABASE_DIALECT === 'postgres';
 
 let db = null;
 const DATABASE_FILENAME = process.env.MILO_DB_FILENAME || 'milo-pro.db';
@@ -19,13 +16,13 @@ function getDatabasePath(filename = DATABASE_FILENAME) {
 }
 
 function run(sql, params = []) {
-  if (!db) throw new Error('Database not initialized');
+  ensureLegacyDatabaseAvailable('run');
   db.run(sql, params);
   return { lastInsertRowid: db.exec("SELECT last_insert_rowid()")[0]?.values[0][0] };
 }
 
 function get(sql, params = []) {
-  if (!db) throw new Error('Database not initialized');
+  ensureLegacyDatabaseAvailable('get');
   const stmt = db.prepare(sql);
   stmt.bind(params);
   if (stmt.step()) {
@@ -38,7 +35,7 @@ function get(sql, params = []) {
 }
 
 function all(sql, params = []) {
-  if (!db) throw new Error('Database not initialized');
+  ensureLegacyDatabaseAvailable('all');
   const stmt = db.prepare(sql);
   stmt.bind(params);
   const results = [];
@@ -51,6 +48,7 @@ function all(sql, params = []) {
 
 function transaction(fn) {
   return function(...args) {
+    ensureLegacyDatabaseAvailable('transaction');
     db.run('BEGIN TRANSACTION');
     try {
       const result = fn.apply(this, args);
@@ -73,6 +71,10 @@ function transaction(fn) {
 }
 
 async function initializeDatabase() {
+  if (POSTGRES_BRIDGE_MODE) {
+    throw new Error('initializeDatabase() no se usa con PostgreSQL. El runtime nuevo debe arrancar desde backend/src/db/runtime.ts.');
+  }
+
   const SQL = await initSqlJs();
   const dbPath = getDatabasePath();
   const legacyDbPath = getDatabasePath(LEGACY_DATABASE_FILENAME);
@@ -1043,11 +1045,23 @@ async function initializeDatabase() {
 }
 
 function saveDatabase() {
-  if (!db) return;
+  ensureLegacyDatabaseAvailable('saveDatabase');
   const data = db.export();
   const buffer = Buffer.from(data);
   const dbPath = getDatabasePath();
   fs2.writeFileSync(dbPath, buffer);
+}
+
+function ensureLegacyDatabaseAvailable(methodName) {
+  if (POSTGRES_BRIDGE_MODE) {
+    throw new Error(
+      `database.js no puede ejecutar ${methodName} con DATABASE_DIALECT=postgres. Ese camino todavia depende del fallback SQLite y debe migrarse al adapter de backend/src/db.`
+    );
+  }
+
+  if (!db) {
+    throw new Error('Database not initialized');
+  }
 }
 
 module.exports = { initializeDatabase, run, get, all, transaction, saveDatabase };

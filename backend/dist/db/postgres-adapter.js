@@ -2,13 +2,24 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PostgresDatabaseAdapter = void 0;
 exports.convertQuestionParamsToPg = convertQuestionParamsToPg;
+const postgres_schema_1 = require("./postgres-schema");
+function convertSqliteDateFunctionsToPg(sql) {
+    return sql
+        .replace(/date\('now'\s*,\s*'-([0-9]+)\s+days'\)/gi, "CURRENT_DATE - INTERVAL '$1 days'")
+        .replace(/date\('now'\)/gi, 'CURRENT_DATE')
+        .replace(/datetime\('now'\)/gi, 'CURRENT_TIMESTAMP')
+        .replace(/strftime\('%Y-%m',\s*([^)]+)\)\s*=\s*strftime\('%Y-%m',\s*'now'\)/gi, "TO_CHAR($1, 'YYYY-MM') = TO_CHAR(CURRENT_DATE, 'YYYY-MM')")
+        .replace(/strftime\('%Y',\s*([^)]+)\)\s*=\s*strftime\('%Y',\s*'now'\)/gi, "TO_CHAR($1, 'YYYY') = TO_CHAR(CURRENT_DATE, 'YYYY')")
+        .replace(/\bdate\(\s*([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\s*\)/gi, 'CAST($1 AS DATE)');
+}
 function convertQuestionParamsToPg(sql) {
+    const normalizedSql = convertSqliteDateFunctionsToPg(sql);
     let index = 0;
     let result = '';
     let inSingleQuote = false;
-    for (let i = 0; i < sql.length; i += 1) {
-        const char = sql[i];
-        const next = sql[i + 1];
+    for (let i = 0; i < normalizedSql.length; i += 1) {
+        const char = normalizedSql[i];
+        const next = normalizedSql[i + 1];
         if (char === "'") {
             result += char;
             if (inSingleQuote && next === "'") {
@@ -65,8 +76,10 @@ class PostgresDatabaseAdapter {
         });
         await this.client.connect();
         if (this.config.schema && this.config.schema !== 'public') {
-            await this.client.query(`SET search_path TO ${this.config.schema}`);
+            await this.client.query(`CREATE SCHEMA IF NOT EXISTS ${(0, postgres_schema_1.quoteIdentifier)(this.config.schema)}`);
+            await this.client.query(`SET search_path TO ${(0, postgres_schema_1.quoteIdentifier)(this.config.schema)}`);
         }
+        await (0, postgres_schema_1.bootstrapPostgresSchema)(this.client, this.config.schema);
     }
     async close() {
         if (!this.client) {
@@ -86,8 +99,22 @@ class PostgresDatabaseAdapter {
     async run(sql, params = []) {
         const result = await this.query(sql, params);
         const firstRow = result.rows[0];
+        let lastInsertRowid = typeof firstRow?.id === 'number' ? firstRow.id : null;
+        if (lastInsertRowid === null && /^\s*insert\s+into\b/i.test(sql)) {
+            try {
+                const lastValue = await this.query('SELECT LASTVAL() AS id');
+                const rawId = lastValue.rows[0]?.id;
+                const numericId = Number(rawId);
+                if (Number.isFinite(numericId)) {
+                    lastInsertRowid = numericId;
+                }
+            }
+            catch (_error) {
+                // Some inserts use explicit ids and do not advance a sequence.
+            }
+        }
         return {
-            lastInsertRowid: typeof firstRow?.id === 'number' ? firstRow.id : null,
+            lastInsertRowid,
             rowCount: typeof result.rowCount === 'number' ? result.rowCount : 0
         };
     }
