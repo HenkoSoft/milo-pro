@@ -24,7 +24,7 @@ export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
           <li>Backend Express intacto.</li>
           <li>API REST intacta.</li>
           <li>JWT, WooCommerce y SQLite sin cambios.</li>
-          <li>Frontend legacy sigue siendo la interfaz principal.</li>
+          <li>Los modulos principales ya funcionan dentro de la shell actual.</li>
         </ul>
       </aside>
     </section>

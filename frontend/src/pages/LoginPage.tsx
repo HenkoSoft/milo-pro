@@ -37,7 +37,7 @@ export function LoginPage() {
   }
 
   return (
-    <div id="login-screen" className="login-screen react-legacy-login">
+    <div id="login-screen" className="login-screen app-login">
       <div className="login-container">
         <div className="login-header">
           <h1>Milo Pro</h1>

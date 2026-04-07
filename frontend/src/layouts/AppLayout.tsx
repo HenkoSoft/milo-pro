@@ -473,7 +473,7 @@ export function AppLayout() {
   }
 
   return (
-    <div id="app" className="app-container react-legacy-shell">
+    <div id="app" className="app-container app-shell">
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2 id="sidebar-business-name">Milo Pro</h2>

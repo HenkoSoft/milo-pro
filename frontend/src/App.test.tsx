@@ -5,7 +5,7 @@ import { AuthProvider } from './features/auth/AuthContext';
 import { AppLayout } from './layouts/AppLayout';
 
 describe('App layout', () => {
-  it('renders the legacy shell frame with grouped navigation', () => {
+  it('renders the app shell with grouped navigation', () => {
     window.localStorage.removeItem('milo_react_token');
     window.location.hash = '#dashboard';
 
