@@ -365,7 +365,7 @@ function ProductPrintPanel({
                   onClick={() => applySelectedProduct(product)}
                 >
                   <strong>{product.name}</strong>
-                  <span>{getProductLookupCode(product)} · {product.barcode || 'Sin codigo de barras'}</span>
+                  <span>{getProductLookupCode(product)} - {product.barcode || 'Sin codigo de barras'}</span>
                 </button>
               ))
             )}
@@ -820,7 +820,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
               filteredProducts.map((product) => (
                 <button key={product.id} type="button" className={`products-price-search-item${selectedId === String(product.id) ? ' is-active' : ''}`} onClick={() => selectProduct(product)}>
                   <strong>{product.name}</strong>
-                  <span>{product.sku || product.barcode || `ART-${product.id}`} · Stock {product.stock ?? 0}</span>
+                  <span>{product.sku || product.barcode || `ART-${product.id}`} - Stock {product.stock ?? 0}</span>
                 </button>
               ))
             )}
