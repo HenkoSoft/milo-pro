@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { get, run, all, saveDatabase } = require('../database');
+const { createDatabaseAccess } = require('./runtime-db');
 const {
   getWooAttributeOptions: getWooAttributeOptionsBase,
   getWooPrimaryBrand: getWooPrimaryBrandBase,
@@ -39,20 +39,7 @@ function setRuntimeDatabase(adapter) {
 }
 
 function getDatabaseAccess() {
-  return {
-    get: runtimeDatabase && typeof runtimeDatabase.get === 'function'
-      ? (sql, params = []) => runtimeDatabase.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDatabase && typeof runtimeDatabase.all === 'function'
-      ? (sql, params = []) => runtimeDatabase.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDatabase && typeof runtimeDatabase.run === 'function'
-      ? (sql, params = []) => runtimeDatabase.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDatabase && typeof runtimeDatabase.save === 'function'
-      ? () => runtimeDatabase.save()
-      : async () => saveDatabase()
-  };
+  return createDatabaseAccess(runtimeDatabase);
 }
 
 function getActiveWooConfig() {

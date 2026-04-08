@@ -1,4 +1,4 @@
-const { get, all, run } = require('../database');
+const { createDatabaseAccess } = require('./runtime-db');
 
 let runtimeDatabase = null;
 
@@ -7,17 +7,7 @@ function setRuntimeDatabase(adapter) {
 }
 
 function getDatabaseAccess() {
-  return {
-    get: runtimeDatabase && typeof runtimeDatabase.get === 'function'
-      ? (sql, params = []) => runtimeDatabase.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDatabase && typeof runtimeDatabase.all === 'function'
-      ? (sql, params = []) => runtimeDatabase.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDatabase && typeof runtimeDatabase.run === 'function'
-      ? (sql, params = []) => runtimeDatabase.run(sql, params)
-      : async (sql, params = []) => run(sql, params)
-  };
+  return createDatabaseAccess(runtimeDatabase);
 }
 
 function normalizeCatalogText(value) {
