@@ -19,11 +19,20 @@ function toNumber(value: string | undefined, fallback: number): number {
 }
 
 export function getDatabaseDialect(): DatabaseDialect {
-  const raw = String(process.env.DATABASE_DIALECT || 'postgres').trim().toLowerCase();
+  const raw = String(process.env.DATABASE_DIALECT || 'auto').trim().toLowerCase();
+
+  if (raw === 'postgres') {
+    return 'postgres';
+  }
+
   if (raw === 'sqlite') {
     return 'sqlite';
   }
-  return 'postgres';
+
+  const hasConnectionString = Boolean(process.env.DATABASE_URL);
+  const hasDiscretePostgresConfig = Boolean(process.env.PGHOST && process.env.PGDATABASE && process.env.PGUSER);
+
+  return hasConnectionString || hasDiscretePostgresConfig ? 'postgres' : 'sqlite';
 }
 
 export function loadDatabaseConfig(): DatabaseConfig {
