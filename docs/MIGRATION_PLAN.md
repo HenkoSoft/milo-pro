@@ -140,9 +140,9 @@ Lo que sigue desde este punto ya no es “terminar la migracion”, sino mejora 
 
 Referencia obligatoria:
 
-- el frontend legacy en `public/` sigue siendo la fuente de verdad visual
+- el frontend legacy en `public/` sigue siendo la fuente de verdad visual para auditoria de paridad
 - el frontend React debe copiar estructura, navegacion y flujo observable sin reinterpretar la UX
-- `npm start` sigue entrando por legacy por defecto
+- `npm start` ya entra por React cuando existe `frontend/dist`
 
 Hashes del sidebar ya cubiertos con pantalla React propia:
 
@@ -221,5 +221,5 @@ Siguiente orden recomendado para seguir cerrando paridad:
 
 1. auditoria visual hash por hash contra `public/`
 2. smoke testing manual de todos los modulos React
-3. decidir cuando volver a promover React como frontend principal
-4. recien despues, retirar el fallback legacy si se aprueba
+3. mantener auditoria visual fina sobre React ya promovido
+4. retirar el fallback legacy si se aprueba

@@ -5,15 +5,14 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 
 ## Estado actual
 
-- Frontend por defecto con `npm start`: legacy en `public/`
-- Frontend React disponible en paralelo para la migracion visual con paridad
+- Frontend por defecto con `npm start`: React si existe `frontend/dist`
+- Frontend legacy: retenido solo como fallback operativo en `/legacy-app`
 - Backend runtime: Express con entrada compilada desde TypeScript en `backend/src/server.ts`
 - Base de datos por defecto: autodeteccion con preferencia por PostgreSQL cuando existe configuracion PG
 - SQLite: fallback operativo y modo explicito para compatibilidad/local
 - PostgreSQL: runtime validado localmente de punta a punta desde `backend/src/db`
 - Autenticacion: JWT
 - Integracion externa: WooCommerce
-- Frontend legacy: disponible solo como fallback operativo en `/legacy-app`
 
 ## Requisitos
 
@@ -33,7 +32,7 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 
 ## Scripts principales
 
-- `npm start`: compila el backend TypeScript y levanta la app
+- `npm start`: compila el backend TypeScript y levanta la app con `FRONTEND_MODE=auto`
 - `npm run start:auto`: usa React si existe `frontend/dist`, o legacy como fallback
 - `npm run start:react`: exige build de React y lo sirve como frontend principal
 - `npm run start:legacy`: fuerza el frontend legacy
@@ -58,7 +57,7 @@ Para validar el estado final del stack con un solo comando:
 Para desarrollo del frontend nuevo:
 
 1. `npm run dev:frontend`
-2. `npm run start:auto` o `npm run start:react`
+2. `npm start` o `npm run start:react`
 
 ## PostgreSQL por etapas
 
@@ -180,7 +179,7 @@ Notas de importacion:
 
 ## Nota de migracion
 
-La migracion tecnologica ya avanzo sobre el nuevo stack, y el carril PostgreSQL ya fue probado localmente de punta a punta. Por regla del proyecto, la referencia visual sigue siendo el frontend legacy hasta cerrar la auditoria final de paridad. Desde este punto, los cambios pendientes se concentran en consolidacion visual, validacion manual y decision operativa final sobre React como frontend principal.
+La migracion tecnologica ya avanzo sobre el nuevo stack, y el carril PostgreSQL ya fue probado localmente de punta a punta. React ya queda promovido como frontend principal por defecto; el legacy se conserva solo como fallback operativo en `/legacy-app`. Desde este punto, los cambios pendientes se concentran en consolidacion visual fina, validacion manual y retiro eventual del fallback legacy.
 
 ## Licencia
 MIT

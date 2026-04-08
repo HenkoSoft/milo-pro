@@ -115,7 +115,7 @@ Limitacion actual importante:
 Interpretacion correcta desde este punto:
 
 - la migracion base al nuevo stack ya esta cerrada
-- el frontend principal sigue controlado por `FRONTEND_MODE`
+- el frontend principal sigue controlado por `FRONTEND_MODE`, con `auto` como default operativo
 - el backend runtime oficial ya arranca desde TypeScript compilado
 - lo pendiente a futuro es modernizacion interna adicional, no una migracion estructural base
 

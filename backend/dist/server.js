@@ -13,7 +13,7 @@ const publicDir = path.join(rootDir, 'public');
 const reactDistDir = path.join(rootDir, 'frontend', 'dist');
 const legacyIndexPath = path.join(publicDir, 'index.html');
 const reactIndexPath = path.join(reactDistDir, 'index.html');
-const frontendMode = String(process.env.FRONTEND_MODE || 'legacy').trim().toLowerCase();
+const frontendMode = String(process.env.FRONTEND_MODE || 'auto').trim().toLowerCase();
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({
