@@ -27,12 +27,12 @@ Estado alcanzado:
 - existe `backend/tsconfig.json` para typecheck
 - existe `backend/tsconfig.build.json` para compilar el runtime real
 - existe `backend/src/server.ts` como entrada oficial del backend
-- `server.js` queda como wrapper de compatibilidad hacia `backend/dist/server.js`
 - `npm start` y `npm run dev:backend*` ya usan el backend compilado desde TypeScript
 - `shared/types` centraliza contratos compartidos
 - WooCommerce conserva runtime JS estable, pero con amplia cobertura de helpers tipados y modularizacion por rutas/servicios
 - `backend/src/db` prepara una capa tipada para migrar la persistencia desde SQLite hacia PostgreSQL por etapas
 - `backend/src/db/runtime.ts` centraliza el arranque actual y ya permite inicializar PostgreSQL con schema bootstrap propio
+- el runtime ya quedo reorganizado dentro de `backend/src/config`, `controllers`, `routes`, `services`, `middlewares`, `models` y `db`
 
 Criterios de aceptacion cumplidos:
 
@@ -57,16 +57,16 @@ Validacion realizada:
 
 WooCommerce hoy queda repartido asi:
 
-- `routes/woocommerce.js` como ensamblador principal
-- `services/woocommerce-admin-routes.js`
-- `services/woocommerce-product-routes.js`
-- `services/woocommerce-order-routes.js`
-- `services/woocommerce-polling-routes.js`
-- `services/woocommerce-admin.js`
-- `services/woocommerce-polling.js`
-- `services/woo-order-utils.js`
-- `services/woocommerce-sync-utils.js`
-- `services/woocommerce-request.js`
+- `backend/src/routes/woocommerce.js` como ensamblador principal
+- `backend/src/services/woocommerce-admin-routes.js`
+- `backend/src/services/woocommerce-product-routes.js`
+- `backend/src/services/woocommerce-order-routes.js`
+- `backend/src/services/woocommerce-polling-routes.js`
+- `backend/src/services/woocommerce-admin.js`
+- `backend/src/services/woocommerce-polling.js`
+- `backend/src/services/woo-order-utils.js`
+- `backend/src/services/woocommerce-sync-utils.js`
+- `backend/src/services/woocommerce-request.js`
 - `backend/src/services/woo-order-utils.ts`
 - `backend/src/services/woocommerce-sync-utils.ts`
 - `backend/src/services/woocommerce-request.ts`
@@ -83,11 +83,11 @@ Fase PG-2:
 
 - centralizar el arranque del backend en la nueva capa de DB
 - exponer el dialecto activo desde `/api/health`
-- bloquear la activacion prematura de PostgreSQL mientras el runtime aun dependa de `database.js`
+- bloquear la activacion prematura de PostgreSQL mientras el runtime aun dependa de `backend/src/config/database.js`
 
 Fase PG-3:
 
-- mover el runtime a consumir la abstraccion comun en lugar de depender directo de `database.js`
+- mover el runtime a consumir la abstraccion comun en lugar de depender directo de `backend/src/config/database.js`
 - adaptar placeholders, transacciones y semantica de inserts para PostgreSQL
 
 Fase PG-4:
@@ -132,7 +132,7 @@ Lo que sigue desde este punto ya no es “terminar la migracion”, sino mejora 
 - consolidar mas modernizacion interna sobre el stack actual
 - decidir si conviene eliminar por completo el soporte tecnico residual de SQLite
 - seguir reduciendo deuda tecnica interna
-- terminar de eliminar dependencias residuales de `database.js`
+- terminar de eliminar dependencias residuales de `backend/src/config/database.js`
 
 
 ## Estado actual de paridad visual del frontend

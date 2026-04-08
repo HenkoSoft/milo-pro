@@ -112,7 +112,7 @@ Verificacion de importacion:
 
 Preflight de compatibilidad:
 
-- escanea `routes/`, `services/` y `auth.js`
+- escanea el runtime JS activo dentro de `backend/src`
 - detecta patrones SQLite-specific que todavia podrian romper en PostgreSQL
 
 Validacion local del carril PostgreSQL:
@@ -140,13 +140,21 @@ Notas de importacion:
 
 ## Estructura actual
 
-- `backend/`: scaffold y runtime TypeScript progresivo
-- `frontend/`: SPA nueva en React
+- `backend/src/config`: configuracion y compatibilidad (`auth.js`, `database.js`)
+- `backend/src/controllers`: controladores y normalizadores tipados
+- `backend/src/routes`: rutas Express operativas del runtime
+- `backend/src/services`: logica de negocio e integraciones
+- `backend/src/middlewares`: middlewares
+- `backend/src/models`: espacio reservado para modelos de dominio
+- `backend/src/db`: adapters y runtime de base de datos
+- `frontend/src/components`: componentes reutilizables
+- `frontend/src/pages`: paginas base
+- `frontend/src/hooks`: hooks compartidos
+- `frontend/src/services`: cliente HTTP y servicios del frontend
+- `frontend/src/utils`: utilidades del frontend
 - `shared/`: tipos compartidos entre frontend y backend
-- `routes/`: runtime JS existente preservado durante la transicion
-- `services/`: logica de negocio e integraciones
 - `public/`: assets heredados y recursos estaticos conservados
-- `data/`: base SQLite
+- `data/`: base SQLite para soporte tecnico puntual
 
 ## Modulos funcionales
 

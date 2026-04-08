@@ -5,15 +5,14 @@ Esta carpeta ya no es solo un scaffold: ahora contiene la entrada oficial del ru
 Estado actual:
 
 - `backend/src/server.ts` es la entrada real del backend
-- `server.js` queda como wrapper de compatibilidad que carga `backend/dist/server.js`
 - `npm run build:backend` compila el runtime TypeScript
 - `npm start` y `npm run dev:backend*` ya usan el backend compilado desde TypeScript
-- las rutas y servicios JS existentes siguen preservados mientras avanza la migracion interna por bloques
+- las rutas y servicios JS operativos ahora viven dentro de `backend/src`
 - `backend/src/db` ahora define la base tipada para una capa de datos dual SQLite/PostgreSQL
 - `backend/src/db/runtime.ts` centraliza el arranque actual de base
 - el runtime usa PostgreSQL como base principal
 - PostgreSQL ya puede inicializar schema base propio desde `backend/src/db/postgres-schema.ts`
-- `routes/settings.js` y `routes/dashboard.js` ya pueden consumir el adapter expuesto en `app.locals.database`
+- `backend/src/routes/settings.js` y `backend/src/routes/dashboard.js` consumen el adapter expuesto en `app.locals.database`
 
 Principios que se mantienen:
 
@@ -24,18 +23,18 @@ Principios que se mantienen:
 
 Cobertura tipada ya disponible:
 
-- `backend/src/middleware/auth.ts`
-- `backend/src/routes/auth.ts`
-- `backend/src/routes/settings.ts`
-- `backend/src/routes/customers.ts`
-- `backend/src/routes/dashboard.ts`
-- `backend/src/routes/catalog.ts`
-- `backend/src/routes/reports.ts`
-- `backend/src/routes/repairs.ts`
-- `backend/src/routes/products.ts`
-- `backend/src/routes/purchases.ts`
-- `backend/src/routes/sales.ts`
-- `backend/src/routes/woocommerce.ts`
+- `backend/src/middlewares/auth.ts`
+- `backend/src/controllers/auth.ts`
+- `backend/src/controllers/settings.ts`
+- `backend/src/controllers/customers.ts`
+- `backend/src/controllers/dashboard.ts`
+- `backend/src/controllers/catalog.ts`
+- `backend/src/controllers/reports.ts`
+- `backend/src/controllers/repairs.ts`
+- `backend/src/controllers/products.ts`
+- `backend/src/controllers/purchases.ts`
+- `backend/src/controllers/sales.ts`
+- `backend/src/controllers/woocommerce.ts`
 - `backend/src/services/woo-order-client.ts`
 - `backend/src/services/woo-order-utils.ts`
 - `backend/src/services/woocommerce-sync-utils.ts`
@@ -49,16 +48,16 @@ Cobertura tipada ya disponible:
 
 WooCommerce consolidado:
 
-- `routes/woocommerce.js` como ensamblador principal
-- `services/woocommerce-admin-routes.js`
-- `services/woocommerce-product-routes.js`
-- `services/woocommerce-order-routes.js`
-- `services/woocommerce-polling-routes.js`
-- `services/woocommerce-admin.js`
-- `services/woocommerce-polling.js`
-- `services/woo-order-utils.js`
-- `services/woocommerce-sync-utils.js`
-- `services/woocommerce-request.js`
+- `backend/src/routes/woocommerce.js` como ensamblador principal
+- `backend/src/services/woocommerce-admin-routes.js`
+- `backend/src/services/woocommerce-product-routes.js`
+- `backend/src/services/woocommerce-order-routes.js`
+- `backend/src/services/woocommerce-polling-routes.js`
+- `backend/src/services/woocommerce-admin.js`
+- `backend/src/services/woocommerce-polling.js`
+- `backend/src/services/woo-order-utils.js`
+- `backend/src/services/woocommerce-sync-utils.js`
+- `backend/src/services/woocommerce-request.js`
 
 Comandos de validacion:
 
@@ -109,7 +108,7 @@ Limitacion actual importante:
 - importacion, verificacion y smoke ya fueron validados con una base PG real
 - PostgreSQL ya queda promovido operativamente como default
 - SQLite queda solo como herramienta tecnica puntual
-- el proximo paso real ya no es tecnico base, sino seguir eliminando dependencias residuales de `database.js`
+- el proximo paso real ya no es tecnico base, sino seguir eliminando dependencias residuales de `backend/src/config/database.js`
 
 Interpretacion correcta desde este punto:
 
