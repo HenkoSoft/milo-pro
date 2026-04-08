@@ -13,14 +13,14 @@ export function CatalogPage() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <SectionCard title="Categorias y marcas" description="Vista de apoyo para validar el catalogo auxiliar sin tocar todavia la administracion completa.">
+      <SectionCard title="Categorias y marcas" description="Consulta de categorias y marcas.">
         <div className="space-y-4">
           <CatalogBlock title="Categorias" items={categories.map((item) => item.full_name || item.name)} />
           <CatalogBlock title="Marcas" items={brands.map((item) => item.name)} />
         </div>
       </SectionCard>
 
-      <SectionCard title="Tipos y modelos" description="Soporte para reparaciones y articulos.">
+      <SectionCard title="Tipos y modelos" description="Datos para reparaciones y articulos.">
         <div className="space-y-4">
           <CatalogBlock title="Tipos de dispositivo" items={deviceTypes.map((item) => item.name)} />
           <CatalogBlock title="Modelos" items={models.map((item) => item.name)} />

@@ -3,9 +3,9 @@ import { getProducts } from '../../api/products';
 import type { Product } from '../../types/product';
 
 const TOOLS_MODULES = [
-  { id: 'tools-import', section: 'sync', label: 'Sincronizar articulos', title: 'Offline', subtitle: 'Sincronizacion de articulos y consulta offline.' },
-  { id: 'tools-export', section: 'offline-prices', label: 'Consultar precios offline', title: 'Offline', subtitle: 'Busqueda por codigo o descripcion.' },
-  { id: 'tools-backup', section: 'sync-status', label: 'Estado de sincronizacion', title: 'Offline', subtitle: 'Resumen de informacion guardada en este navegador.' }
+  { id: 'tools-import', section: 'sync', label: 'Sincronizar articulos', title: 'Offline', subtitle: 'Actualizacion del catalogo offline.' },
+  { id: 'tools-export', section: 'offline-prices', label: 'Consultar precios offline', title: 'Offline', subtitle: 'Consulta por codigo o descripcion.' },
+  { id: 'tools-backup', section: 'sync-status', label: 'Estado de sincronizacion', title: 'Offline', subtitle: 'Resumen de datos guardados en este navegador.' }
 ] as const;
 
 const TOOLS_STORAGE_KEYS = {
@@ -125,7 +125,7 @@ export function ToolsPage({ pageId }: { pageId: string }) {
       const nextMeta = saveOfflineData(nextCatalog);
       setCatalog(nextCatalog);
       setMeta(nextMeta);
-      setFeedback(`Sincronizacion completada. ${nextCatalog.length} articulos descargados.`);
+      setFeedback(`Sincronizacion completada. ${nextCatalog.length} articulos actualizados.`);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No se pudo sincronizar articulos.');
     } finally {

@@ -33,9 +33,9 @@ import type {
 const PURCHASE_MODULES = [
   { id: 'merchandise-entry', label: 'Ingreso de Mercaderia', title: 'Ingreso de Mercaderia', subtitle: 'Carga de compras.' },
   { id: 'nc-proveedor', label: 'N/C Proveedor (Carga)', title: 'N/C Proveedor (Carga)', subtitle: 'Carga de notas de credito a proveedor.' },
-  { id: 'purchase-query', label: 'Consulta de Compras', title: 'Consulta de Compras', subtitle: 'Consulta y detalle de comprobantes.' },
-  { id: 'nc-query', label: 'Consulta de N/C', title: 'Consulta de N/C', subtitle: 'Consulta de notas de credito a proveedor.' },
-  { id: 'supplier-payments', label: 'Pagos a Proveedores', title: 'Pagos a Proveedores', subtitle: 'Gestion de pagos y cuenta corriente.' }
+  { id: 'purchase-query', label: 'Consulta de Compras', title: 'Consulta de Compras', subtitle: 'Listado y detalle de comprobantes.' },
+  { id: 'nc-query', label: 'Consulta de N/C', title: 'Consulta de N/C', subtitle: 'Listado de notas de credito a proveedor.' },
+  { id: 'supplier-payments', label: 'Pagos a Proveedores', title: 'Pagos a Proveedores', subtitle: 'Pagos y cuenta corriente.' }
 ] as const;
 
 const INVOICE_TYPES = [

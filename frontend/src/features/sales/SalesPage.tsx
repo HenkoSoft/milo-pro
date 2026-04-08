@@ -13,13 +13,13 @@ const SALES_MODULES = [
   { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: 'Carga y consulta de presupuestos.' },
   { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: 'Carga y consulta de pedidos.' },
   { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: 'Carga y consulta de notas de credito.' },
-  { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: 'Consulta de cuenta corriente y seguimiento de clientes.' },
+  { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: 'Cuenta corriente de clientes.' },
   { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Consulta de comprobantes.' },
   { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Consulta de comprobantes.' },
   { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta de comprobantes.' },
   { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Consulta de comprobantes.' },
   { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta de comprobantes.' },
-  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Seguimiento de pedidos web.' }
+  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Consulta y seguimiento de pedidos web.' }
 ] as const;
 
 const RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'] as const;
@@ -157,7 +157,7 @@ function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
         <div>
           <p className="sales-module-kicker">Cuenta corriente</p>
           <h2>Cobranzas</h2>
-          <p>Consulta de cuenta corriente y seguimiento de clientes.</p>
+          <p>Cuenta corriente de clientes.</p>
         </div>
       </div>
 
