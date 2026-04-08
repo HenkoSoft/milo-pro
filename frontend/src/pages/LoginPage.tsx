@@ -37,7 +37,7 @@ export function LoginPage() {
   }
 
   return (
-    <div id="login-screen" className="login-screen app-login">
+    <div id="login-screen" className="login-screen">
       <div className="login-container">
         <div className="login-header">
           <h1>Milo Pro</h1>

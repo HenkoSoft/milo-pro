@@ -4,14 +4,14 @@ import { useProductFormData, useProductMutations, useProducts } from './useProdu
 import type { Product, ProductPayload } from '../../types/product';
 
 const PRODUCT_MODULES = [
-  { id: 'products', label: 'Planilla', title: 'Planilla de Articulos', subtitle: 'Vista principal con filtros, stock y acceso directo al alta de articulos.' },
-  { id: 'products-price-update', label: 'Actualizacion de Precios', title: 'Actualizacion de Precios', subtitle: 'Calcular listas de precios y revisar margenes sin salir del modulo de articulos.' },
-  { id: 'products-stock-adjustment', label: 'Ajuste de Stock', title: 'Ajuste de Stock', subtitle: 'Planilla auxiliar para registrar ajustes dentro del mismo modulo de articulos.' },
-  { id: 'products-stock-output', label: 'Salida de Mercaderia', title: 'Salida de Mercaderia', subtitle: 'Registro auxiliar de salidas dentro del mismo modulo de articulos.' },
-  { id: 'products-stock-query', label: 'Consulta de Salidas', title: 'Consulta de Salidas', subtitle: 'Consulta del historial auxiliar generado desde el propio modulo.' },
-  { id: 'products-labels', label: 'Imprimir Etiquetas', title: 'Imprimir Etiquetas', subtitle: 'Carga e impresion dentro del mismo modulo de articulos.' },
-  { id: 'products-barcodes', label: 'Impresion de Codigos de Barra', title: 'Impresion de Codigos de Barra', subtitle: 'Carga e impresion de codigos dentro del mismo modulo.' },
-  { id: 'products-qr', label: 'Impresion de Codigos QR', title: 'Impresion de Codigos QR', subtitle: 'Carga e impresion de QR dentro del mismo modulo.' }
+  { id: 'products', label: 'Planilla', title: 'Planilla de Articulos', subtitle: 'Consulta y mantenimiento de articulos.' },
+  { id: 'products-price-update', label: 'Actualizacion de Precios', title: 'Actualizacion de Precios', subtitle: 'Calculo y consulta de listas de precios.' },
+  { id: 'products-stock-adjustment', label: 'Ajuste de Stock', title: 'Ajuste de Stock', subtitle: 'Registro de ajustes de stock.' },
+  { id: 'products-stock-output', label: 'Salida de Mercaderia', title: 'Salida de Mercaderia', subtitle: 'Registro de salidas de mercaderia.' },
+  { id: 'products-stock-query', label: 'Consulta de Salidas', title: 'Consulta de Salidas', subtitle: 'Consulta de movimientos registrados.' },
+  { id: 'products-labels', label: 'Imprimir Etiquetas', title: 'Imprimir Etiquetas', subtitle: 'Carga e impresion de etiquetas.' },
+  { id: 'products-barcodes', label: 'Impresion de Codigos de Barra', title: 'Impresion de Codigos de Barra', subtitle: 'Carga e impresion de codigos de barra.' },
+  { id: 'products-qr', label: 'Impresion de Codigos QR', title: 'Impresion de Codigos QR', subtitle: 'Carga e impresion de codigos QR.' }
 ] as const;
 
 const EMPTY_PRODUCT_FORM: ProductPayload = {
@@ -307,7 +307,7 @@ function ProductPrintPanel({
 
   function handlePrint() {
     if (queuedRows.length === 0) {
-      window.alert('Todavia no hay articulos cargados para imprimir.');
+      window.alert('No hay articulos cargados para imprimir.');
       return;
     }
     printProductRows(title, queuedRows);
@@ -319,7 +319,7 @@ function ProductPrintPanel({
         <div>
           <p className="products-module-kicker">Articulos</p>
           <h2>{title}</h2>
-          <p>Cargar articulos y preparar una planilla visual para la impresion definitiva dentro del mismo modulo.</p>
+          <p>Seleccion de articulos y carga de cantidades.</p>
         </div>
       </div>
 
@@ -409,7 +409,7 @@ function ProductPrintPanel({
           </thead>
           <tbody>
             {queuedRows.length === 0 ? (
-              <tr><td colSpan={5} className="products-sheet-empty">Todavia no hay articulos cargados para imprimir.</td></tr>
+              <tr><td colSpan={5} className="products-sheet-empty">No hay articulos cargados para imprimir.</td></tr>
             ) : (
               queuedRows.map((row) => (
                 <tr key={row.id}>
@@ -699,7 +699,7 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
               </thead>
               <tbody>
                 {pendingRows.length === 0 ? (
-                  <tr><td colSpan={4} className="products-sheet-empty">Todavia no hay ajustes preparados.</td></tr>
+                  <tr><td colSpan={4} className="products-sheet-empty">No hay ajustes preparados.</td></tr>
                 ) : (
                   pendingRows.map((row) => (
                     <tr key={row.id}>
@@ -959,7 +959,7 @@ function StockQueryPanel({ products }: { products: Product[] }) {
         <button className="btn btn-secondary" type="button" onClick={() => setSearch('')}>Limpiar filtro</button>
       </div>
       <div className="alert alert-info">
-        Esta consulta usa el historial auxiliar generado desde Ajuste de Stock y Salida de Mercaderia dentro del modulo.
+        Consulta de movimientos registrados en el modulo.
       </div>
       {feedback ? <div className="alert alert-info">{feedback}</div> : null}
     </div>
@@ -1164,7 +1164,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
           <div>
             <p className="products-module-kicker">Planilla</p>
             <h2>Planilla de Articulos</h2>
-            <p>Vista principal con filtros, stock y acceso directo al alta de articulos.</p>
+            <p>Consulta y mantenimiento de articulos.</p>
           </div>
           <div className="products-module-actions">
             <button className="btn btn-primary" type="button" onClick={openNewProductModal}>+ Nuevo Articulo</button>

@@ -8,18 +8,18 @@ import { createSale } from '../../api/sales';
 import type { Sale, SalePayloadItem } from '../../types/sale';
 
 const SALES_MODULES = [
-  { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: 'Facturacion local con la misma estructura visible del sistema.' },
-  { id: 'sales-delivery-notes', label: 'Remitos', title: 'Remitos', subtitle: 'Misma logica visual que facturacion para entregar mercaderia con datos claros del cliente.' },
-  { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: 'Preparado para carga rapida de propuestas comerciales con los mismos bloques del modulo principal.' },
-  { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: 'Estructura alineada con remitos y presupuestos para simplificar entrenamiento y carga.' },
-  { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: 'Pantalla visual consistente con facturacion para gestionar devoluciones y ajustes comerciales.' },
-  { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: 'Vista dividida en tabs para navegar clientes y su cuenta corriente con la misma estetica del sistema.' },
-  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
-  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
-  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
-  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
-  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta administrativa alineada con el sistema actual.' },
-  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Seguimiento de pedidos web usando la misma navegacion del sistema actual.' }
+  { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: 'Carga y emision de comprobantes.' },
+  { id: 'sales-delivery-notes', label: 'Remitos', title: 'Remitos', subtitle: 'Carga y emision de remitos.' },
+  { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: 'Carga y consulta de presupuestos.' },
+  { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: 'Carga y consulta de pedidos.' },
+  { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: 'Carga y consulta de notas de credito.' },
+  { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: 'Consulta de cuenta corriente y seguimiento de clientes.' },
+  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Consulta de comprobantes.' },
+  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Consulta de comprobantes.' },
+  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta de comprobantes.' },
+  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Consulta de comprobantes.' },
+  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta de comprobantes.' },
+  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Seguimiento de pedidos web.' }
 ] as const;
 
 const RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'] as const;
@@ -157,7 +157,7 @@ function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
         <div>
           <p className="sales-module-kicker">Cuenta corriente</p>
           <h2>Cobranzas</h2>
-          <p>Vista dividida en tabs para navegar clientes y su cuenta corriente con la misma estetica del sistema.</p>
+          <p>Consulta de cuenta corriente y seguimiento de clientes.</p>
         </div>
       </div>
 
@@ -189,7 +189,7 @@ function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
           {tab === 'customers' ? (
             <div className="sales-table-card">
               <div className="sales-table-toolbar">
-                <div><h3>Clientes</h3><p>Buscador superior, tabla principal y acceso directo a la cuenta corriente.</p></div>
+                <div><h3>Clientes</h3><p>Listado de clientes.</p></div>
                 <div className="search-box">
                   <input
                     type="text"
@@ -385,7 +385,7 @@ function SalesWebOrdersPanel() {
         <div>
           <p className="sales-module-kicker">Operacion Web</p>
           <h2>Pedidos Web</h2>
-          <p>Cola dedicada para gestionar ventas WooCommerce desde el sistema maestro.</p>
+          <p>Seguimiento y actualizacion de pedidos web.</p>
         </div>
       </div>
 
@@ -925,7 +925,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                 <div className="sales-article-toolbar sales-article-toolbar--compact">
                   <div className="form-group sales-article-search-group">
                     <label>Buscar producto para facturar</label>
-                    <div className="sales-search-callout">Carga rapida por codigo, SKU o descripcion</div>
+                    <div className="sales-search-callout">Busqueda por codigo, SKU o descripcion</div>
                     <div className="sales-inline-combo">
                       <input
                         value={itemSearch}
@@ -946,7 +946,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                     </div>
                   </div>
                 </div>
-                <div className="sales-search-meta">Escribe un codigo o descripcion y presiona Agregar para sumar el primer resultado.</div>
+                <div className="sales-search-meta">Selecciona un articulo para agregarlo al comprobante.</div>
                 {itemSearch.trim() ? (
                   <div className="sales-search-results">
                     {filteredProducts.length === 0 ? (
@@ -977,7 +977,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                     </thead>
                     <tbody>
                       {cart.length === 0 ? (
-                        <tr><td colSpan={7} className="sales-empty-row">Todavia no agregaste articulos a la factura.</td></tr>
+                        <tr><td colSpan={7} className="sales-empty-row">No agregaste articulos a la factura.</td></tr>
                       ) : (
                         cart.map((item) => {
                           const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);

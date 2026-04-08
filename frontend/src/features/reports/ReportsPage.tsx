@@ -7,15 +7,15 @@ import type { Customer } from '../../types/customer';
 import type { PurchasesSummaryRow } from '../../types/report';
 
 const REPORT_MODULES = [
-  { id: 'reports', section: 'articles', label: 'Dashboard', title: 'Reportes de Articulos', subtitle: 'Filtros simples, tabla clara y exportacion directa para control de stock y catalogo.' },
-  { id: 'reports-sales', section: 'sales', label: 'Ventas', title: 'Reportes de Ventas', subtitle: 'Pantalla unificada para consultas comerciales, margenes y seguimiento diario.' },
-  { id: 'reports-purchases', section: 'purchases', label: 'Compras', title: 'Reportes de Compras', subtitle: 'Consultas de compras preparadas para filtrar rapidamente por proveedor y fechas.' },
-  { id: 'reports-customers', section: 'customers', label: 'Clientes', title: 'Reportes de Clientes', subtitle: 'Seguimiento comercial por cliente y comportamiento de compra.' },
-  { id: 'reports-delivery-notes', section: 'deliveryNotes', label: 'Remitos', title: 'Reportes de Remitos', subtitle: 'Consulta de remitos dentro del mismo bloque de reportes.' },
-  { id: 'reports-accounts', section: 'accounts', label: 'Ctas Ctes', title: 'Reportes de Cuentas Corrientes', subtitle: 'Lectura de cuentas corrientes y clientes con saldo.' },
-  { id: 'reports-ranking', section: 'ranking', label: 'Ranking de Productos', title: 'Ranking de Ventas', subtitle: 'Ranking comercial usando los mismos datos del tablero de articulos.' },
-  { id: 'reports-cash', section: 'cash', label: 'Caja', title: 'Reportes de Caja', subtitle: 'Resumen diario y composicion de caja con la misma lectura administrativa.' },
-  { id: 'reports-excel', section: 'excel', label: 'Excel', title: 'Reportes a Excel', subtitle: 'Exportacion directa de datasets visibles del modulo.' }
+  { id: 'reports', section: 'articles', label: 'Dashboard', title: 'Reportes de Articulos', subtitle: 'Control de stock, ventas y reparaciones.' },
+  { id: 'reports-sales', section: 'sales', label: 'Ventas', title: 'Reportes de Ventas', subtitle: 'Consulta comercial de ventas.' },
+  { id: 'reports-purchases', section: 'purchases', label: 'Compras', title: 'Reportes de Compras', subtitle: 'Consulta administrativa de compras.' },
+  { id: 'reports-customers', section: 'customers', label: 'Clientes', title: 'Reportes de Clientes', subtitle: 'Consulta por cliente y movimientos.' },
+  { id: 'reports-delivery-notes', section: 'deliveryNotes', label: 'Remitos', title: 'Reportes de Remitos', subtitle: 'Consulta de remitos.' },
+  { id: 'reports-accounts', section: 'accounts', label: 'Ctas Ctes', title: 'Reportes de Cuentas Corrientes', subtitle: 'Consulta de cuentas corrientes.' },
+  { id: 'reports-ranking', section: 'ranking', label: 'Ranking de Productos', title: 'Ranking de Ventas', subtitle: 'Ranking de articulos vendidos.' },
+  { id: 'reports-cash', section: 'cash', label: 'Caja', title: 'Reportes de Caja', subtitle: 'Resumen comercial del periodo.' },
+  { id: 'reports-excel', section: 'excel', label: 'Excel', title: 'Reportes a Excel', subtitle: 'Exportacion de reportes.' }
 ] as const;
 
 function formatMoney(value: number) {

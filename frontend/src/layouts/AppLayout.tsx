@@ -256,21 +256,18 @@ function PagePlaceholder({ pageId, title }: { pageId: string; title: string }) {
     <div className="card">
       <div className="card-header">
         <div>
-          <h3>{title}</h3>
+          <h2>{title}</h2>
           <p className="page-placeholder-copy">
-            Esta vista no esta disponible dentro del modulo actual.
+            Esta seccion no tiene contenido disponible en este momento.
           </p>
         </div>
       </div>
       <div className="alert alert-warning">
-        Usa una de las opciones principales del menu para continuar trabajando.
+        Usa una de las opciones del menu para continuar trabajando.
       </div>
       <div className="page-placeholder-actions">
         <a href="#dashboard" className="btn btn-primary">
           Ir a inicio
-        </a>
-        <a href="#products" className="btn btn-secondary">
-          Ir a articulos
         </a>
       </div>
     </div>
@@ -473,7 +470,7 @@ export function AppLayout() {
   }
 
   return (
-    <div id="app" className="app-container app-shell">
+    <div id="app" className="app-container">
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2 id="sidebar-business-name">Milo Pro</h2>

@@ -151,7 +151,7 @@ export function CustomersPage() {
     <>
       <div className="card">
         <div className="card-header">
-          <h3 className="card-title">Gestion de Clientes</h3>
+          <h3 className="card-title">Clientes</h3>
           <button className="btn btn-primary" type="button" onClick={openNewCustomerModal}>
             + Nuevo Cliente
           </button>
@@ -230,7 +230,7 @@ export function CustomersPage() {
               <div>
                 <h3 id="customer-modal-title">{selectedCustomer ? 'Editar Cliente' : 'Nuevo Cliente'}</h3>
                 <p className="customer-modal-subtitle">
-                  Completa los datos principales, comerciales y observaciones del cliente.
+                  Datos del cliente.
                 </p>
               </div>
               <button type="button" className="modal-close" onClick={closeModal}>
@@ -285,7 +285,7 @@ export function CustomersPage() {
                             <option key={option} value={option}>{option}</option>
                           ))}
                         </select>
-                        <button type="button" className="customer-addon-button" onClick={() => window.alert('Alta de provincia disponible proximamente. La logica actual del formulario no fue modificada.')}>+</button>
+                        <button type="button" className="customer-addon-button" onClick={() => window.alert('Esta opcion no esta disponible en este momento.')}>+</button>
                       </div>
                     </div>
                     <div className="form-group">
@@ -297,7 +297,7 @@ export function CustomersPage() {
                             <option key={option} value={option}>{option}</option>
                           ))}
                         </select>
-                        <button type="button" className="customer-addon-button" onClick={() => window.alert('Alta de pais disponible proximamente. La logica actual del formulario no fue modificada.')}>+</button>
+                        <button type="button" className="customer-addon-button" onClick={() => window.alert('Esta opcion no esta disponible en este momento.')}>+</button>
                       </div>
                     </div>
                     <div className="form-group">
@@ -308,7 +308,7 @@ export function CustomersPage() {
                       <label htmlFor="customer-tax-id">DNI/CUIT</label>
                       <div className="customer-input-combo">
                         <input id="customer-tax-id" name="tax_id" type="text" value={formValues.tax_id} onChange={handleChange} placeholder="Documento o CUIT" />
-                        <button type="button" className="customer-addon-button customer-addon-button--wide" onClick={() => window.alert('Busqueda de DNI/CUIT disponible proximamente. La logica actual del formulario no fue modificada.')}>Buscar</button>
+                        <button type="button" className="customer-addon-button customer-addon-button--wide" onClick={() => window.alert('Esta opcion no esta disponible en este momento.')}>Buscar</button>
                       </div>
                     </div>
                     <div className="form-group">

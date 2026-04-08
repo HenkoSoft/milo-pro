@@ -185,7 +185,7 @@ export function RepairsPage() {
     <>
       <div className="card">
         <div className="card-header">
-          <h3 className="card-title">Gestion de Reparaciones</h3>
+          <h3 className="card-title">Reparaciones</h3>
           <button className="btn btn-primary" type="button" onClick={openCreateModal}>
             + Nueva Reparacion
           </button>
