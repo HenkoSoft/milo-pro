@@ -504,7 +504,7 @@ function PriceUpdatePanel({ products }: { products: Product[] }) {
             filteredProducts.map((product) => (
               <button key={product.id} type="button" className={`products-price-search-item${selectedId === String(product.id) ? ' is-active' : ''}`} onClick={() => applySelectedProduct(product)}>
                 <strong>{product.name}</strong>
-                <span>{product.sku || product.barcode || `ART-${product.id}`} · Costo {formatMoney(Number(product.purchase_price || 0))}</span>
+                <span>{product.sku || product.barcode || `ART-${product.id}`} - Costo {formatMoney(Number(product.purchase_price || 0))}</span>
               </button>
             ))
           )}
@@ -574,7 +574,7 @@ function PriceUpdatePanel({ products }: { products: Product[] }) {
       </div>
 
       <div className="alert alert-info">
-        Esta pantalla replica el calculo visual del modulo para referencia operativa. La aplicacion masiva de precios sigue requiriendo control operativo antes de una actualizacion general.
+        Referencia visual para calcular listas de precios.
       </div>
     </div>
   );
@@ -628,7 +628,7 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
         reference: `Stock nuevo ${row.nextStock}`
       }))
     );
-    setFeedback('Ajustes registrados en el historial auxiliar del modulo.');
+    setFeedback('Ajustes registrados correctamente.');
   }
 
   return (
@@ -637,7 +637,7 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
         <div>
           <p className="products-module-kicker">Articulos</p>
           <h2>Ajuste de Stock</h2>
-          <p>Planilla visual para preparar cambios de stock sin salir del modulo de articulos.</p>
+          <p>Planilla para preparar cambios de stock.</p>
         </div>
       </div>
 
@@ -718,7 +718,7 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
             <button className="btn btn-secondary" type="button" onClick={() => setDraftValues({})}>Limpiar</button>
           </div>
           <div className="alert alert-info">
-            Los ajustes quedan guardados en el historial auxiliar del modulo para mantener el mismo alcance operativo del frontend anterior.
+        Los ajustes quedan guardados en el historial del modulo.
           </div>
           {feedback ? <div className="alert alert-info">{feedback}</div> : null}
         </section>
@@ -773,7 +773,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
         reference: reason || 'Salida registrada desde el modulo'
       }
     ]);
-    setFeedback('Salida registrada en el historial auxiliar del modulo.');
+    setFeedback('Salida registrada correctamente.');
     setQuantity('1');
     setReason('');
   }
@@ -784,7 +784,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
         <div>
           <p className="products-module-kicker">Articulos</p>
           <h2>Salida de Mercaderia</h2>
-          <p>Preparar una salida con la misma estructura operativa visible del modulo.</p>
+          <p>Preparar una salida de mercaderia.</p>
         </div>
       </div>
 
@@ -866,7 +866,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
             </button>
           </div>
           <div className="alert alert-info">
-            La salida queda registrada en el historial auxiliar del modulo, manteniendo el mismo alcance operativo visible del frontend anterior.
+        La salida queda registrada en el historial del modulo.
           </div>
           {feedback ? <div className="alert alert-info">{feedback}</div> : null}
         </section>
@@ -904,7 +904,7 @@ function StockQueryPanel({ products }: { products: Product[] }) {
         <div>
           <p className="products-module-kicker">Articulos</p>
           <h2>Consulta de Salidas</h2>
-          <p>Historial visual de salidas preparado para la misma lectura operativa del modulo.</p>
+          <p>Historial de salidas registradas.</p>
         </div>
       </div>
 
@@ -959,7 +959,7 @@ function StockQueryPanel({ products }: { products: Product[] }) {
         <button className="btn btn-secondary" type="button" onClick={() => setSearch('')}>Limpiar filtro</button>
       </div>
       <div className="alert alert-info">
-        Consulta de movimientos registrados en el modulo.
+        Consulta de movimientos registrados.
       </div>
       {feedback ? <div className="alert alert-info">{feedback}</div> : null}
     </div>
@@ -1043,7 +1043,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
     }
 
     if (!isAdmin) {
-      setFeedback('Solo el administrador puede guardar articulos desde este modulo.');
+      setFeedback('Solo el administrador puede guardar articulos.');
       return;
     }
 
@@ -1122,7 +1122,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
           pageId="products-labels"
           products={products}
           title="Impresion de Etiquetas"
-          summaryText="La carga y la impresion final ya ocurren dentro del modulo, manteniendo el mismo alcance operativo visible del submodulo."
+          summaryText="La carga y la impresion final ocurren dentro de este submodulo."
         />
       </section>
     );
@@ -1136,7 +1136,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
           pageId="products-barcodes"
           products={products}
           title="Impresion de Codigos de Barra"
-          summaryText="La seleccion de articulos y la impresion final ya ocurren dentro del modulo."
+          summaryText="La seleccion de articulos y la impresion final ocurren dentro de este submodulo."
         />
       </section>
     );
@@ -1150,7 +1150,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
           pageId="products-qr"
           products={products}
           title="Impresion de Codigos QR"
-          summaryText="La carga de articulos, cantidades y la impresion final ya quedan resueltas dentro del modulo."
+          summaryText="La carga de articulos, cantidades y la impresion final ocurren dentro de este submodulo."
         />
       </section>
     );

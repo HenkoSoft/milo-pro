@@ -3,9 +3,9 @@ import { getProducts } from '../../api/products';
 import type { Product } from '../../types/product';
 
 const TOOLS_MODULES = [
-  { id: 'tools-import', section: 'sync', label: 'Sincronizar articulos', title: 'Offline', subtitle: 'Modulo preparado para sincronizar articulos, consultar precios sin conexion y visualizar el estado offline.' },
-  { id: 'tools-export', section: 'offline-prices', label: 'Consultar precios offline', title: 'Offline', subtitle: 'Busqueda rapida por codigo o descripcion con datos guardados en este navegador.' },
-  { id: 'tools-backup', section: 'sync-status', label: 'Estado de sincronizacion', title: 'Offline', subtitle: 'Resumen del trabajo offline disponible en este navegador.' }
+  { id: 'tools-import', section: 'sync', label: 'Sincronizar articulos', title: 'Offline', subtitle: 'Sincronizacion de articulos y consulta offline.' },
+  { id: 'tools-export', section: 'offline-prices', label: 'Consultar precios offline', title: 'Offline', subtitle: 'Busqueda por codigo o descripcion.' },
+  { id: 'tools-backup', section: 'sync-status', label: 'Estado de sincronizacion', title: 'Offline', subtitle: 'Resumen de informacion guardada en este navegador.' }
 ] as const;
 
 const TOOLS_STORAGE_KEYS = {
@@ -173,7 +173,7 @@ export function ToolsPage({ pageId }: { pageId: string }) {
                 <h3>Sincronizar articulos</h3>
               </div>
             </div>
-            <p className="tools-panel-copy">Permite descargar los articulos necesarios para consultar codigo, descripcion y precio de venta sin conexion a internet.</p>
+            <p className="tools-panel-copy">Permite descargar articulos para consultar codigo, descripcion y precio sin conexion.</p>
             <div className="tools-actions-row">
               <button className="btn btn-primary" type="button" onClick={handleSync} disabled={!isOnline || isSyncing}>
                 {isSyncing ? 'Sincronizando articulos...' : 'Sincronizar articulos'}

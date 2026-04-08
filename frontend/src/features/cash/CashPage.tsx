@@ -68,7 +68,7 @@ function saveCashEntries(type: CashEntryType, entries: CashEntry[]) {
 function getCashConfig(type: CashEntryType) {
   return {
     income: {
-      title: 'Ingresos del dia',
+      title: 'Ingresos varios',
       button: 'Nuevo Ingreso',
       personLabel: 'Cliente',
       modalTitle: 'Nuevo Ingreso',
@@ -76,7 +76,7 @@ function getCashConfig(type: CashEntryType) {
       notesLabel: 'Observaciones'
     },
     expenses: {
-      title: 'Gastos del dia',
+      title: 'Gastos varios',
       button: 'Nuevo Gasto',
       personLabel: 'Proveedor / Nombre',
       modalTitle: 'Nuevo Gasto',
@@ -84,7 +84,7 @@ function getCashConfig(type: CashEntryType) {
       notesLabel: 'Observaciones'
     },
     withdrawals: {
-      title: 'Retiros del dia',
+      title: 'Retiros',
       button: 'Nuevo Retiro',
       personLabel: 'Responsable',
       modalTitle: 'Nuevo Retiro',
@@ -491,7 +491,7 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
             <div className="modal-header cash-modal-header">
               <div>
                 <h3>{getCashConfig(modalType).modalTitle}</h3>
-                <p className="cash-modal-subtitle">Carga manual de movimientos de caja con la misma estetica del resto del sistema.</p>
+                <p className="cash-modal-subtitle">Carga manual de movimientos de caja.</p>
               </div>
               <button type="button" className="modal-close" onClick={closeModal}>&times;</button>
             </div>

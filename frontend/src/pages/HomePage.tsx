@@ -14,7 +14,7 @@ export function HomePage() {
         </div>
       </div>
       <div className="alert alert-warning">
-        Usa el menu lateral para ingresar al modulo con el que queres trabajar.
+        Usa el menu lateral para ingresar a la seccion con la que queres trabajar.
       </div>
     </div>
   );

@@ -189,7 +189,7 @@ function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
           {tab === 'customers' ? (
             <div className="sales-table-card">
               <div className="sales-table-toolbar">
-                <div><h3>Clientes</h3><p>Listado de clientes.</p></div>
+                <div><h3>Clientes</h3><p>Listado de clientes con saldo.</p></div>
                 <div className="search-box">
                   <input
                     type="text"
@@ -516,7 +516,7 @@ function SalesWebOrdersPanel() {
                 <div className="sales-table-toolbar">
                   <div>
                     <h3>Pedido #{selectedSale.id}</h3>
-                    <p>{[selectedSale.customer_name || 'Cliente web', selectedSale.customer_phone, selectedSale.channel].filter(Boolean).join(' · ')}</p>
+                    <p>{[selectedSale.customer_name || 'Cliente web', selectedSale.customer_phone, selectedSale.channel].filter(Boolean).join(' - ')}</p>
                   </div>
                 </div>
 
@@ -596,7 +596,7 @@ function SalesQueryPanel({ pageId, title }: { pageId: string; title: string }) {
         <div>
           <p className="sales-module-kicker">Consultas</p>
           <h2>{title}</h2>
-          <p>Tabla estandar con buscador, paginacion y lectura administrativa alineada con el sistema.</p>
+          <p>Tabla con buscador y paginacion.</p>
         </div>
       </div>
 
@@ -955,7 +955,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                       filteredProducts.map((product) => (
                         <button key={product.id} type="button" className="sales-search-result" onClick={() => addProduct(product)}>
                           <strong>{product.name}</strong>
-                          <span>{product.sku || `#${product.id}`} · {getCategoryLabel(product)} · Stock {product.stock ?? 0}</span>
+                          <span>{product.sku || `#${product.id}`} - {getCategoryLabel(product)} - Stock {product.stock ?? 0}</span>
                         </button>
                       ))
                     )}

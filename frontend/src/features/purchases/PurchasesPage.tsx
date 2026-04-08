@@ -31,11 +31,11 @@ import type {
 } from '../../types/purchase';
 
 const PURCHASE_MODULES = [
-  { id: 'merchandise-entry', label: 'Ingreso de Mercaderia', title: 'Ingreso de Mercaderia', subtitle: 'Carga de compras con la misma estructura visible del sistema.' },
-  { id: 'nc-proveedor', label: 'N/C Proveedor (Carga)', title: 'N/C Proveedor (Carga)', subtitle: 'Carga de notas de credito sobre proveedores con la misma estructura operativa del sistema.' },
-  { id: 'purchase-query', label: 'Consulta de Compras', title: 'Consulta de Compras', subtitle: 'Consulta administrativa de compras y detalle del comprobante.' },
-  { id: 'nc-query', label: 'Consulta de N/C', title: 'Consulta de N/C', subtitle: 'Consulta administrativa de notas de credito a proveedor.' },
-  { id: 'supplier-payments', label: 'Pagos a Proveedores', title: 'Pagos a Proveedores', subtitle: 'Gestion de pagos y cuenta corriente de proveedores.' }
+  { id: 'merchandise-entry', label: 'Ingreso de Mercaderia', title: 'Ingreso de Mercaderia', subtitle: 'Carga de compras.' },
+  { id: 'nc-proveedor', label: 'N/C Proveedor (Carga)', title: 'N/C Proveedor (Carga)', subtitle: 'Carga de notas de credito a proveedor.' },
+  { id: 'purchase-query', label: 'Consulta de Compras', title: 'Consulta de Compras', subtitle: 'Consulta y detalle de comprobantes.' },
+  { id: 'nc-query', label: 'Consulta de N/C', title: 'Consulta de N/C', subtitle: 'Consulta de notas de credito a proveedor.' },
+  { id: 'supplier-payments', label: 'Pagos a Proveedores', title: 'Pagos a Proveedores', subtitle: 'Gestion de pagos y cuenta corriente.' }
 ] as const;
 
 const INVOICE_TYPES = [
@@ -187,7 +187,7 @@ function PurchaseQueryPanel({
         <div className="purchases-query-toolbar">
           <div>
             <h2 className="purchases-title">Consulta de Compras</h2>
-            <p>Listado y detalle con la misma lectura administrativa del sistema.</p>
+            <p>Listado de comprobantes.</p>
           </div>
           <input
             value={search}
@@ -233,7 +233,7 @@ function PurchaseQueryPanel({
       <div className="card purchases-card purchases-detail-card">
         <h3>Detalle del comprobante</h3>
         {!purchaseDetail ? (
-          <div className="purchase-empty-row">Selecciona una compra para ver el detalle.</div>
+          <div className="purchase-empty-row">Seleccione una compra para ver el detalle.</div>
         ) : (
           <>
             <div className="purchase-detail-grid">
@@ -564,7 +564,7 @@ function CreditsQueryPanel({
       <div className="purchases-query-toolbar">
           <div>
             <h2 className="purchases-title">Consulta de N/C</h2>
-            <p>Listado administrativo de notas de credito con la misma lectura operativa del sistema.</p>
+            <p>Listado administrativo de notas de credito.</p>
           </div>
         <input
           value={search}

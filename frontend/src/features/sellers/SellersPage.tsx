@@ -236,7 +236,7 @@ function SellersPlanilla({
       <div className="sellers-module-head">
         <div>
           <p className="sellers-module-kicker">Planilla</p>
-          <h2>Gestion de Vendedores</h2>
+          <h2>Planilla de Vendedores</h2>
         </div>
         <button className="btn btn-primary" type="button" onClick={onCreate}>+ Nuevo Vendedor</button>
       </div>
@@ -811,7 +811,7 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
             <div className="modal-header seller-modal-header">
               <div>
                 <h3>{editingSeller ? 'Editar Vendedor' : 'Nuevo Vendedor'}</h3>
-                <p className="seller-modal-subtitle">Completa los datos administrativos y comerciales del vendedor.</p>
+                <p className="seller-modal-subtitle">Datos del vendedor.</p>
               </div>
               <button type="button" className="modal-close" onClick={closeModal}>&times;</button>
             </div>

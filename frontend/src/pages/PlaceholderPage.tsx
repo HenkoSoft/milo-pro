@@ -13,7 +13,7 @@ export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
         </div>
       </div>
       <div className="alert alert-warning">
-        Esta pantalla todavia no tiene contenido operativo dentro de este modulo.
+        Esta pantalla no tiene contenido operativo disponible en este momento.
       </div>
       <div className="page-placeholder-actions">
         <a href="#dashboard" className="btn btn-primary">

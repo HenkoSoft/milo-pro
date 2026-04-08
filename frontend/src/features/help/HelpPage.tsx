@@ -9,8 +9,8 @@ const HELP_CONTACT = {
 };
 
 const HELP_MODULES = [
-  { id: 'help-center', section: 'guide', label: 'Centro de ayuda', title: 'Guia de uso del sistema', subtitle: 'Documentacion operativa organizada para aprender el sistema y resolver dudas frecuentes con lectura rapida.' },
-  { id: 'help-shortcuts', section: 'support', label: 'Atajos', title: 'Soporte tecnico', subtitle: 'Canales de contacto tecnico y acceso directo a informacion util.' }
+  { id: 'help-center', section: 'guide', label: 'Centro de ayuda', title: 'Guia de uso del sistema', subtitle: 'Guia operativa del sistema.' },
+  { id: 'help-shortcuts', section: 'support', label: 'Atajos', title: 'Soporte tecnico', subtitle: 'Canales de contacto e informacion util.' }
 ] as const;
 
 const GUIDE_SECTIONS = [
@@ -99,7 +99,7 @@ export function HelpPage({ pageId }: { pageId: string }) {
                   <article key={section.id} className={`help-accordion-card${isOpen ? ' is-open' : ''}`}>
                     <button className="help-accordion-toggle" type="button" onClick={() => toggleSection(section.id)}>
                       <span>{section.title}</span>
-                      <strong>{isOpen ? '−' : '+'}</strong>
+                      <strong>{isOpen ? '-' : '+'}</strong>
                     </button>
                     <div className="help-accordion-body" hidden={!isOpen}>
                       {section.content.map((paragraph) => (
