@@ -4,9 +4,9 @@ const {
   getTransport
 } = require('./woocommerce-sync-utils');
 
-function woocommerceRequest(method, apiPath, data = null, config = null, requestOptions = null, getActiveWooConfig) {
+async function woocommerceRequest(method, apiPath, data = null, config = null, requestOptions = null, getActiveWooConfig) {
+  const activeConfig = config || await Promise.resolve(getActiveWooConfig());
   return new Promise((resolve, reject) => {
-    const activeConfig = config || getActiveWooConfig();
     if (!activeConfig || !activeConfig.store_url) {
       return reject(new Error('WooCommerce not configured'));
     }
@@ -65,9 +65,9 @@ function woocommerceRequest(method, apiPath, data = null, config = null, request
   });
 }
 
-function wordpressRequest(method, apiPath, body = null, headers = {}, config = null, getActiveWooConfig) {
+async function wordpressRequest(method, apiPath, body = null, headers = {}, config = null, getActiveWooConfig) {
+  const activeConfig = config || await Promise.resolve(getActiveWooConfig());
   return new Promise((resolve, reject) => {
-    const activeConfig = config || getActiveWooConfig();
     if (!activeConfig || !activeConfig.store_url) {
       return reject(new Error('WooCommerce not configured'));
     }

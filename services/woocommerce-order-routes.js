@@ -12,6 +12,7 @@ function registerWooOrderRoutes(router, deps) {
     authenticate,
     getOrderSyncLogs,
     getWooOrderSyncConfig,
+    getWooOrderSyncConfigAsync,
     importWooOrderById,
     importWooOrders,
     normalizeWooLogsLimit,
@@ -22,14 +23,18 @@ function registerWooOrderRoutes(router, deps) {
     verifyWebhookRequest
   } = deps;
 
-  router.get('/orders/logs', authenticate, (req, res) => {
+  router.get('/orders/logs', authenticate, async (req, res) => {
     const limit = normalizeWooLogsLimit(req.query.limit);
-    res.json(getOrderSyncLogs(limit).map((log) => sanitizeWooOrderSyncLog(log)));
+    const logs = await getOrderSyncLogs(limit);
+    res.json(logs.map((log) => sanitizeWooOrderSyncLog(log)));
   });
 
   router.post('/orders/import/:id', authenticate, async (req, res) => {
     if (!requireAdmin(req, res)) return;
-    if (!getWooOrderSyncConfig().syncEnabled) {
+    const syncConfig = typeof getWooOrderSyncConfigAsync === 'function'
+      ? await getWooOrderSyncConfigAsync()
+      : getWooOrderSyncConfig();
+    if (!syncConfig.syncEnabled) {
       return res.status(409).json({ success: false, error: 'La sincronizacion de ordenes esta desactivada' });
     }
 
@@ -46,7 +51,10 @@ function registerWooOrderRoutes(router, deps) {
 
   router.post('/orders/import', authenticate, async (req, res) => {
     if (!requireAdmin(req, res)) return;
-    if (!getWooOrderSyncConfig().syncEnabled) {
+    const syncConfig = typeof getWooOrderSyncConfigAsync === 'function'
+      ? await getWooOrderSyncConfigAsync()
+      : getWooOrderSyncConfig();
+    if (!syncConfig.syncEnabled) {
       return res.status(409).json({ success: false, error: 'La sincronizacion de ordenes esta desactivada' });
     }
 
@@ -70,7 +78,9 @@ function registerWooOrderRoutes(router, deps) {
     }
 
     const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody : Buffer.from(JSON.stringify(req.body || {}));
-    const syncConfig = getWooOrderSyncConfig();
+    const syncConfig = typeof getWooOrderSyncConfigAsync === 'function'
+      ? await getWooOrderSyncConfigAsync()
+      : getWooOrderSyncConfig();
     if (!syncConfig.syncEnabled) {
       return res.status(409).json({ received: false, error: 'La sincronizacion de ordenes esta desactivada' });
     }
@@ -100,8 +110,10 @@ function registerWooOrderRoutes(router, deps) {
     }
   });
 
-  router.get('/webhooks/orders', (req, res) => {
-    const syncConfig = getWooOrderSyncConfig();
+  router.get('/webhooks/orders', async (req, res) => {
+    const syncConfig = typeof getWooOrderSyncConfigAsync === 'function'
+      ? await getWooOrderSyncConfigAsync()
+      : getWooOrderSyncConfig();
     res.json({
       ok: true,
       endpoint: 'woocommerce_orders_webhook',

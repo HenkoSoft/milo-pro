@@ -21,6 +21,7 @@ function registerWooAdminRoutes(router, deps) {
     authenticate,
     buildWooStatusResponse,
     getWooOrderSyncConfig,
+    getWooOrderSyncConfigAsync,
     initializeWooAutomation,
     isWooPollingActive,
     normalizeWooConfigPayload,
@@ -33,7 +34,9 @@ function registerWooAdminRoutes(router, deps) {
     const db = getDatabaseAccess(req, deps);
     const config = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
     const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
-    const orderConfig = getWooOrderSyncConfig();
+    const orderConfig = typeof getWooOrderSyncConfigAsync === 'function'
+      ? await getWooOrderSyncConfigAsync()
+      : getWooOrderSyncConfig();
     res.json(buildWooStatusResponse(config, { logs, orderConfig, pollingActive: isWooPollingActive() }));
   });
 
@@ -207,7 +210,9 @@ function registerWooAdminRoutes(router, deps) {
     initializeWooAutomation();
     const updated = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
     const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
-    const orderConfig = getWooOrderSyncConfig();
+    const orderConfig = typeof getWooOrderSyncConfigAsync === 'function'
+      ? await getWooOrderSyncConfigAsync()
+      : getWooOrderSyncConfig();
     res.json({
       success: true,
       polling_active: isWooPollingActive(),

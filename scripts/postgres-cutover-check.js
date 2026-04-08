@@ -1,10 +1,12 @@
 const { spawn } = require('child_process');
 
+const NPM_COMMAND = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+
 const STEPS = [
-  { label: 'validate:postgres', command: 'npm.cmd', args: ['run', 'validate:postgres'] },
-  { label: 'migrate:postgres', command: 'npm.cmd', args: ['run', 'migrate:postgres'] },
-  { label: 'verify:postgres', command: 'npm.cmd', args: ['run', 'verify:postgres'] },
-  { label: 'smoke:postgres', command: 'npm.cmd', args: ['run', 'smoke:postgres'] }
+  { label: 'validate:postgres', command: NPM_COMMAND, args: ['run', 'validate:postgres'] },
+  { label: 'migrate:postgres', command: NPM_COMMAND, args: ['run', 'migrate:postgres'] },
+  { label: 'verify:postgres', command: NPM_COMMAND, args: ['run', 'verify:postgres'] },
+  { label: 'smoke:postgres', command: NPM_COMMAND, args: ['run', 'smoke:postgres'] }
 ];
 
 function ensurePostgresEnv() {
@@ -26,7 +28,7 @@ function runStep(step) {
         DATABASE_DIALECT: process.env.DATABASE_DIALECT || 'postgres'
       },
       stdio: 'inherit',
-      shell: false
+      shell: process.platform === 'win32'
     });
 
     child.on('exit', (code) => {

@@ -36,6 +36,7 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 - `npm run start:auto`: usa React si existe `frontend/dist`, o legacy como fallback
 - `npm run start:react`: exige build de React y lo sirve como frontend principal
 - `npm run start:legacy`: fuerza el frontend legacy
+- `npm run start:postgres`: arranca el backend con `DATABASE_DIALECT=postgres`
 - `npm run dev:frontend`: levanta Vite para el frontend nuevo
 - `npm run build:backend`: compila el runtime backend TypeScript a `backend/dist`
 - `npm run build:frontend`: genera `frontend/dist`
@@ -58,13 +59,17 @@ Para desarrollo del frontend nuevo:
 
 ## PostgreSQL por etapas
 
-La aplicacion sigue usando SQLite como runtime por defecto. PostgreSQL ya puede activarse por configuracion para levantar schema base propio, pero la migracion de datos y la eliminacion final de caminos legacy todavia siguen en curso:
+La aplicacion sigue usando SQLite como runtime por defecto, pero PostgreSQL ya no esta solo "preparado": el cutover completo ya fue validado sobre una instancia PostgreSQL real local.
 
-1. crear adapters y config tipados en `backend/src/db`
-2. mover el runtime a una abstraccion comun de acceso a datos
-3. bootstrapear schema PostgreSQL y validar arranque
-4. portar datos reales desde SQLite
-5. retirar dependencias residuales de `database.js`
+Estado actual del carril PG:
+
+1. adapters y config tipados en `backend/src/db`: listos
+2. runtime backend centralizado sobre la abstraccion comun: listo
+3. schema bootstrap PostgreSQL: listo
+4. importacion real SQLite -> PostgreSQL: validada
+5. verify tabla por tabla: validado
+6. smoke del backend en `DATABASE_DIALECT=postgres`: validado
+7. pendiente actual: decidir cuando promover PostgreSQL como runtime principal en entornos reales
 
 Script disponible para importar datos:
 
@@ -108,6 +113,13 @@ Ensayo completo contra una instancia PostgreSQL:
 
 - `postgres:cutover-check` ejecuta `validate:postgres` + `migrate:postgres` + `verify:postgres` + `smoke:postgres`
 - sirve como paso unico antes de promover PostgreSQL en serio
+- el ensayo ya fue ejecutado exitosamente sobre una PostgreSQL local de prueba
+- despues del cutover, puede levantarse el runtime con `npm run start:postgres`
+
+Notas de importacion:
+
+- si SQLite tiene huerfanos historicos en relaciones como `suppliers` o `products`, la importacion genera filas sinteticas seguras para preservar integridad referencial
+- eso permite completar la migracion sin perder movimientos historicos
 
 ## Credenciales por defecto
 
@@ -150,7 +162,7 @@ Ensayo completo contra una instancia PostgreSQL:
 
 ## Nota de migracion
 
-La migracion tecnologica ya avanzo sobre el nuevo stack, pero por regla del proyecto la referencia visual sigue siendo el frontend legacy hasta cerrar la auditoria final de paridad. Desde este punto, los cambios pendientes se concentran en consolidacion visual, validacion manual y la futura sustitucion de SQLite por PostgreSQL.
+La migracion tecnologica ya avanzo sobre el nuevo stack, y el carril PostgreSQL ya fue probado localmente de punta a punta. Por regla del proyecto, la referencia visual sigue siendo el frontend legacy hasta cerrar la auditoria final de paridad. Desde este punto, los cambios pendientes se concentran en consolidacion visual, validacion manual y decision operativa de promocion de PostgreSQL/React como defaults.
 
 ## Licencia
 MIT

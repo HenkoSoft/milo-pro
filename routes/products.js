@@ -4,6 +4,7 @@ const { authenticate } = require('../auth');
 const {
   deleteProductFromWooCommerce,
   getActiveWooConfig,
+  getActiveWooConfigAsync,
   isWooExportEnabled,
   syncProductSnapshotToWooCommerce
 } = require('../services/woocommerce-sync');
@@ -189,7 +190,9 @@ async function persistProduct(db, payload, productId = null) {
     throw new Error('El nombre es requerido');
   }
 
-  const wooConfig = getActiveWooConfig();
+  const wooConfig = typeof getActiveWooConfigAsync === 'function'
+    ? await getActiveWooConfigAsync()
+    : getActiveWooConfig();
   if (isWooExportEnabled(wooConfig)) {
     // No bloquear el guardado local por atributos opcionales de catalogo.
   }

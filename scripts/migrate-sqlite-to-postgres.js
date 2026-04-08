@@ -7,62 +7,12 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const DATABASE_FILENAME = process.env.MILO_DB_FILENAME || 'milo-pro.db';
 const LEGACY_DATABASE_FILENAME = 'techfix.db';
-
-const TABLES_IN_IMPORT_ORDER = [
-  'users',
-  'settings',
-  'categories',
-  'device_types',
-  'brands',
-  'device_models',
-  'customers',
-  'suppliers',
-  'products',
-  'purchases',
-  'purchase_items',
-  'supplier_payments',
-  'supplier_credits',
-  'supplier_credit_items',
-  'supplier_account',
-  'supplier_account_movements',
-  'sales',
-  'sale_items',
-  'repairs',
-  'repair_logs',
-  'woocommerce_sync',
-  'product_sync_log',
-  'external_order_links',
-  'sync_logs',
-  'product_categories',
-  'product_images'
-];
-
-const IDENTITY_TABLES = [
-  'users',
-  'categories',
-  'products',
-  'customers',
-  'sales',
-  'sale_items',
-  'repairs',
-  'repair_logs',
-  'product_sync_log',
-  'external_order_links',
-  'sync_logs',
-  'product_categories',
-  'product_images',
-  'device_types',
-  'brands',
-  'device_models',
-  'suppliers',
-  'purchases',
-  'purchase_items',
-  'supplier_payments',
-  'supplier_credits',
-  'supplier_credit_items',
-  'supplier_account',
-  'supplier_account_movements'
-];
+const {
+  IDENTITY_TABLES,
+  TABLES_IN_IMPORT_ORDER,
+  loadSourceRows,
+  reconcileSyntheticRows
+} = require('./postgres-migration-helpers');
 
 function quoteIdentifier(identifier) {
   return `"${String(identifier || '').replace(/"/g, '""')}"`;
@@ -110,19 +60,19 @@ async function loadSqliteDatabase() {
   return { db, dbPath };
 }
 
-function readAllRows(sqliteDb, tableName) {
-  const stmt = sqliteDb.prepare(`SELECT * FROM ${tableName}`);
-  const rows = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
-}
-
 async function ensurePostgresSchema(client, schema) {
   const { bootstrapPostgresSchema } = require(path.join(ROOT_DIR, 'backend', 'dist', 'db', 'postgres-schema.js'));
-  await bootstrapPostgresSchema(client, schema);
+  const previousSeedFlag = process.env.MILO_DISABLE_SEED;
+  process.env.MILO_DISABLE_SEED = '1';
+  try {
+    await bootstrapPostgresSchema(client, schema);
+  } finally {
+    if (previousSeedFlag === undefined) {
+      delete process.env.MILO_DISABLE_SEED;
+    } else {
+      process.env.MILO_DISABLE_SEED = previousSeedFlag;
+    }
+  }
 }
 
 async function truncateTargetTables(client, schema) {
@@ -148,6 +98,10 @@ async function getExistingTargetData(client, schema) {
   }
 
   return existing;
+}
+
+async function clearBootstrapOnlyRows(client, schema) {
+  await client.query(`DELETE FROM ${quoteIdentifier(schema)}.${quoteIdentifier('settings')} WHERE id = 1`);
 }
 
 async function insertRows(client, schema, tableName, rows) {
@@ -191,12 +145,20 @@ async function main() {
   try {
     await client.connect();
     await ensurePostgresSchema(client, schema);
+    const rowsByTable = loadSourceRows(sqliteDb);
+    const syntheticRows = reconcileSyntheticRows(rowsByTable);
 
     if (truncate) {
       await truncateTargetTables(client, schema);
     } else {
       const existing = await getExistingTargetData(client, schema);
-      if (existing.length > 0) {
+      const onlyBootstrapSettings = existing.length === 1
+        && existing[0].tableName === 'settings'
+        && existing[0].count === 1;
+
+      if (onlyBootstrapSettings) {
+        await clearBootstrapOnlyRows(client, schema);
+      } else if (existing.length > 0) {
         const summary = existing.map((item) => `${item.tableName}=${item.count}`).join(', ');
         throw new Error(
           `La base PostgreSQL destino ya contiene datos (${summary}). Usa PG_MIGRATE_TRUNCATE=1 para reiniciar antes de importar o limpia manualmente las tablas.`
@@ -206,7 +168,7 @@ async function main() {
 
     const summary = [];
     for (const tableName of TABLES_IN_IMPORT_ORDER) {
-      const rows = readAllRows(sqliteDb, tableName);
+      const rows = rowsByTable.get(tableName) || [];
       const imported = await insertRows(client, schema, tableName, rows);
       summary.push({ tableName, imported });
     }
@@ -216,6 +178,9 @@ async function main() {
     console.log(`[PG-MIGRATE] SQLite source: ${dbPath}`);
     console.log(`[PG-MIGRATE] Target schema: ${schema}`);
     console.log(`[PG-MIGRATE] Truncate before import: ${truncate ? 'yes' : 'no'}`);
+    for (const [tableName, rows] of syntheticRows.entries()) {
+      console.log(`[PG-MIGRATE] synthetic ${tableName}: ${rows.length}`);
+    }
     for (const item of summary) {
       console.log(`[PG-MIGRATE] ${item.tableName}: ${item.imported}`);
     }

@@ -20,6 +20,7 @@ function registerWooProductRoutes(router, deps) {
   const {
     authenticate,
     getActiveWooConfig,
+    getActiveWooConfigAsync,
     getProductById,
     findWooProductBySku,
     hydrateWooProductForImport,
@@ -161,7 +162,9 @@ function registerWooProductRoutes(router, deps) {
         return res.status(404).json({ error: 'Product not found' });
       }
 
-      const config = getActiveWooConfig();
+      const config = typeof getActiveWooConfigAsync === 'function'
+        ? await getActiveWooConfigAsync()
+        : getActiveWooConfig();
       if (!config || !config.store_url) {
         return res.status(400).json({ error: 'WooCommerce no configurado' });
       }

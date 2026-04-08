@@ -67,6 +67,7 @@ Comandos de validacion:
 - `npm run check:syntax`
 - `npm test`
 - `npm run validate`
+- `npm run start:postgres`
 
 Migracion a PostgreSQL por etapas:
 
@@ -94,12 +95,16 @@ Script de importacion de datos ya disponible:
 - el smoke test valida arranque + `/api/health` + login base sobre PostgreSQL
 - `postgres:cutover-check` encadena validacion, importacion, verificacion y smoke sobre una instancia PG real
 - el bootstrap PG ya crea `admin / admin123` y `tech / tech123` sobre base vacia, igual que SQLite, salvo que `MILO_DISABLE_SEED=1`
+- el cutover completo ya fue ejecutado exitosamente sobre una PostgreSQL local de prueba
+- la importacion ahora reconcilia huerfanos historicos de SQLite creando filas sinteticas seguras cuando faltan `suppliers` o `products` referenciados
+- despues del ensayo, el runtime puede levantarse con `npm run start:postgres`
 
 Limitacion actual importante:
 
 - `DATABASE_DIALECT=postgres` ya no esta bloqueado en el arranque del runtime
-- pero todavia pueden quedar caminos legacy que intenten usar `database.js` como fallback SQLite
-- el proximo paso real es portar datos y seguir eliminando esas dependencias residuales
+- importacion, verificacion y smoke ya fueron validados con una base PG real
+- SQLite sigue siendo el default por prudencia operativa
+- el proximo paso real ya no es tecnico base, sino decidir promocion de PostgreSQL y seguir eliminando dependencias residuales de `database.js`
 
 Interpretacion correcta desde este punto:
 

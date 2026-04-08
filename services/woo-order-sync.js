@@ -731,8 +731,9 @@ async function updateSaleStatus(saleId, nextStatus, options = {}) {
   };
 }
 
-function getSyncLogs(limit = 100) {
-  return all(
+async function getSyncLogs(limit = 100) {
+  const db = getDatabaseAccess();
+  return db.all(
     `SELECT *
      FROM sync_logs
      WHERE entity_type = 'order'
@@ -742,8 +743,9 @@ function getSyncLogs(limit = 100) {
   );
 }
 
-function getOrderLinkByWooId(orderId, channel = 'woocommerce') {
-  return get(
+async function getOrderLinkByWooId(orderId, channel = 'woocommerce') {
+  const db = getDatabaseAccess();
+  return db.get(
     'SELECT * FROM external_order_links WHERE channel = ? AND woocommerce_order_id = ?',
     [channel, orderId]
   );

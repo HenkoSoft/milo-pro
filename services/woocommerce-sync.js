@@ -135,11 +135,11 @@ async function ensureLocalBrand(brandName, extra = {}) {
 }
 
 function woocommerceRequest(method, apiPath, data = null, config = null, requestOptions = null) {
-  return woocommerceRequestBase(method, apiPath, data, config, requestOptions, getActiveWooConfig);
+  return woocommerceRequestBase(method, apiPath, data, config, requestOptions, getActiveWooConfigAsync);
 }
 
 function wordpressRequest(method, apiPath, body = null, headers = {}, config = null) {
-  return wordpressRequestBase(method, apiPath, body, headers, config, getActiveWooConfig);
+  return wordpressRequestBase(method, apiPath, body, headers, config, getActiveWooConfigAsync);
 }
 
 async function getWooCategoryDetail(categoryId, config = null, cache = new Map()) {

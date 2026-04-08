@@ -7,35 +7,11 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const DATABASE_FILENAME = process.env.MILO_DB_FILENAME || 'milo-pro.db';
 const LEGACY_DATABASE_FILENAME = 'techfix.db';
-
-const TABLES = [
-  'users',
-  'settings',
-  'categories',
-  'device_types',
-  'brands',
-  'device_models',
-  'customers',
-  'suppliers',
-  'products',
-  'purchases',
-  'purchase_items',
-  'supplier_payments',
-  'supplier_credits',
-  'supplier_credit_items',
-  'supplier_account',
-  'supplier_account_movements',
-  'sales',
-  'sale_items',
-  'repairs',
-  'repair_logs',
-  'woocommerce_sync',
-  'product_sync_log',
-  'external_order_links',
-  'sync_logs',
-  'product_categories',
-  'product_images'
-];
+const {
+  TABLES_IN_IMPORT_ORDER,
+  loadSourceRows,
+  reconcileSyntheticRows
+} = require('./postgres-migration-helpers');
 
 function quoteIdentifier(identifier) {
   return `"${String(identifier || '').replace(/"/g, '""')}"`;
@@ -82,14 +58,6 @@ async function loadSqliteDatabase() {
   return { db, dbPath };
 }
 
-function getSqliteCount(db, tableName) {
-  const stmt = db.prepare(`SELECT COUNT(*) AS count FROM ${tableName}`);
-  stmt.step();
-  const row = stmt.getAsObject();
-  stmt.free();
-  return Number(row.count || 0);
-}
-
 async function getPostgresCount(client, schema, tableName) {
   const qualifiedTable = `${quoteIdentifier(schema)}.${quoteIdentifier(tableName)}`;
   const result = await client.query(`SELECT COUNT(*)::int AS count FROM ${qualifiedTable}`);
@@ -103,14 +71,17 @@ async function main() {
 
   try {
     await client.connect();
+    const rowsByTable = loadSourceRows(sqliteDb);
+    const syntheticRows = reconcileSyntheticRows(rowsByTable);
 
     const mismatches = [];
-    for (const tableName of TABLES) {
-      const sqliteCount = getSqliteCount(sqliteDb, tableName);
+    for (const tableName of TABLES_IN_IMPORT_ORDER) {
+      const sqliteCount = (rowsByTable.get(tableName) || []).length;
       const postgresCount = await getPostgresCount(client, schema, tableName);
       const ok = sqliteCount === postgresCount;
 
-      console.log(`[PG-VERIFY] ${tableName}: sqlite=${sqliteCount} postgres=${postgresCount} ${ok ? 'OK' : 'MISMATCH'}`);
+      const syntheticCount = (syntheticRows.get(tableName) || []).length;
+      console.log(`[PG-VERIFY] ${tableName}: expected=${sqliteCount} postgres=${postgresCount}${syntheticCount ? ` synthetic=${syntheticCount}` : ''} ${ok ? 'OK' : 'MISMATCH'}`);
       if (!ok) {
         mismatches.push({ tableName, sqliteCount, postgresCount });
       }

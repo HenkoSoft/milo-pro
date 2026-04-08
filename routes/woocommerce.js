@@ -17,6 +17,7 @@ const {
 const {
   getSyncLogs: getOrderSyncLogs,
   getWooOrderSyncConfig,
+  getWooOrderSyncConfigAsync,
   syncWooOrder,
   verifyWebhookRequest
 } = require('../services/woo-order-sync');
@@ -249,7 +250,9 @@ async function unlinkWooProductFromLocal(wooProductId, action) {
 
 const wooPollingManager = createWooPollingManager({
   pollingIntervalMs: POLLING_INTERVAL_MS,
-  getConfig: async () => getActiveWooConfig(),
+  getConfig: async () => (typeof getActiveWooConfigAsync === 'function'
+    ? getActiveWooConfigAsync()
+    : getActiveWooConfig()),
   fetchWooProducts: () => woocommerceRequest('GET', '/products?per_page=100'),
   hydrateWooProduct: (wooProduct) => hydrateWooProductForImport(wooProduct),
   upsertWooProduct: (wooProduct, action) => upsertWooProductIntoLocal(wooProduct, action),
@@ -302,6 +305,7 @@ registerWooAdminRoutes(router, {
   buildWooStatusResponse,
   get,
   getWooOrderSyncConfig,
+  getWooOrderSyncConfigAsync,
   initializeWooAutomation,
   isWooPollingActive,
   normalizeWooConfigPayload,
@@ -318,6 +322,7 @@ registerWooProductRoutes(router, {
   findWooProductBySku,
   get,
   getActiveWooConfig,
+  getActiveWooConfigAsync,
   getProductById,
   hydrateWooProductForImport,
   parseWooBoolean,
@@ -335,6 +340,7 @@ registerWooOrderRoutes(router, {
   get,
   getOrderSyncLogs,
   getWooOrderSyncConfig,
+  getWooOrderSyncConfigAsync,
   importWooOrderById,
   importWooOrders,
   normalizeWooLogsLimit,
