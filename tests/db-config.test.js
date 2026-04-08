@@ -49,7 +49,7 @@ function runCase(name, fn) {
   }
 }
 
-runCase('auto usa sqlite cuando no hay config postgres', () => {
+runCase('sin DATABASE_DIALECT usa postgres por defecto', () => {
   withEnv({
     DATABASE_DIALECT: undefined,
     DATABASE_URL: undefined,
@@ -58,11 +58,11 @@ runCase('auto usa sqlite cuando no hay config postgres', () => {
     PGUSER: undefined
   }, () => {
     const config = loadConfigModule();
-    assert.equal(config.getDatabaseDialect(), 'sqlite');
+    assert.equal(config.getDatabaseDialect(), 'postgres');
   });
 });
 
-runCase('auto usa postgres con DATABASE_URL', () => {
+runCase('postgres sigue activo con DATABASE_URL', () => {
   withEnv({
     DATABASE_DIALECT: undefined,
     DATABASE_URL: 'postgres://demo:demo@localhost:5432/demo',
@@ -75,7 +75,7 @@ runCase('auto usa postgres con DATABASE_URL', () => {
   });
 });
 
-runCase('auto usa postgres con variables discretas', () => {
+runCase('postgres sigue activo con variables discretas', () => {
   withEnv({
     DATABASE_DIALECT: undefined,
     DATABASE_URL: undefined,
@@ -88,7 +88,7 @@ runCase('auto usa postgres con variables discretas', () => {
   });
 });
 
-runCase('sqlite explicito pisa autodeteccion', () => {
+runCase('sqlite explicito sigue disponible para mantenimiento', () => {
   withEnv({
     DATABASE_DIALECT: 'sqlite',
     DATABASE_URL: 'postgres://demo:demo@localhost:5432/demo',

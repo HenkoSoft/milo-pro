@@ -11,9 +11,8 @@ const PORT = Number(process.env.PORT || 3000);
 const rootDir = path.resolve(__dirname, '../..');
 const publicDir = path.join(rootDir, 'public');
 const reactDistDir = path.join(rootDir, 'frontend', 'dist');
-const legacyIndexPath = path.join(publicDir, 'index.html');
 const reactIndexPath = path.join(reactDistDir, 'index.html');
-const frontendMode = String(process.env.FRONTEND_MODE || 'auto').trim().toLowerCase();
+const frontendMode = 'react';
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({
@@ -25,38 +24,8 @@ app.use(express.json({
 function hasReactBuild() {
     return fs.existsSync(reactIndexPath);
 }
-function resolveFrontendStrategy() {
-    if (frontendMode === 'react') {
-        return {
-            mode: 'react',
-            indexPath: reactIndexPath,
-            reactActive: true,
-            buildAvailable: hasReactBuild()
-        };
-    }
-    if (frontendMode === 'auto') {
-        const buildAvailable = hasReactBuild();
-        return {
-            mode: buildAvailable ? 'react' : 'legacy',
-            indexPath: buildAvailable ? reactIndexPath : legacyIndexPath,
-            reactActive: buildAvailable,
-            buildAvailable
-        };
-    }
-    return {
-        mode: 'legacy',
-        indexPath: legacyIndexPath,
-        reactActive: false,
-        buildAvailable: hasReactBuild()
-    };
-}
 function sendIndexFile(res, filePath) {
     res.sendFile(filePath);
-}
-function frontendRequestHandler(strategy) {
-    return (_req, res) => {
-        sendIndexFile(res, strategy.indexPath);
-    };
 }
 async function startServer() {
     try {
@@ -86,17 +55,16 @@ async function startServer() {
         if (typeof wooOrderSyncService.setRuntimeDatabase === 'function') {
             wooOrderSyncService.setRuntimeDatabase(databaseState.adapter);
         }
-        const frontendStrategy = resolveFrontendStrategy();
-        if (frontendMode === 'react' && !frontendStrategy.buildAvailable) {
+        const reactBuildAvailable = hasReactBuild();
+        if (!reactBuildAvailable) {
             throw new Error('FRONTEND_MODE=react requiere un build existente en frontend/dist');
         }
         app.get('/api/health', (_req, res) => {
             res.json({
                 ok: true,
-                frontend_mode: frontendStrategy.mode,
+                frontend_mode: 'react',
                 requested_frontend_mode: frontendMode,
-                react_build_available: frontendStrategy.buildAvailable,
-                legacy_entry: '/legacy-app',
+                react_build_available: reactBuildAvailable,
                 requested_db_dialect: databaseState.requestedDialect,
                 active_db_dialect: databaseState.activeDialect,
                 postgres_runtime_ready: databaseState.postgresRuntimeReady
@@ -124,15 +92,10 @@ async function startServer() {
             res.status(404).json({ error: 'Endpoint not found' });
         });
         app.use('/productos', express.static(path.join(publicDir, 'productos')));
-        app.use('/css', express.static(path.join(publicDir, 'css')));
-        app.use('/js', express.static(path.join(publicDir, 'js')));
-        app.get('/legacy-app', (_req, res) => {
-            sendIndexFile(res, legacyIndexPath);
+        app.use(express.static(reactDistDir));
+        app.get('*', (_req, res) => {
+            sendIndexFile(res, reactIndexPath);
         });
-        if (frontendStrategy.reactActive) {
-            app.use(express.static(reactDistDir));
-        }
-        app.get('*', frontendRequestHandler(frontendStrategy));
         app.use((err, _req, res, next) => {
             console.error('Unhandled server error:', err);
             if (res.headersSent) {
@@ -142,7 +105,7 @@ async function startServer() {
         });
         app.listen(PORT, () => {
             console.log('milo-pro running on http://localhost:' + PORT);
-            console.log(`[FRONTEND] mode=${frontendStrategy.mode} requested=${frontendMode} react_build=${frontendStrategy.buildAvailable ? 'yes' : 'no'} legacy=/legacy-app`);
+            console.log(`[FRONTEND] mode=react requested=${frontendMode} react_build=${reactBuildAvailable ? 'yes' : 'no'}`);
             console.log(`[DB] requested=${databaseState.requestedDialect} active=${databaseState.activeDialect} postgres_ready=${databaseState.postgresRuntimeReady ? 'yes' : 'no'}`);
         });
     }

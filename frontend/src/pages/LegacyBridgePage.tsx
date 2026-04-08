@@ -10,7 +10,7 @@ export function LegacyBridgePage() {
         <ul className="space-y-3">
           <li>JWT y endpoints REST siguen disponibles.</li>
           <li>El backend Express no cambia de contrato.</li>
-          <li>WooCommerce y SQLite quedan completamente preservados.</li>
+          <li>WooCommerce y PostgreSQL forman parte del stack actual.</li>
           <li>La aplicacion mantiene compatibilidad operativa con los modulos y accesos habituales.</li>
         </ul>
       </div>
