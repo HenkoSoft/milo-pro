@@ -1,4 +1,4 @@
-const { get, run, all, transaction, saveDatabase } = require('../database');
+const { createDatabaseAccess, getLegacyDatabase, runLegacyTransaction } = require('./runtime-db');
 const {
   DEFAULT_INTERNAL_TO_WOO_STATUS_MAP,
   DEFAULT_PAID_STATUSES,
@@ -28,30 +28,13 @@ function setRuntimeDatabase(adapter) {
 }
 
 function getDatabaseAccess() {
-  return {
-    get: runtimeDatabase && typeof runtimeDatabase.get === 'function'
-      ? (sql, params = []) => runtimeDatabase.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDatabase && typeof runtimeDatabase.all === 'function'
-      ? (sql, params = []) => runtimeDatabase.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDatabase && typeof runtimeDatabase.run === 'function'
-      ? (sql, params = []) => runtimeDatabase.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDatabase && typeof runtimeDatabase.save === 'function'
-      ? () => runtimeDatabase.save()
-      : async () => saveDatabase(),
-    transaction: runtimeDatabase && typeof runtimeDatabase.transaction === 'function'
-      ? (fn) => runtimeDatabase.transaction(fn)
-      : async (fn) => {
-          const wrapped = transaction(() => fn(getDatabaseAccess()));
-          return wrapped();
-        }
-  };
+  return createDatabaseAccess(runtimeDatabase, {
+    transactionFallback: async (fn) => runLegacyTransaction(fn)
+  });
 }
 
 function getWooOrderSyncConfig() {
-  const row = get('SELECT * FROM woocommerce_sync WHERE id = 1');
+  const row = getLegacyDatabase().get('SELECT * FROM woocommerce_sync WHERE id = 1');
   return buildWooOrderSyncConfig(row, process.env);
 }
 

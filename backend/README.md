@@ -11,7 +11,7 @@ Estado actual:
 - las rutas y servicios JS existentes siguen preservados mientras avanza la migracion interna por bloques
 - `backend/src/db` ahora define la base tipada para una capa de datos dual SQLite/PostgreSQL
 - `backend/src/db/runtime.ts` centraliza el arranque actual de base
-- SQLite sigue siendo el runtime por defecto
+- el runtime usa autodeteccion segura: PostgreSQL cuando hay configuracion PG, SQLite como fallback
 - PostgreSQL ya puede inicializar schema base propio desde `backend/src/db/postgres-schema.ts`
 - `routes/settings.js` y `routes/dashboard.js` ya pueden consumir el adapter expuesto en `app.locals.database` con fallback legacy
 
@@ -67,6 +67,7 @@ Comandos de validacion:
 - `npm run check:syntax`
 - `npm test`
 - `npm run validate`
+- `npm run start:sqlite`
 - `npm run start:postgres`
 - `npm run test:db-config`
 
@@ -74,7 +75,7 @@ Migracion a PostgreSQL por etapas:
 
 1. preparar la capa `backend/src/db` con contratos comunes y adapters
 2. centralizar el arranque del backend en `backend/src/db/runtime.ts`
-3. mantener SQLite como runtime por defecto mientras se adapta el acceso a datos existente
+3. mantener SQLite como fallback mientras se adapta el acceso a datos existente
 4. introducir PostgreSQL por configuracion (`DATABASE_DIALECT=postgres`) con schema bootstrap propio
 5. portar datos reales y terminar de eliminar caminos legacy antes del corte final
 
@@ -107,8 +108,9 @@ Limitacion actual importante:
 
 - `DATABASE_DIALECT=postgres` ya no esta bloqueado en el arranque del runtime
 - importacion, verificacion y smoke ya fueron validados con una base PG real
-- SQLite sigue siendo el default por prudencia operativa
-- el proximo paso real ya no es tecnico base, sino decidir promocion de PostgreSQL y seguir eliminando dependencias residuales de `database.js`
+- PostgreSQL ya queda promovido operativamente como default cuando existe configuracion PG
+- SQLite queda como fallback explicito y herramienta de compatibilidad local
+- el proximo paso real ya no es tecnico base, sino seguir eliminando dependencias residuales de `database.js`
 
 Interpretacion correcta desde este punto:
 

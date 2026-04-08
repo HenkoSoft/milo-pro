@@ -18,8 +18,16 @@ function toNumber(value, fallback) {
     return Number.isFinite(numeric) ? numeric : fallback;
 }
 function getDatabaseDialect() {
-    const raw = String(process.env.DATABASE_DIALECT || 'sqlite').trim().toLowerCase();
-    return raw === 'postgres' ? 'postgres' : 'sqlite';
+    const raw = String(process.env.DATABASE_DIALECT || 'auto').trim().toLowerCase();
+    if (raw === 'postgres') {
+        return 'postgres';
+    }
+    if (raw === 'sqlite') {
+        return 'sqlite';
+    }
+    const hasConnectionString = Boolean(process.env.DATABASE_URL);
+    const hasDiscretePostgresConfig = Boolean(process.env.PGHOST && process.env.PGDATABASE && process.env.PGUSER);
+    return hasConnectionString || hasDiscretePostgresConfig ? 'postgres' : 'sqlite';
 }
 function loadDatabaseConfig() {
     const dialect = getDatabaseDialect();

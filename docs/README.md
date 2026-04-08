@@ -8,8 +8,9 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 - Frontend por defecto con `npm start`: legacy en `public/`
 - Frontend React disponible en paralelo para la migracion visual con paridad
 - Backend runtime: Express con entrada compilada desde TypeScript en `backend/src/server.ts`
-- Base de datos activa por defecto: SQLite (`sql.js`)
-- PostgreSQL: disponible por configuracion para inicializar schema base desde `backend/src/db`
+- Base de datos por defecto: autodeteccion con preferencia por PostgreSQL cuando existe configuracion PG
+- SQLite: fallback operativo y modo explicito para compatibilidad/local
+- PostgreSQL: runtime validado localmente de punta a punta desde `backend/src/db`
 - Autenticacion: JWT
 - Integracion externa: WooCommerce
 - Frontend legacy: disponible solo como fallback operativo en `/legacy-app`
@@ -36,6 +37,7 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 - `npm run start:auto`: usa React si existe `frontend/dist`, o legacy como fallback
 - `npm run start:react`: exige build de React y lo sirve como frontend principal
 - `npm run start:legacy`: fuerza el frontend legacy
+- `npm run start:sqlite`: fuerza SQLite
 - `npm run start:postgres`: arranca el backend con `DATABASE_DIALECT=postgres`
 - `npm run dev:frontend`: levanta Vite para el frontend nuevo
 - `npm run build:backend`: compila el runtime backend TypeScript a `backend/dist`
@@ -60,7 +62,7 @@ Para desarrollo del frontend nuevo:
 
 ## PostgreSQL por etapas
 
-La aplicacion sigue usando SQLite como runtime por defecto, pero PostgreSQL ya no esta solo "preparado": el cutover completo ya fue validado sobre una instancia PostgreSQL real local.
+La aplicacion ya no usa SQLite como decision por defecto del runtime. El backend resuelve el dialecto en modo `auto`: si encuentra configuracion PostgreSQL, entra por PostgreSQL; si no, cae a SQLite como fallback operativo.
 
 Estado actual del carril PG:
 
@@ -70,7 +72,7 @@ Estado actual del carril PG:
 4. importacion real SQLite -> PostgreSQL: validada
 5. verify tabla por tabla: validado
 6. smoke del backend en `DATABASE_DIALECT=postgres`: validado
-7. pendiente actual: decidir cuando promover PostgreSQL como runtime principal en entornos reales
+7. SQLite queda como fallback explicito (`start:sqlite`) y compatibilidad local
 
 Script disponible para importar datos:
 
@@ -95,6 +97,12 @@ Resolucion de dialecto:
 - `DATABASE_DIALECT=postgres`: fuerza PostgreSQL
 - `DATABASE_DIALECT=sqlite`: fuerza SQLite
 - `DATABASE_DIALECT=auto` o ausente: usa PostgreSQL si encuentra config PG; si no, cae a SQLite
+
+Promocion operativa actual:
+
+- `npm start` corre con resolucion `auto`
+- en cualquier entorno con `DATABASE_URL` o `PGHOST` + `PGDATABASE` + `PGUSER`, el runtime entra por PostgreSQL
+- SQLite queda reservado para fallback, fixtures locales o arranque explicito con `npm run start:sqlite`
 
 Smoke test PostgreSQL:
 
@@ -172,7 +180,7 @@ Notas de importacion:
 
 ## Nota de migracion
 
-La migracion tecnologica ya avanzo sobre el nuevo stack, y el carril PostgreSQL ya fue probado localmente de punta a punta. Por regla del proyecto, la referencia visual sigue siendo el frontend legacy hasta cerrar la auditoria final de paridad. Desde este punto, los cambios pendientes se concentran en consolidacion visual, validacion manual y decision operativa de promocion de PostgreSQL/React como defaults.
+La migracion tecnologica ya avanzo sobre el nuevo stack, y el carril PostgreSQL ya fue probado localmente de punta a punta. Por regla del proyecto, la referencia visual sigue siendo el frontend legacy hasta cerrar la auditoria final de paridad. Desde este punto, los cambios pendientes se concentran en consolidacion visual, validacion manual y decision operativa final sobre React como frontend principal.
 
 ## Licencia
 MIT

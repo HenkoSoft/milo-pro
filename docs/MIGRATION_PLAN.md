@@ -105,13 +105,14 @@ Estado PG actual:
 - `DATABASE_DIALECT=postgres` ya puede iniciar el adapter y bootstrapear schema base
 - `DATABASE_DIALECT=auto` o ausente ya puede resolver PostgreSQL automaticamente cuando existe configuracion PG
 - `pg` pasa a ser dependencia del runtime
-- SQLite sigue siendo el default operativo
+- PostgreSQL queda promovido operativamente como default cuando existe configuracion PG
+- SQLite queda como fallback operativo explicito
 - el ensayo real de corte sobre una PostgreSQL local ya paso completo con `postgres:cutover-check`
 - la migracion de datos SQLite -> PostgreSQL ya funciona sobre una instancia real
 - `verify:postgres` ya valida conteos tabla por tabla despues de importar
 - el runtime ya pudo arrancar, responder `/api/health` y autenticar `admin / admin123` sobre PostgreSQL real
 - durante la importacion se reconcilian automaticamente huerfanos detectados en SQLite mediante filas sinteticas seguras para `suppliers` y `products`
-- la deuda que queda ya no es el arranque ni la importacion base, sino la decision operativa de promocion y la eliminacion final de caminos legacy residuales
+- la deuda que queda ya no es el arranque ni la importacion base, sino la eliminacion final de caminos legacy residuales y la consolidacion operativa posterior al cutover
 - ya existe `npm run validate:postgres` para validar localmente el carril PG sin instancia real
 - ya existe `npm run preflight:postgres` para escanear dialectismos SQLite residuales en runtime JS
 - ya existe `npm run migrate:postgres` para importar tablas desde SQLite a PostgreSQL respetando ids y orden relacional
@@ -119,7 +120,8 @@ Estado PG actual:
 - ya existe `npm run verify:postgres` para comparar conteos entre ambas bases despues de importar
 - ya existe `npm run smoke:postgres` para validar arranque, health y login sobre una instancia PG real
 - ya existe `npm run postgres:cutover-check` para ejecutar el ensayo completo de corte sobre una instancia PG real
-- ya existe `npm run start:postgres` para levantar el runtime en modo PostgreSQL despues del cutover
+- ya existe `npm run start:postgres` para forzar el runtime en modo PostgreSQL despues del cutover
+- ya existe `npm run start:sqlite` para fallback explicito o compatibilidad local
 - el bootstrap PG ya replica el seed base de SQLite cuando la base esta vacia
 
 ## Que queda despues de la migracion
@@ -128,7 +130,7 @@ Lo que sigue desde este punto ya no es “terminar la migracion”, sino mejora 
 
 - migrar mas runtime JS interno a TS por bloques pequenos
 - ampliar tests fuera de Woo
-- decidir cuando promover PostgreSQL como runtime por defecto en entornos reales
+- consolidar PostgreSQL como runtime por defecto en entornos reales
 - decidir cuando retirar definitivamente el fallback legacy
 - seguir reduciendo deuda tecnica interna
 - terminar de eliminar dependencias residuales de `database.js`

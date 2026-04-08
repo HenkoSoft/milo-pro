@@ -44,6 +44,7 @@ function getDatabaseAccessForRequest(req, overrides = {}) {
 
 module.exports = {
   createDatabaseAccess,
+  getLegacyDatabase,
   getDatabaseAccessForRequest,
   getRequestRuntimeDb,
   runLegacyTransaction

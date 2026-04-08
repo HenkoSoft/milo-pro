@@ -1,7 +1,6 @@
 const express = require('express');
-const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
-const { createDatabaseAccess } = require('../services/runtime-db');
+const { createDatabaseAccess, getLegacyDatabase } = require('../services/runtime-db');
 const { buildAutomaticProductSku, getNextAutomaticProductSku } = require('../services/product-sku');
 const {
   ensureLocalBrand,
@@ -61,6 +60,16 @@ function setRuntimeDatabase(adapter) {
 
 function getDatabaseAccess() {
   return createDatabaseAccess(runtimeDatabase);
+}
+
+function getLegacyWooDeps() {
+  const legacyDb = getLegacyDatabase();
+  return {
+    get: legacyDb.get,
+    run: legacyDb.run,
+    all: legacyDb.all,
+    saveDatabase: legacyDb.saveDatabase
+  };
 }
 
 function requireAdmin(req, res) {
@@ -288,35 +297,29 @@ function getWooPollingIntervalSeconds() {
 }
 
 registerWooAdminRoutes(router, {
-  all,
+  ...getLegacyWooDeps(),
   authenticate,
   buildWooStatusResponse,
-  get,
   getWooOrderSyncConfig,
   getWooOrderSyncConfigAsync,
   initializeWooAutomation,
   isWooPollingActive,
   normalizeWooConfigPayload,
   normalizeWooConnectionTestPayload,
-  run,
-  saveDatabase,
   stopWooPolling,
   woocommerceRequest
 });
 
 registerWooProductRoutes(router, {
-  all,
+  ...getLegacyWooDeps(),
   authenticate,
   findWooProductBySku,
-  get,
   getActiveWooConfig,
   getActiveWooConfigAsync,
   getProductById,
   hydrateWooProductForImport,
   parseWooBoolean,
-  run,
   sanitizeWooProductSyncLog,
-  saveDatabase,
   syncProductSnapshotToWooCommerce,
   unlinkWooProductFromLocal,
   upsertWooProductIntoLocal,
@@ -325,7 +328,7 @@ registerWooProductRoutes(router, {
 
 registerWooOrderRoutes(router, {
   authenticate,
-  get,
+  ...getLegacyWooDeps(),
   getOrderSyncLogs,
   getWooOrderSyncConfig,
   getWooOrderSyncConfigAsync,
@@ -340,15 +343,12 @@ registerWooOrderRoutes(router, {
 });
 
 registerWooPollingRoutes(router, {
-  all,
+  ...getLegacyWooDeps(),
   authenticate,
-  get,
   getWooPollingIntervalSeconds,
   isWooPollingActive,
-  run,
   sanitizeWooPollingResult,
   sanitizeWooPollingStatus,
-  saveDatabase,
   startWooPolling,
   stopWooPolling,
   woocommerceRequest
