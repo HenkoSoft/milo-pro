@@ -394,7 +394,7 @@ async function upsertSaleRecord({ saleId, normalizedOrder, customerId, systemUse
   return created.lastInsertRowid;
 }
 
-function verifyWebhookRequest(headers = {}, rawBody = Buffer.alloc(0), config = getWooOrderSyncConfig()) {
+function verifyWebhookRequest(headers = {}, rawBody = Buffer.alloc(0), config = buildWooOrderSyncConfig(null, process.env)) {
   if (config.webhookAuthToken) {
     const authHeader = normalizeString(headers.authorization || headers.Authorization);
     if (authHeader !== `Bearer ${config.webhookAuthToken}`) {

@@ -1,6 +1,6 @@
 const express = require('express');
-const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 const {
   deleteProductFromWooCommerce,
   getActiveWooConfig,
@@ -19,24 +19,6 @@ const {
 } = require('../services/catalog');
 
 const router = express.Router();
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => saveDatabase()
-  };
-}
 
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
@@ -303,7 +285,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 router.get('/next-sku/value', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const nextSku = getNextAutomaticProductSku(await db.all('SELECT sku FROM products'));
   res.json({ sku: nextSku });
 });
@@ -316,7 +298,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
 router.post('/', authenticate, async (req, res) => {
   try {
-    const db = getDatabaseAccess(req);
+    const db = getDatabaseAccessForRequest(req);
     const payload = await buildProductPayload(db, req.body || {});
     const product = await persistProduct(db, payload);
     const syncResult = await syncProductSnapshotToWooCommerce(product, { action: 'product_create' });
@@ -337,7 +319,7 @@ router.post('/', authenticate, async (req, res) => {
 
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const db = getDatabaseAccess(req);
+    const db = getDatabaseAccessForRequest(req);
     const payload = await buildProductPayload(db, req.body || {});
     const product = await persistProduct(db, payload, req.params.id);
     const syncResult = await syncProductSnapshotToWooCommerce(product, { action: 'product_update' });
@@ -357,7 +339,7 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 router.delete('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   if (req.params.id === 'all') {
     await db.run('DELETE FROM product_images');
     await db.run('DELETE FROM product_categories');

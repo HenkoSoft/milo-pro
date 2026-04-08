@@ -1,26 +1,8 @@
 const express = require('express');
-const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => saveDatabase()
-  };
-}
 
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
@@ -62,14 +44,14 @@ function buildDeviceModelPayload(body) {
 }
 
 router.get('/device-types', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const types = await db.all('SELECT * FROM device_types WHERE active = 1 ORDER BY name');
   res.json(types);
 });
 
 router.post('/device-types', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = buildDeviceTypePayload(req.body);
   if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
@@ -83,21 +65,21 @@ router.post('/device-types', authenticate, async (req, res) => {
 
 router.delete('/device-types/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   await db.run('UPDATE device_types SET active = 0 WHERE id = ?', [req.params.id]);
   await db.save();
   res.json({ success: true });
 });
 
 router.get('/brands', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const brands = await db.all('SELECT * FROM brands WHERE active = 1 ORDER BY name');
   res.json(brands);
 });
 
 router.post('/brands', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = buildBrandPayload(req.body);
   if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
@@ -114,7 +96,7 @@ router.post('/brands', authenticate, async (req, res) => {
 
 router.put('/brands/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = buildBrandPayload(req.body);
   if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
@@ -133,14 +115,14 @@ router.put('/brands/:id', authenticate, async (req, res) => {
 
 router.delete('/brands/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   await db.run('UPDATE brands SET active = 0 WHERE id = ?', [req.params.id]);
   await db.save();
   res.json({ success: true });
 });
 
 router.get('/models', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const brandId = toNullableString(req.query.brand_id);
   let query = 'SELECT * FROM device_models WHERE active = 1';
   const params = [];
@@ -155,7 +137,7 @@ router.get('/models', authenticate, async (req, res) => {
 
 router.post('/models', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = buildDeviceModelPayload(req.body);
   if (!payload.name) return res.status(400).json({ error: 'Name required' });
   try {
@@ -169,7 +151,7 @@ router.post('/models', authenticate, async (req, res) => {
 
 router.delete('/models/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   await db.run('UPDATE device_models SET active = 0 WHERE id = ?', [req.params.id]);
   await db.save();
   res.json({ success: true });

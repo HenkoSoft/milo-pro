@@ -1,26 +1,8 @@
 const express = require('express');
-const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => saveDatabase()
-  };
-}
 
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
@@ -203,7 +185,7 @@ async function ensureCategoryRecordDb(db, payload = {}) {
 }
 
 router.get('/', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const categories = await listCategoriesTreeDb(db);
   const serialized = [];
   for (const item of categories) {
@@ -213,7 +195,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 router.get('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const category = await getCategoryByIdDb(db, req.params.id);
   if (!category) return res.status(404).json({ error: 'Category not found' });
   const tree = await listCategoriesTreeDb(db);
@@ -222,7 +204,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 router.post('/', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   try {
     const payload = normalizeCategoryPayload(req.body);
     await validateCategoryPayload(db, payload);
@@ -235,7 +217,7 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 router.put('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const existing = await getCategoryByIdDb(db, req.params.id);
   if (!existing) return res.status(404).json({ error: 'Category not found' });
 

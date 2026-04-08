@@ -45,6 +45,7 @@ Sistema mini ERP para tienda de reparacion de equipos tecnologicos y venta de pr
 - `npm run check:syntax`
 - `npm test`
 - `npm run validate`: ejecuta build backend + typechecks + check de sintaxis + tests
+- `npm run test:db-config`: valida la resolucion `postgres|sqlite|auto`
 
 ## Flujo recomendado de validacion
 
@@ -79,13 +80,21 @@ Script disponible para importar datos:
 - `npm run verify:postgres`
 - `npm run smoke:postgres`
 - `npm run postgres:cutover-check`
+- `npm run test:db-config`
 
 Variables esperadas:
 
+- `DATABASE_DIALECT=postgres|sqlite|auto`
 - `DATABASE_URL` o `PGHOST` + `PGDATABASE` + `PGUSER`
 - opcional: `PGPASSWORD`, `PGPORT`, `PGSCHEMA`
 - opcional: `PG_MIGRATE_TRUNCATE=1` para vaciar tablas antes de importar
 - sin `PG_MIGRATE_TRUNCATE=1`, la importacion falla si la base destino ya tiene datos
+
+Resolucion de dialecto:
+
+- `DATABASE_DIALECT=postgres`: fuerza PostgreSQL
+- `DATABASE_DIALECT=sqlite`: fuerza SQLite
+- `DATABASE_DIALECT=auto` o ausente: usa PostgreSQL si encuentra config PG; si no, cae a SQLite
 
 Smoke test PostgreSQL:
 
@@ -107,6 +116,7 @@ Preflight de compatibilidad:
 Validacion local del carril PostgreSQL:
 
 - `validate:postgres` encadena build backend, typecheck backend, preflight y tests del adapter/bootstrap
+- `validate:postgres` tambien valida la resolucion automatica del dialecto
 - no requiere una instancia PostgreSQL real
 
 Ensayo completo contra una instancia PostgreSQL:

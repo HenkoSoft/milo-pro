@@ -64,7 +64,7 @@ async function getActiveWooConfigAsync() {
   return db.get('SELECT * FROM woocommerce_sync WHERE id = 1 AND active = 1');
 }
 
-function isWooExportEnabled(config = getActiveWooConfig()) {
+function isWooExportEnabled(config) {
   return Boolean(config && config.store_url && config.sync_direction !== 'import');
 }
 

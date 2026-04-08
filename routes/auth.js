@@ -1,28 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { get, run, all, saveDatabase } = require('../database');
 const { JWT_SECRET, authenticate, getBearerToken } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => saveDatabase()
-  };
-}
 
 function sanitizeAuthUser(user) {
   return {
@@ -52,7 +34,7 @@ function normalizeCreateUserRequest(body) {
 }
 
 router.post('/login', async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const { username, password } = normalizeLoginRequest(req.body);
   const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
 
@@ -71,7 +53,7 @@ router.post('/logout', (_req, res) => {
 });
 
 router.get('/me', async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const token = getBearerToken(req.headers.authorization);
 
   if (!token) {
@@ -91,7 +73,7 @@ router.get('/me', async (req, res) => {
 router.get('/users', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const users = (await db.all('SELECT id, username, role, name, created_at FROM users')).map((user) => ({
     ...sanitizeAuthUser(user),
     created_at: user.created_at
@@ -102,7 +84,7 @@ router.get('/users', authenticate, async (req, res) => {
 router.post('/users', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const { username, password, role, name } = normalizeCreateUserRequest(req.body);
   if (!username || !password || !name) {
     return res.status(400).json({ error: 'Username, password and name are required' });

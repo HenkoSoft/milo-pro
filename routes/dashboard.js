@@ -1,20 +1,8 @@
 const express = require('express');
-const { get, all } = require('../database');
 const { authenticate } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params)
-  };
-}
 
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
@@ -81,7 +69,7 @@ function sanitizeActivity(record, type) {
 }
 
 router.get('/stats', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const today = new Date().toISOString().split('T')[0];
 
   const todaySales = await db.get(`
@@ -109,7 +97,7 @@ router.get('/stats', authenticate, async (req, res) => {
 });
 
 router.get('/alerts', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const lowStock = (await db.all(`
     SELECT p.*, c.name as category_name
     FROM products p
@@ -132,7 +120,7 @@ router.get('/alerts', authenticate, async (req, res) => {
 });
 
 router.get('/recent-activity', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const recentSales = (await db.all(`
     SELECT s.*, c.name as customer_name, u.name as user_name
     FROM sales s

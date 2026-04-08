@@ -1,26 +1,8 @@
 const express = require('express');
-const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => saveDatabase()
-  };
-}
 
 function toNull(value) {
   return value === undefined || value === null || value === '' ? null : String(value).trim();
@@ -82,7 +64,7 @@ function buildCustomerParams(payload, { allowEmptyName = false } = {}) {
 }
 
 router.get('/', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const search = String(req.query.search || '').trim();
 
   let query = 'SELECT * FROM customers WHERE 1=1';
@@ -100,7 +82,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 router.get('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
@@ -124,7 +106,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 router.post('/', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = normalizeCustomerPayload(req.body);
 
   if (!payload.name) return res.status(400).json({ error: 'Name is required' });
@@ -144,7 +126,7 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 router.put('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = normalizeCustomerPayload(req.body);
 
   await db.run(`
@@ -164,7 +146,7 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 router.delete('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   await db.run('DELETE FROM customers WHERE id = ?', [req.params.id]);
   await db.save();
   res.json({ success: true });

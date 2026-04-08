@@ -1,20 +1,8 @@
 const express = require('express');
-const { get, all } = require('../database');
 const { authenticate } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params)
-  };
-}
 
 function toNumber(value, fallback = 0) {
   const num = Number(value);
@@ -31,7 +19,7 @@ function sanitizeRevenuePoint(record) {
 }
 
 router.get('/sales', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const startDate = String(req.query.startDate || '').trim();
   const endDate = String(req.query.endDate || '').trim();
 
@@ -91,7 +79,7 @@ router.get('/sales', authenticate, async (req, res) => {
 });
 
 router.get('/repairs', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const byStatus = (await db.all(`
     SELECT status, COUNT(*) as count,
            COALESCE(SUM(final_price), 0) as totalRevenue
@@ -134,7 +122,7 @@ router.get('/repairs', authenticate, async (req, res) => {
 });
 
 router.get('/products', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const topSelling = (await db.all(`
     SELECT p.id, p.name, p.sku, p.stock, p.sale_price,
            COALESCE(SUM(si.quantity), 0) as totalSold,
@@ -188,7 +176,7 @@ router.get('/products', authenticate, async (req, res) => {
 });
 
 router.get('/revenue', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const period = String(req.query.period || '').trim();
 
   let dateFilter = '';

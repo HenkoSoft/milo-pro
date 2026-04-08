@@ -1,6 +1,6 @@
 const express = require('express');
-const { get, run, all, saveDatabase } = require('../database');
 const { authenticate } = require('../auth');
+const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
 
@@ -21,24 +21,6 @@ const STATUS_LABELS = {
   ready: 'Listo para recoger',
   delivered: 'Entregado'
 };
-
-function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => saveDatabase()
-  };
-}
 
 function toNullableString(value) {
   if (value === undefined || value === null || value === '') return null;
@@ -120,7 +102,7 @@ function generateTicketNumber() {
 }
 
 router.get('/', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const status = String(req.query.status || '').trim();
   const search = String(req.query.search || '').trim();
 
@@ -149,7 +131,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 router.get('/stats', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const received = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'received'");
   const diagnosing = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'diagnosing'");
   const waitingParts = await db.get("SELECT COUNT(*) as count FROM repairs WHERE status = 'waiting_parts'");
@@ -169,7 +151,7 @@ router.get('/stats', authenticate, async (req, res) => {
 });
 
 router.get('/ticket/:ticketNumber', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const repair = await db.get(`
     SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
     FROM repairs r
@@ -187,7 +169,7 @@ router.get('/ticket/:ticketNumber', authenticate, async (req, res) => {
 });
 
 router.get('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const repair = await db.get(`
     SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, c.address as customer_address
     FROM repairs r
@@ -205,7 +187,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 router.post('/', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = normalizeRepairPayload(req.body);
 
   if (!payload.customer_id || !payload.device_type || !payload.problem_description) {
@@ -248,7 +230,7 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 router.put('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const payload = normalizeRepairPayload(req.body);
 
   await db.run(`
@@ -280,7 +262,7 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 router.put('/:id/status', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   const status = String((req.body || {}).status || '').trim();
   const notes = toNullableString((req.body || {}).notes);
 
@@ -308,7 +290,7 @@ router.put('/:id/status', authenticate, async (req, res) => {
 });
 
 router.delete('/:id', authenticate, async (req, res) => {
-  const db = getDatabaseAccess(req);
+  const db = getDatabaseAccessForRequest(req);
   await db.run('DELETE FROM repair_logs WHERE repair_id = ?', [req.params.id]);
   await db.run('DELETE FROM repairs WHERE id = ?', [req.params.id]);
   await db.save();

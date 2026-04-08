@@ -68,6 +68,7 @@ Comandos de validacion:
 - `npm test`
 - `npm run validate`
 - `npm run start:postgres`
+- `npm run test:db-config`
 
 Migracion a PostgreSQL por etapas:
 
@@ -87,9 +88,11 @@ Script de importacion de datos ya disponible:
 - `npm run postgres:cutover-check`
 - usa `data/milo-pro.db` o fallback `data/techfix.db`
 - requiere `DATABASE_URL` o `PGHOST` + `PGDATABASE` + `PGUSER`
+- acepta `DATABASE_DIALECT=postgres|sqlite|auto`
 - acepta `PG_MIGRATE_TRUNCATE=1` para reiniciar las tablas objetivo
 - si el destino ya tiene datos y no se define `PG_MIGRATE_TRUNCATE=1`, la importacion falla de forma explicita
 - `validate:postgres` valida el carril PG sin requerir una base real
+- `test:db-config` valida la resolucion `postgres|sqlite|auto`
 - `preflight:postgres` detecta patrones SQLite-specific residuales en runtime JS
 - `verify:postgres` compara conteos entre SQLite y PostgreSQL tabla por tabla
 - el smoke test valida arranque + `/api/health` + login base sobre PostgreSQL
@@ -98,6 +101,7 @@ Script de importacion de datos ya disponible:
 - el cutover completo ya fue ejecutado exitosamente sobre una PostgreSQL local de prueba
 - la importacion ahora reconcilia huerfanos historicos de SQLite creando filas sinteticas seguras cuando faltan `suppliers` o `products` referenciados
 - despues del ensayo, el runtime puede levantarse con `npm run start:postgres`
+- si `DATABASE_DIALECT` queda en `auto` o ausente, el runtime elige PostgreSQL automaticamente cuando detecta configuracion PG; en caso contrario usa SQLite
 
 Limitacion actual importante:
 

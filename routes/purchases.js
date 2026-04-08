@@ -1,31 +1,13 @@
 const express = require('express');
-const { get, run, all, saveDatabase, transaction } = require('../database');
+const { runLegacyTransaction, getDatabaseAccessForRequest } = require('../services/runtime-db');
 const { authenticate } = require('../auth');
 
 const router = express.Router();
 
 function getDatabaseAccess(req) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => saveDatabase(),
-    transaction: runtimeDb && typeof runtimeDb.transaction === 'function'
-      ? (fn) => runtimeDb.transaction(fn)
-      : async (fn) => {
-          const wrapped = transaction(() => fn(getDatabaseAccess(req)));
-          return wrapped();
-        }
-  };
+  return getDatabaseAccessForRequest(req, {
+    transactionFallback: async (fn) => runLegacyTransaction(fn)
+  });
 }
 
 function getErrorMessage(error, fallback) {

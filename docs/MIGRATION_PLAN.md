@@ -103,6 +103,7 @@ Fase PG-5:
 Estado PG actual:
 
 - `DATABASE_DIALECT=postgres` ya puede iniciar el adapter y bootstrapear schema base
+- `DATABASE_DIALECT=auto` o ausente ya puede resolver PostgreSQL automaticamente cuando existe configuracion PG
 - `pg` pasa a ser dependencia del runtime
 - SQLite sigue siendo el default operativo
 - el ensayo real de corte sobre una PostgreSQL local ya paso completo con `postgres:cutover-check`
