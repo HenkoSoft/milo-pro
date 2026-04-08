@@ -1,8 +1,8 @@
-import { useDeferredValue } from 'react';
+﻿import { useDeferredValue } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getBrands, getDeviceModels, getDeviceTypes } from '../../api/catalog';
-import { getCustomers } from '../../api/customers';
-import { createRepair, deleteRepair, getRepairById, getRepairs, getRepairStats, updateRepair, updateRepairStatus } from '../../api/repairs';
+import { getBrands, getDeviceModels, getDeviceTypes } from '../../services/catalog';
+import { getCustomers } from '../../services/customers';
+import { createRepair, deleteRepair, getRepairById, getRepairs, getRepairStats, updateRepair, updateRepairStatus } from '../../services/repairs';
 
 export function useRepairs(params: { status?: string; search?: string }) {
   const deferredSearch = useDeferredValue(params.search || '');
@@ -74,3 +74,4 @@ export function useRepairMutations() {
     })
   };
 }
+

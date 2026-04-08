@@ -1,6 +1,6 @@
-import { useDeferredValue, useMemo } from 'react';
+﻿import { useDeferredValue, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createCustomer, deleteCustomer, getCustomers, updateCustomer } from '../../api/customers';
+import { createCustomer, deleteCustomer, getCustomers, updateCustomer } from '../../services/customers';
 import type { CustomerPayload } from '../../types/customer';
 
 export function useCustomers(search: string) {
@@ -45,3 +45,4 @@ export function useCustomerMutations() {
     [createMutation, deleteMutation, updateMutation]
   );
 }
+

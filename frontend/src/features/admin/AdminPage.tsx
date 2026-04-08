@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+﻿import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createUser, getUsers } from '../../api/auth';
+import { createUser, getUsers } from '../../services/auth';
 import {
   createBrand,
   createCategory,
@@ -14,8 +14,8 @@ import {
   getCategories,
   getDeviceModels,
   getDeviceTypes
-} from '../../api/catalog';
-import { disconnectWoo, getWooPollingStatus, getWooStatus, startWooPolling, stopWooPolling, testWooConnection, updateWooConfig } from '../../api/woocommerce';
+} from '../../services/catalog';
+import { disconnectWoo, getWooPollingStatus, getWooStatus, startWooPolling, stopWooPolling, testWooConnection, updateWooConfig } from '../../services/woocommerce';
 import type { CreateAuthUserPayload } from '../../types/auth';
 import type { Brand, Category, DeviceModel, DeviceType } from '../../types/catalog';
 import type { WooConfigPayload } from '../../types/woocommerce';
@@ -616,3 +616,4 @@ export function AdminPage({ pageId }: { pageId: string }) {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -11,10 +11,10 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../database',
-    '../auth',
-    '../routes/auth',
-    '../routes/customers'
+    '../backend/src/config/database',
+    '../backend/src/config/auth',
+    '../backend/src/routes/auth',
+    '../backend/src/routes/customers'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -25,7 +25,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../database');
+  const database = require('../backend/src/config/database');
   await database.initializeDatabase();
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
@@ -49,9 +49,9 @@ async function createHarness() {
 
   database.saveDatabase();
 
-  const { JWT_SECRET } = require('../auth');
-  const authRoutes = require('../routes/auth');
-  const customerRoutes = require('../routes/customers');
+  const { JWT_SECRET } = require('../backend/src/config/auth');
+  const authRoutes = require('../backend/src/routes/auth');
+  const customerRoutes = require('../backend/src/routes/customers');
 
   const app = express();
   app.use(express.json());
@@ -287,4 +287,5 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
 

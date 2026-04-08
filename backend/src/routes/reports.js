@@ -1,5 +1,5 @@
-const express = require('express');
-const { authenticate } = require('../auth');
+﻿const express = require('express');
+const { authenticate } = require('../config/auth');
 const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
@@ -222,3 +222,4 @@ router.get('/revenue', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+

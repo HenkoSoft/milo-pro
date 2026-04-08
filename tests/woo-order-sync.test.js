@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const path = require('path');
 const fs = require('fs');
 
@@ -68,15 +68,15 @@ async function createHarness() {
   process.env.WOO_ORDER_PAID_STATUSES = JSON.stringify(['paid', 'completed']);
 
   const moduleIds = [
-    '../database',
-    '../services/woo-order-sync'
+    '../backend/src/config/database',
+    '../backend/src/services/woo-order-sync'
   ];
 
   moduleIds.forEach((moduleId) => {
     delete require.cache[require.resolve(moduleId)];
   });
 
-  const database = require('../database');
+  const database = require('../backend/src/config/database');
   await database.initializeDatabase();
 
   database.run(
@@ -93,7 +93,7 @@ async function createHarness() {
   );
   database.saveDatabase();
 
-  const service = require('../services/woo-order-sync');
+  const service = require('../backend/src/services/woo-order-sync');
 
   return {
     database,
@@ -267,3 +267,4 @@ main().catch((error) => {
   console.error(error.stack || error.message || error);
   process.exit(1);
 });
+

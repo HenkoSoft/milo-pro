@@ -35,21 +35,21 @@ export async function startServer(): Promise<void> {
   try {
     const databaseState = await initializeRuntimeDatabase();
 
-    const authRoutes = require('../../routes/auth');
-    const categoryRoutes = require('../../routes/categories');
-    const productRoutes = require('../../routes/products');
-    const saleRoutes = require('../../routes/sales');
-    const customerRoutes = require('../../routes/customers');
-    const repairRoutes = require('../../routes/repairs');
-    const dashboardRoutes = require('../../routes/dashboard');
-    const reportRoutes = require('../../routes/reports');
-    const settingsRoutes = require('../../routes/settings');
-    const woocommerceRoutes = require('../../routes/woocommerce');
-    const deviceOptionsRoutes = require('../../routes/deviceOptions');
-    const purchaseRoutes = require('../../routes/purchases');
-    const catalogService = require('../../services/catalog');
-    const woocommerceSyncService = require('../../services/woocommerce-sync');
-    const wooOrderSyncService = require('../../services/woo-order-sync');
+    const authRoutes = require('../src/routes/auth.js');
+    const categoryRoutes = require('../src/routes/categories.js');
+    const productRoutes = require('../src/routes/products.js');
+    const saleRoutes = require('../src/routes/sales.js');
+    const customerRoutes = require('../src/routes/customers.js');
+    const repairRoutes = require('../src/routes/repairs.js');
+    const dashboardRoutes = require('../src/routes/dashboard.js');
+    const reportRoutes = require('../src/routes/reports.js');
+    const settingsRoutes = require('../src/routes/settings.js');
+    const woocommerceRoutes = require('../src/routes/woocommerce.js');
+    const deviceOptionsRoutes = require('../src/routes/deviceOptions.js');
+    const purchaseRoutes = require('../src/routes/purchases.js');
+    const catalogService = require('../src/services/catalog.js');
+    const woocommerceSyncService = require('../src/services/woocommerce-sync.js');
+    const wooOrderSyncService = require('../src/services/woo-order-sync.js');
 
     app.locals.database = databaseState.adapter;
 

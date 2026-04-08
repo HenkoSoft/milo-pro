@@ -1,5 +1,5 @@
-function getLegacyDatabase() {
-  return require('../database');
+﻿function getLegacyDatabase() {
+  return require('../config/database');
 }
 
 function runLegacyTransaction(fn, overrides = {}) {
@@ -49,3 +49,4 @@ module.exports = {
   getRequestRuntimeDb,
   runLegacyTransaction
 };
+

@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   useContext,
   useEffect,
@@ -6,7 +6,7 @@ import {
   useState,
   type PropsWithChildren
 } from 'react';
-import { getCurrentUser, login as loginRequest, logout as logoutRequest } from '../../api/auth';
+import { getCurrentUser, login as loginRequest, logout as logoutRequest } from '../../services/auth';
 import type { AuthContextValue, AuthLoginPayload, AuthUser } from '../../types/auth';
 
 const TOKEN_STORAGE_KEY = 'milo_react_token';
@@ -105,3 +105,4 @@ export function useAuth() {
 
   return context;
 }
+

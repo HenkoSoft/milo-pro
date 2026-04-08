@@ -1,6 +1,6 @@
 import type { DatabaseAdapter, DatabaseParams, DatabaseRow, DatabaseRunResult } from './types';
 
-const legacyDatabase = require('../../../database');
+const legacyDatabase = require('../../src/config/database.js');
 
 type LegacyDatabaseModule = {
   initializeDatabase: () => Promise<unknown>;

@@ -1,5 +1,5 @@
-const { initializeDatabase } = require('../database');
-const { importWooOrderById, importWooOrders } = require('../services/woo-order-importer');
+﻿const { initializeDatabase } = require('../backend/src/config/database');
+const { importWooOrderById, importWooOrders } = require('../backend/src/services/woo-order-importer');
 
 function parseArgs(argv) {
   const args = {};
@@ -51,3 +51,4 @@ main().catch((error) => {
   console.error(error.message || error);
   process.exit(1);
 });
+

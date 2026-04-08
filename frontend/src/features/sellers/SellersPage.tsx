@@ -1,7 +1,7 @@
-import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+﻿import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getCustomers } from '../../api/customers';
-import { getSales } from '../../api/sales';
+import { getCustomers } from '../../services/customers';
+import { getSales } from '../../services/sales';
 import type { Customer } from '../../types/customer';
 import type { Sale } from '../../types/sale';
 
@@ -855,3 +855,4 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
     </section>
   );
 }
+

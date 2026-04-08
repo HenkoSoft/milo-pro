@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { getProducts } from '../../api/products';
+﻿import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { getProducts } from '../../services/products';
 import type { Product } from '../../types/product';
 
 const TOOLS_MODULES = [
@@ -236,3 +236,4 @@ export function ToolsPage({ pageId }: { pageId: string }) {
     </div>
   );
 }
+

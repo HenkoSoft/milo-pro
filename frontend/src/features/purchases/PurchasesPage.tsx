@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+﻿import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createPurchase,
@@ -16,8 +16,8 @@ import {
   getSupplierPayments,
   getSuppliers,
   updateSupplier
-} from '../../api/purchases';
-import { getProducts } from '../../api/products';
+} from '../../services/purchases';
+import { getProducts } from '../../services/products';
 import type { Product } from '../../types/product';
 import type {
   Purchase,
@@ -457,7 +457,7 @@ function SupplierCreditsPanel({
                 {filteredProducts.map((product) => (
                   <button key={product.id} type="button" className="purchase-search-result" onClick={() => addItem(product)}>
                     <strong>{product.name}</strong>
-                    <span>{product.sku || product.barcode || `#${product.id}`} · Costo {formatMoney(Number(product.purchase_price || 0))}</span>
+                    <span>{product.sku || product.barcode || `#${product.id}`} Â· Costo {formatMoney(Number(product.purchase_price || 0))}</span>
                   </button>
                 ))}
               </div>
@@ -1178,7 +1178,7 @@ export function PurchasesPage({ pageId }: { pageId: string }) {
                   filteredProducts.map((product) => (
                     <button key={product.id} type="button" className="purchase-search-result" onClick={() => handleAddItem(product)}>
                       <strong>{product.name}</strong>
-                      <span>{product.sku || product.barcode || `#${product.id}`} · Costo {formatMoney(Number(product.purchase_price || 0))}</span>
+                      <span>{product.sku || product.barcode || `#${product.id}`} Â· Costo {formatMoney(Number(product.purchase_price || 0))}</span>
                     </button>
                   ))
                 )}
@@ -1259,7 +1259,7 @@ export function PurchasesPage({ pageId }: { pageId: string }) {
           <div className="modal purchase-supplier-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-supplier-modal-title">
             <div className="modal-header">
               <h3 id="purchase-supplier-modal-title">Nuevo Proveedor</h3>
-              <button type="button" className="btn-close" onClick={() => setIsSupplierModalOpen(false)}>×</button>
+              <button type="button" className="btn-close" onClick={() => setIsSupplierModalOpen(false)}>Ã—</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -1526,3 +1526,4 @@ export function SuppliersPage() {
     </div>
   );
 }
+

@@ -1,8 +1,8 @@
-import { useMemo, useState, type ChangeEvent } from 'react';
+﻿import { useMemo, useState, type ChangeEvent } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { getCustomers } from '../../api/customers';
-import { getPurchases } from '../../api/purchases';
-import { getProductsReport, getRepairsReport, getRevenueReport, getSalesReport } from '../../api/reports';
+import { getCustomers } from '../../services/customers';
+import { getPurchases } from '../../services/purchases';
+import { getProductsReport, getRepairsReport, getRevenueReport, getSalesReport } from '../../services/reports';
 import type { Customer } from '../../types/customer';
 import type { PurchasesSummaryRow } from '../../types/report';
 
@@ -626,3 +626,4 @@ export function ReportsPage({ pageId }: { pageId: string }) {
     </div>
   );
 }
+

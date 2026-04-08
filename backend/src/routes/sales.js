@@ -1,6 +1,6 @@
-const express = require('express');
+﻿const express = require('express');
 const { runLegacyTransaction, getDatabaseAccessForRequest } = require('../services/runtime-db');
-const { authenticate } = require('../auth');
+const { authenticate } = require('../config/auth');
 const {
   syncProductSnapshotToWooCommerce,
   syncProductToWooCommerce
@@ -496,3 +496,4 @@ router.put('/:id/status', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+

@@ -1,7 +1,7 @@
-const express = require('express');
+﻿const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { JWT_SECRET, authenticate, getBearerToken } = require('../auth');
+const { JWT_SECRET, authenticate, getBearerToken } = require('../config/auth');
 const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
@@ -106,3 +106,4 @@ router.post('/users', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+

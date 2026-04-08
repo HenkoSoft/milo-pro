@@ -9,7 +9,8 @@ try {
   sharp = null;
 }
 
-const PRODUCT_IMAGE_DIR = path.join(__dirname, '..', 'public', 'productos');
+const REPO_ROOT = path.resolve(__dirname, '../../..');
+const PRODUCT_IMAGE_DIR = path.join(REPO_ROOT, 'public', 'productos');
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_ORIGINAL_BYTES = 10 * 1024 * 1024;
 const OUTPUT_SIZE = 1200;
@@ -73,7 +74,7 @@ function resolveExistingLocalPath(item) {
     return item.ruta_local;
   }
   const publicCandidate = item && item.url_publica && String(item.url_publica).startsWith('/productos/')
-    ? path.join(__dirname, '..', 'public', String(item.url_publica).replace(/^\/+/, '').replace(/\//g, path.sep))
+    ? path.join(REPO_ROOT, 'public', String(item.url_publica).replace(/^\/+/, '').replace(/\//g, path.sep))
     : '';
   return publicCandidate && fs.existsSync(publicCandidate) ? publicCandidate : '';
 }

@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings } from '../../api/settings';
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getSettings, updateSettings } from '../../services/settings';
 import type { BusinessSettings } from '../../types/settings';
 
 export function useSettings() {
@@ -20,3 +20,4 @@ export function useUpdateSettings() {
     }
   });
 }
+

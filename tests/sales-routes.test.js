@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -11,11 +11,11 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../database',
-    '../auth',
-    '../routes/sales',
-    '../services/woocommerce-sync',
-    '../services/woo-order-sync'
+    '../backend/src/config/database',
+    '../backend/src/config/auth',
+    '../backend/src/routes/sales',
+    '../backend/src/services/woocommerce-sync',
+    '../backend/src/services/woo-order-sync'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -26,7 +26,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../database');
+  const database = require('../backend/src/config/database');
   await database.initializeDatabase();
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
@@ -60,7 +60,7 @@ async function createHarness() {
   const testSyncCalls = [];
   const statusCalls = [];
 
-  const wooSyncPath = require.resolve('../services/woocommerce-sync');
+  const wooSyncPath = require.resolve('../backend/src/services/woocommerce-sync');
   require.cache[wooSyncPath] = {
     id: wooSyncPath,
     filename: wooSyncPath,
@@ -77,7 +77,7 @@ async function createHarness() {
     }
   };
 
-  const orderSyncPath = require.resolve('../services/woo-order-sync');
+  const orderSyncPath = require.resolve('../backend/src/services/woo-order-sync');
   require.cache[orderSyncPath] = {
     id: orderSyncPath,
     filename: orderSyncPath,
@@ -110,8 +110,8 @@ async function createHarness() {
     }
   };
 
-  const { JWT_SECRET } = require('../auth');
-  const salesRoutes = require('../routes/sales');
+  const { JWT_SECRET } = require('../backend/src/config/auth');
+  const salesRoutes = require('../backend/src/routes/sales');
 
   const app = express();
   app.use(express.json());
@@ -327,3 +327,4 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+

@@ -1,5 +1,5 @@
-const express = require('express');
-const { authenticate } = require('../auth');
+﻿const express = require('express');
+const { authenticate } = require('../config/auth');
 const { createDatabaseAccess } = require('../services/runtime-db');
 const { buildAutomaticProductSku, getNextAutomaticProductSku } = require('../services/product-sku');
 const {
@@ -351,6 +351,7 @@ router.setRuntimeDatabase = (adapter) => {
 };
 
 module.exports = router;
+
 
 
 

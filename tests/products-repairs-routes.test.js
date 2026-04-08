@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -11,14 +11,14 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../database',
-    '../auth',
-    '../routes/products',
-    '../routes/repairs',
-    '../services/woocommerce-sync',
-    '../services/product-images',
-    '../services/product-sku',
-    '../services/catalog'
+    '../backend/src/config/database',
+    '../backend/src/config/auth',
+    '../backend/src/routes/products',
+    '../backend/src/routes/repairs',
+    '../backend/src/services/woocommerce-sync',
+    '../backend/src/services/product-images',
+    '../backend/src/services/product-sku',
+    '../backend/src/services/catalog'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -29,7 +29,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../database');
+  const database = require('../backend/src/config/database');
   await database.initializeDatabase();
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
@@ -62,7 +62,7 @@ async function createHarness() {
 
   database.saveDatabase();
 
-  const woocommerceSyncPath = require.resolve('../services/woocommerce-sync');
+  const woocommerceSyncPath = require.resolve('../backend/src/services/woocommerce-sync');
   require.cache[woocommerceSyncPath] = {
     id: woocommerceSyncPath,
     filename: woocommerceSyncPath,
@@ -76,7 +76,7 @@ async function createHarness() {
     }
   };
 
-  const productImagesPath = require.resolve('../services/product-images');
+  const productImagesPath = require.resolve('../backend/src/services/product-images');
   require.cache[productImagesPath] = {
     id: productImagesPath,
     filename: productImagesPath,
@@ -95,9 +95,9 @@ async function createHarness() {
     }
   };
 
-  const { JWT_SECRET } = require('../auth');
-  const productsRoutes = require('../routes/products');
-  const repairsRoutes = require('../routes/repairs');
+  const { JWT_SECRET } = require('../backend/src/config/auth');
+  const productsRoutes = require('../backend/src/routes/products');
+  const repairsRoutes = require('../backend/src/routes/repairs');
 
   const app = express();
   app.use(express.json());
@@ -317,4 +317,5 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
 

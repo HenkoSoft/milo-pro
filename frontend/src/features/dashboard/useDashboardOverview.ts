@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { getDashboardOverview } from '../../api/dashboard';
+﻿import { useQuery } from '@tanstack/react-query';
+import { getDashboardOverview } from '../../services/dashboard';
 
 export function useDashboardOverview() {
   return useQuery({
@@ -8,3 +8,4 @@ export function useDashboardOverview() {
     staleTime: 30_000
   });
 }
+

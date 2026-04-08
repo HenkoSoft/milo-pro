@@ -1,7 +1,7 @@
-import { useDeferredValue, useMemo } from 'react';
+﻿import { useDeferredValue, useMemo } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getBrands, getCategories } from '../../api/catalog';
-import { createProduct, deleteProduct, getNextSku, getProducts, updateProduct } from '../../api/products';
+import { getBrands, getCategories } from '../../services/catalog';
+import { createProduct, deleteProduct, getNextSku, getProducts, updateProduct } from '../../services/products';
 import type { ProductListParams } from '../../types/product';
 
 export function useProducts(params: ProductListParams) {
@@ -66,3 +66,4 @@ export function useProductMutations() {
     deleteMutation
   };
 }
+

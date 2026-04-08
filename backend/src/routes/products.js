@@ -1,5 +1,5 @@
-const express = require('express');
-const { authenticate } = require('../auth');
+﻿const express = require('express');
+const { authenticate } = require('../config/auth');
 const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 const {
   deleteProductFromWooCommerce,
@@ -380,6 +380,7 @@ router.get('/low-stock/alerts', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
 

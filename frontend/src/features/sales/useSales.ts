@@ -1,8 +1,8 @@
-import { useDeferredValue, useMemo } from 'react';
+﻿import { useDeferredValue, useMemo } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCustomers } from '../../api/customers';
-import { getProducts } from '../../api/products';
-import { createSale, getNextReceiptNumber, getOnlineFeed, getSaleById, getSales, getTodaySales, updateSaleStatus } from '../../api/sales';
+import { getCustomers } from '../../services/customers';
+import { getProducts } from '../../services/products';
+import { createSale, getNextReceiptNumber, getOnlineFeed, getSaleById, getSales, getTodaySales, updateSaleStatus } from '../../services/sales';
 import type { SalePayload, SaleStatusUpdatePayload } from '../../types/sale';
 
 export function useSalesHistory(params: { startDate?: string; endDate?: string; customerId?: string }) {
@@ -90,3 +90,4 @@ export function useSaleMutations() {
     })
   };
 }
+

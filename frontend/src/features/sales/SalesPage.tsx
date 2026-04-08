@@ -4,7 +4,7 @@ import { useOnlineFeed, useSaleComposerData, useSaleDetail, useSaleMutations, us
 import type { Customer } from '../../types/customer';
 import type { Product } from '../../types/product';
 import type { Category } from '../../types/catalog';
-import { createSale } from '../../api/sales';
+import { createSale } from '../../services/sales';
 import type { Sale, SalePayloadItem } from '../../types/sale';
 
 const SALES_MODULES = [
@@ -1019,3 +1019,4 @@ export function SalesPage({ pageId }: SalesPageProps) {
     </div>
   );
 }
+

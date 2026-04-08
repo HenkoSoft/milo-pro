@@ -1,10 +1,10 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
 const repoRoot = process.cwd();
 const allowedDirectImports = new Set([
-  path.normalize('services/runtime-db.js')
+  path.normalize('backend/src/services/runtime-db.js')
 ]);
 
 function collectFiles(dirPath, collected = []) {
@@ -26,7 +26,7 @@ function collectFiles(dirPath, collected = []) {
 }
 
 function findDirectDatabaseImports() {
-  const directories = ['routes', 'services'];
+  const directories = ['backend/src/routes', 'backend/src/services'];
   const offenders = [];
 
   for (const directory of directories) {
@@ -34,10 +34,10 @@ function findDirectDatabaseImports() {
     for (const filePath of files) {
       const relativePath = path.normalize(path.relative(repoRoot, filePath));
       const content = fs.readFileSync(filePath, 'utf8');
-      const hasDirectImport = content.includes("require('../database')")
-        || content.includes('require("../database")')
-        || content.includes("require('./database')")
-        || content.includes('require("./database")');
+      const hasDirectImport = content.includes("require('../config/database')")
+        || content.includes('require("../config/database")')
+        || content.includes("require('../config/database.js')")
+        || content.includes('require("../config/database.js")');
 
       if (hasDirectImport && !allowedDirectImports.has(relativePath)) {
         offenders.push(relativePath);
@@ -62,3 +62,4 @@ runCase('solo runtime-db puede importar database directamente en routes/services
   const offenders = findDirectDatabaseImports();
   assert.deepEqual(offenders, []);
 });
+

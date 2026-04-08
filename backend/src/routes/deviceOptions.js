@@ -1,5 +1,5 @@
-const express = require('express');
-const { authenticate } = require('../auth');
+﻿const express = require('express');
+const { authenticate } = require('../config/auth');
 const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 
 const router = express.Router();
@@ -158,3 +158,4 @@ router.delete('/models/:id', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+

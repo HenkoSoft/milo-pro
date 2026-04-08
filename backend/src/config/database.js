@@ -1,18 +1,19 @@
-const initSqlJs = require('sql.js');
+﻿const initSqlJs = require('sql.js');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs2 = require('fs');
-const { buildAutomaticProductSku } = require('./services/product-sku');
+const { buildAutomaticProductSku } = require('../services/product-sku');
 
 const DATABASE_DIALECT = String(process.env.DATABASE_DIALECT || 'sqlite').trim().toLowerCase();
 const POSTGRES_BRIDGE_MODE = DATABASE_DIALECT === 'postgres';
+const REPO_ROOT = path.resolve(__dirname, '../../..');
 
 let db = null;
 const DATABASE_FILENAME = process.env.MILO_DB_FILENAME || 'milo-pro.db';
 const LEGACY_DATABASE_FILENAME = 'techfix.db';
 
 function getDatabasePath(filename = DATABASE_FILENAME) {
-  return path.join(__dirname, 'data', filename);
+  return path.join(REPO_ROOT, 'data', filename);
 }
 
 function run(sql, params = []) {
@@ -791,8 +792,8 @@ async function initializeDatabase() {
   if (shouldSeed && (!supplierCount || supplierCount.count === 0)) {
     const defaultSuppliers = [
       { name: 'Distribuidora Tech', phone: '11-5555-1234', email: 'ventas@distritech.com', city: 'Buenos Aires', tax_id: '30-12345678-9' },
-      { name: 'Global Parts SA', phone: '11-5555-5678', email: 'info@globalparts.com', city: 'Córdoba', tax_id: '30-87654321-0' },
-      { name: 'Mega Electrónica', phone: '11-5555-9012', email: 'mega@electronica.com', city: 'Rosario', tax_id: '30-45678901-2' }
+      { name: 'Global Parts SA', phone: '11-5555-5678', email: 'info@globalparts.com', city: 'CÃ³rdoba', tax_id: '30-87654321-0' },
+      { name: 'Mega ElectrÃ³nica', phone: '11-5555-9012', email: 'mega@electronica.com', city: 'Rosario', tax_id: '30-45678901-2' }
     ];
     defaultSuppliers.forEach(s => {
       run('INSERT INTO suppliers (name, phone, email, city, tax_id) VALUES (?, ?, ?, ?, ?)', 
@@ -1065,4 +1066,5 @@ function ensureLegacyDatabaseAvailable(methodName) {
 }
 
 module.exports = { initializeDatabase, run, get, all, transaction, saveDatabase };
+
 
