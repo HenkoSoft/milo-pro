@@ -70,6 +70,7 @@ async function createHarness() {
     exports: {
       deleteProductFromWooCommerce: async () => ({ success: true, skipped: true }),
       getActiveWooConfig: () => null,
+      getActiveWooConfigAsync: async () => null,
       isWooExportEnabled: () => false,
       syncProductSnapshotToWooCommerce: async () => ({ success: true, skipped: true })
     }

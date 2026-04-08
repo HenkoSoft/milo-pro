@@ -1,4 +1,4 @@
-const { createDatabaseAccess, getLegacyDatabase, runLegacyTransaction } = require('./runtime-db');
+const { createDatabaseAccess, runLegacyTransaction } = require('./runtime-db');
 const {
   DEFAULT_INTERNAL_TO_WOO_STATUS_MAP,
   DEFAULT_PAID_STATUSES,
@@ -22,6 +22,7 @@ const {
 } = require('./woo-order-utils');
 
 let runtimeDatabase = null;
+let cachedWooOrderSyncConfig = buildWooOrderSyncConfig(null, process.env);
 
 function setRuntimeDatabase(adapter) {
   runtimeDatabase = adapter || null;
@@ -34,14 +35,14 @@ function getDatabaseAccess() {
 }
 
 function getWooOrderSyncConfig() {
-  const row = getLegacyDatabase().get('SELECT * FROM woocommerce_sync WHERE id = 1');
-  return buildWooOrderSyncConfig(row, process.env);
+  return cachedWooOrderSyncConfig;
 }
 
 async function getWooOrderSyncConfigAsync() {
   const db = getDatabaseAccess();
   const row = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
-  return buildWooOrderSyncConfig(row, process.env);
+  cachedWooOrderSyncConfig = buildWooOrderSyncConfig(row, process.env);
+  return cachedWooOrderSyncConfig;
 }
 
 async function writeSyncLog(entry, db = getDatabaseAccess()) {

@@ -86,7 +86,7 @@ async function main() {
 
       delete require.cache[require.resolve('../services/woo-order-sync')];
       const service = require('../services/woo-order-sync');
-      const config = service.getWooOrderSyncConfig();
+      const config = await service.getWooOrderSyncConfigAsync();
 
       assert.equal(config.salesChannel, 'env-channel');
       assert.equal(config.webhookSecret, 'db-secret');
@@ -119,7 +119,7 @@ async function main() {
 
       delete require.cache[require.resolve('../services/woo-order-sync')];
       const service = require('../services/woo-order-sync');
-      const config = service.getWooOrderSyncConfig();
+      const config = await service.getWooOrderSyncConfigAsync();
       const rawBody = Buffer.from('{"id":123}');
       const signature = crypto.createHmac('sha256', 'super-secret').update(rawBody).digest('base64');
 

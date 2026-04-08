@@ -33,6 +33,7 @@ const {
 const { getNextAutomaticProductSku } = require('./product-sku');
 
 let runtimeDatabase = null;
+let cachedWooConfig = null;
 
 function setRuntimeDatabase(adapter) {
   runtimeDatabase = adapter || null;
@@ -43,12 +44,13 @@ function getDatabaseAccess() {
 }
 
 function getActiveWooConfig() {
-  return get('SELECT * FROM woocommerce_sync WHERE id = 1 AND active = 1');
+  return cachedWooConfig;
 }
 
 async function getActiveWooConfigAsync() {
   const db = getDatabaseAccess();
-  return db.get('SELECT * FROM woocommerce_sync WHERE id = 1 AND active = 1');
+  cachedWooConfig = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1 AND active = 1');
+  return cachedWooConfig;
 }
 
 function isWooExportEnabled(config) {

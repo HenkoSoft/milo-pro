@@ -1,20 +1,4 @@
-function getDatabaseAccess(req, deps) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => deps.get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => deps.all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => deps.run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => deps.saveDatabase()
-  };
-}
+const { getDatabaseAccessForRequest } = require('./runtime-db');
 
 function registerWooProductRoutes(router, deps) {
   const {
@@ -32,8 +16,18 @@ function registerWooProductRoutes(router, deps) {
     woocommerceRequest
   } = deps;
 
+  async function resolveWooConfig() {
+    if (typeof getActiveWooConfigAsync === 'function') {
+      return getActiveWooConfigAsync();
+    }
+    if (typeof getActiveWooConfig === 'function') {
+      return getActiveWooConfig();
+    }
+    return null;
+  }
+
   router.post('/sync', authenticate, async (req, res) => {
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Transfer-Encoding', 'chunked');
 
@@ -155,16 +149,14 @@ function registerWooProductRoutes(router, deps) {
   });
 
   router.post('/reconcile-product/:id', authenticate, async (req, res) => {
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     try {
       const product = getProductById(req.params.id);
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
       }
 
-      const config = typeof getActiveWooConfigAsync === 'function'
-        ? await getActiveWooConfigAsync()
-        : getActiveWooConfig();
+      const config = await resolveWooConfig();
       if (!config || !config.store_url) {
         return res.status(400).json({ error: 'WooCommerce no configurado' });
       }
@@ -212,7 +204,7 @@ function registerWooProductRoutes(router, deps) {
   });
 
   router.post('/retry-product-images/:id', authenticate, async (req, res) => {
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     try {
       const product = getProductById(req.params.id);
       if (!product) {
@@ -248,13 +240,13 @@ function registerWooProductRoutes(router, deps) {
   });
 
   router.get('/logs', authenticate, async (req, res) => {
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
     res.json(logs.map((log) => sanitizeWooProductSyncLog(log)));
   });
 
   router.post('/webhook', async (req, res) => {
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     res.status(200).json({ received: true });
 
     try {

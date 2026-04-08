@@ -39,11 +39,10 @@ export function woocommerceRequest(
   data: unknown,
   config: WooSyncConfigLike | null,
   requestOptions: { timeout_ms?: number } | null,
-  getActiveWooConfig: () => WooSyncConfigLike | null | undefined,
+  getActiveWooConfig: () => WooSyncConfigLike | Promise<WooSyncConfigLike | null | undefined> | null | undefined,
   transportResolver: (url: URL) => TransportLike
 ): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const activeConfig = config || getActiveWooConfig();
+  return Promise.resolve(config || getActiveWooConfig()).then((activeConfig) => new Promise((resolve, reject) => {
     if (!activeConfig || !activeConfig.store_url) {
       reject(new Error('WooCommerce not configured'));
       return;
@@ -103,7 +102,7 @@ export function woocommerceRequest(
     }
 
     req.end();
-  });
+  }));
 }
 
 export function wordpressRequest(
@@ -112,11 +111,10 @@ export function wordpressRequest(
   body: string | ArrayBufferLike | null,
   headers: Record<string, string | number>,
   config: WooSyncConfigLike | null,
-  getActiveWooConfig: () => WooSyncConfigLike | null | undefined,
+  getActiveWooConfig: () => WooSyncConfigLike | Promise<WooSyncConfigLike | null | undefined> | null | undefined,
   transportResolver: (url: URL) => TransportLike
 ): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const activeConfig = config || getActiveWooConfig();
+  return Promise.resolve(config || getActiveWooConfig()).then((activeConfig) => new Promise((resolve, reject) => {
     if (!activeConfig || !activeConfig.store_url) {
       reject(new Error('WooCommerce not configured'));
       return;
@@ -170,5 +168,5 @@ export function wordpressRequest(
     req.on('error', reject);
     if (body) req.write(body);
     req.end();
-  });
+  }));
 }

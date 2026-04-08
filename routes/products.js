@@ -3,7 +3,6 @@ const { authenticate } = require('../auth');
 const { getDatabaseAccessForRequest } = require('../services/runtime-db');
 const {
   deleteProductFromWooCommerce,
-  getActiveWooConfig,
   getActiveWooConfigAsync,
   isWooExportEnabled,
   syncProductSnapshotToWooCommerce
@@ -172,9 +171,7 @@ async function persistProduct(db, payload, productId = null) {
     throw new Error('El nombre es requerido');
   }
 
-  const wooConfig = typeof getActiveWooConfigAsync === 'function'
-    ? await getActiveWooConfigAsync()
-    : getActiveWooConfig();
+  const wooConfig = await getActiveWooConfigAsync();
   if (isWooExportEnabled(wooConfig)) {
     // No bloquear el guardado local por atributos opcionales de catalogo.
   }

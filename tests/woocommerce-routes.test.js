@@ -58,6 +58,7 @@ async function createHarness() {
       ensureLocalCategoriesFromWooProduct: async () => [],
       findWooProductBySku: async () => null,
       getActiveWooConfig: () => database.get('SELECT * FROM woocommerce_sync WHERE id = 1'),
+      getActiveWooConfigAsync: async () => database.get('SELECT * FROM woocommerce_sync WHERE id = 1'),
       getWooPrimaryBrand: () => null,
       getWooPrimaryColor: () => null,
       getWooProductImages: () => [],

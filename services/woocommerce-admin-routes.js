@@ -1,20 +1,4 @@
-function getDatabaseAccess(req, deps) {
-  const runtimeDb = req && req.app && req.app.locals ? req.app.locals.database : null;
-  return {
-    get: runtimeDb && typeof runtimeDb.get === 'function'
-      ? (sql, params = []) => runtimeDb.get(sql, params)
-      : async (sql, params = []) => deps.get(sql, params),
-    all: runtimeDb && typeof runtimeDb.all === 'function'
-      ? (sql, params = []) => runtimeDb.all(sql, params)
-      : async (sql, params = []) => deps.all(sql, params),
-    run: runtimeDb && typeof runtimeDb.run === 'function'
-      ? (sql, params = []) => runtimeDb.run(sql, params)
-      : async (sql, params = []) => deps.run(sql, params),
-    save: runtimeDb && typeof runtimeDb.save === 'function'
-      ? () => runtimeDb.save()
-      : async () => deps.saveDatabase()
-  };
-}
+const { getDatabaseAccessForRequest } = require('./runtime-db');
 
 function registerWooAdminRoutes(router, deps) {
   const {
@@ -30,13 +14,21 @@ function registerWooAdminRoutes(router, deps) {
     woocommerceRequest
   } = deps;
 
+  async function resolveOrderSyncConfig() {
+    if (typeof getWooOrderSyncConfigAsync === 'function') {
+      return getWooOrderSyncConfigAsync();
+    }
+    if (typeof getWooOrderSyncConfig === 'function') {
+      return getWooOrderSyncConfig();
+    }
+    return null;
+  }
+
   router.get('/status', authenticate, async (req, res) => {
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     const config = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
     const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
-    const orderConfig = typeof getWooOrderSyncConfigAsync === 'function'
-      ? await getWooOrderSyncConfigAsync()
-      : getWooOrderSyncConfig();
+    const orderConfig = await resolveOrderSyncConfig();
     res.json(buildWooStatusResponse(config, { logs, orderConfig, pollingActive: isWooPollingActive() }));
   });
 
@@ -114,7 +106,7 @@ function registerWooAdminRoutes(router, deps) {
       return res.status(403).json({ error: 'Solo el administrador puede modificar configuraciones' });
     }
 
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     const existing = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
     const payload = normalizeWooConfigPayload(req.body, existing);
 
@@ -210,9 +202,7 @@ function registerWooAdminRoutes(router, deps) {
     initializeWooAutomation();
     const updated = await db.get('SELECT * FROM woocommerce_sync WHERE id = 1');
     const logs = await db.all('SELECT * FROM product_sync_log ORDER BY synced_at DESC LIMIT 50');
-    const orderConfig = typeof getWooOrderSyncConfigAsync === 'function'
-      ? await getWooOrderSyncConfigAsync()
-      : getWooOrderSyncConfig();
+    const orderConfig = await resolveOrderSyncConfig();
     res.json({
       success: true,
       polling_active: isWooPollingActive(),
@@ -225,7 +215,7 @@ function registerWooAdminRoutes(router, deps) {
       return res.status(403).json({ error: 'Solo el administrador puede modificar configuraciones' });
     }
 
-    const db = getDatabaseAccess(req, deps);
+    const db = getDatabaseAccessForRequest(req);
     stopWooPolling('disconnect');
     await db.run('DELETE FROM woocommerce_sync WHERE id = 1');
     await db.save();

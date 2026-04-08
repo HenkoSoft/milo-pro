@@ -1,12 +1,11 @@
 const express = require('express');
 const { authenticate } = require('../auth');
-const { createDatabaseAccess, getLegacyDatabase } = require('../services/runtime-db');
+const { createDatabaseAccess } = require('../services/runtime-db');
 const { buildAutomaticProductSku, getNextAutomaticProductSku } = require('../services/product-sku');
 const {
   ensureLocalBrand,
   ensureLocalCategoriesFromWooProduct,
   findWooProductBySku,
-  getActiveWooConfig,
   getActiveWooConfigAsync,
   getWooPrimaryBrand,
   getWooPrimaryColor,
@@ -62,14 +61,11 @@ function getDatabaseAccess() {
   return createDatabaseAccess(runtimeDatabase);
 }
 
-function getLegacyWooDeps() {
-  const legacyDb = getLegacyDatabase();
-  return {
-    get: legacyDb.get,
-    run: legacyDb.run,
-    all: legacyDb.all,
-    saveDatabase: legacyDb.saveDatabase
-  };
+async function resolveActiveWooConfig() {
+  if (typeof getActiveWooConfigAsync === 'function') {
+    return getActiveWooConfigAsync();
+  }
+  return null;
 }
 
 function requireAdmin(req, res) {
@@ -156,7 +152,7 @@ async function upsertWooProductIntoLocal(wooProduct, action) {
   const localBrandId = await ensureLocalBrand(primaryBrand ? primaryBrand.name : '', { woocommerce_brand_id: primaryBrand && primaryBrand.id ? primaryBrand.id : null });
   const existing = await getExistingLocalProduct(wooProduct);
   const shortDescription = wooProduct.short_description || '';
-  const config = typeof getActiveWooConfigAsync === 'function' ? await getActiveWooConfigAsync() : getActiveWooConfig();
+  const config = await resolveActiveWooConfig();
   const localWins = localCatalogWins(config);
   const skuRows = await db.all('SELECT sku FROM products');
 
@@ -247,9 +243,7 @@ async function unlinkWooProductFromLocal(wooProductId, action) {
 
 const wooPollingManager = createWooPollingManager({
   pollingIntervalMs: POLLING_INTERVAL_MS,
-  getConfig: async () => (typeof getActiveWooConfigAsync === 'function'
-    ? getActiveWooConfigAsync()
-    : getActiveWooConfig()),
+  getConfig: () => resolveActiveWooConfig(),
   fetchWooProducts: () => woocommerceRequest('GET', '/products?per_page=100'),
   hydrateWooProduct: (wooProduct) => hydrateWooProductForImport(wooProduct),
   upsertWooProduct: (wooProduct, action) => upsertWooProductIntoLocal(wooProduct, action),
@@ -297,7 +291,6 @@ function getWooPollingIntervalSeconds() {
 }
 
 registerWooAdminRoutes(router, {
-  ...getLegacyWooDeps(),
   authenticate,
   buildWooStatusResponse,
   getWooOrderSyncConfig,
@@ -311,10 +304,9 @@ registerWooAdminRoutes(router, {
 });
 
 registerWooProductRoutes(router, {
-  ...getLegacyWooDeps(),
   authenticate,
   findWooProductBySku,
-  getActiveWooConfig,
+  getActiveWooConfig: resolveActiveWooConfig,
   getActiveWooConfigAsync,
   getProductById,
   hydrateWooProductForImport,
@@ -328,9 +320,8 @@ registerWooProductRoutes(router, {
 
 registerWooOrderRoutes(router, {
   authenticate,
-  ...getLegacyWooDeps(),
-  getOrderSyncLogs,
   getWooOrderSyncConfig,
+  getOrderSyncLogs,
   getWooOrderSyncConfigAsync,
   importWooOrderById,
   importWooOrders,
@@ -343,7 +334,6 @@ registerWooOrderRoutes(router, {
 });
 
 registerWooPollingRoutes(router, {
-  ...getLegacyWooDeps(),
   authenticate,
   getWooPollingIntervalSeconds,
   isWooPollingActive,
