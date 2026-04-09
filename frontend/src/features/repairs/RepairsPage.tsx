@@ -52,6 +52,42 @@ function getStatusBadgeClass(status: string) {
   return status === 'ready' || status === 'delivered' ? 'badge-green' : 'badge-blue';
 }
 
+function printRepairTicket(repair: Repair) {
+  const lines = [
+    'TECHFIX SOLUTIONS',
+    '========================================',
+    `Ticket: ${repair.ticket_number}`,
+    `Fecha: ${repair.created_at ? new Date(repair.created_at).toLocaleString('es-AR') : '-'}`,
+    '',
+    'CLIENTE:',
+    String(repair.customer_name || '-'),
+    `Tel: ${repair.customer_phone || 'Sin telefono'}`,
+    '',
+    'DISPOSITIVO:',
+    `Tipo: ${repair.device_type || '-'}`,
+    `Marca: ${repair.brand || '-'}  Modelo: ${repair.model || '-'}`,
+    `N/S: ${repair.serial_number || '-'}`,
+    `IMEI: ${repair.imei || '-'}`,
+    `Clave: ${repair.password || '-'}`,
+    `Patron: ${repair.pattern || '-'}`,
+    '',
+    'PROBLEMA:',
+    String(repair.problem_description || '-'),
+    '',
+    `Accesorios: ${repair.accessories || 'Ninguno'}`,
+    `ESTADO: ${repair.status_label || repair.status || '-'}`,
+    repair.estimated_price ? `Presupuesto: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(repair.estimated_price))}` : '',
+    repair.final_price ? `Total: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(repair.final_price))}` : ''
+  ].filter(Boolean);
+
+  const popup = window.open('', '_blank', 'width=480,height=640');
+  if (!popup) return;
+  popup.document.write(`<pre style="font-family: monospace; white-space: pre-wrap; padding: 16px;">${lines.join('\n')}</pre>`);
+  popup.document.close();
+  popup.focus();
+  popup.print();
+}
+
 export function RepairsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('all');
@@ -470,6 +506,7 @@ export function RepairsPage() {
                     {feedback ? <div className="alert alert-warning repair-feedback-alert">{feedback}</div> : null}
                     <div className="modal-footer">
                       <button className="btn btn-secondary" type="button" onClick={closeDetailModal}>Cerrar</button>
+                      <button className="btn btn-info" type="button" onClick={() => printRepairTicket(repairDetailQuery.data)}>Imprimir</button>
                       <button className="btn btn-warning" type="button" onClick={() => void handleDeleteSelected()} disabled={deleteMutation.isPending}>Eliminar</button>
                       <button className="btn btn-primary" type="submit" disabled={updateMutation.isPending || updateStatusMutation.isPending}>Guardar</button>
                     </div>

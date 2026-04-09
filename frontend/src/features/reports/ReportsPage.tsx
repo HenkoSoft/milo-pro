@@ -152,19 +152,19 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports' ? (
         <div className="reports-grid">
           <article className="reports-summary-card">
-            <span>Ventas del periodo</span>
+            <span>Ventas</span>
             <strong>{formatMoney(revenueReport?.salesRevenue || 0)}</strong>
           </article>
           <article className="reports-summary-card">
-            <span>Reparaciones entregadas</span>
+            <span>Reparaciones</span>
             <strong>{formatMoney(revenueReport?.repairsRevenue || 0)}</strong>
           </article>
           <article className="reports-summary-card">
-            <span>Facturacion total</span>
+            <span>Total</span>
             <strong>{formatMoney(revenueReport?.totalRevenue || 0)}</strong>
           </article>
           <article className="reports-summary-card">
-            <span>Promedio por venta</span>
+            <span>Promedio</span>
             <strong>{formatMoney(salesReport?.summary.averageSale || 0)}</strong>
           </article>
 
@@ -172,7 +172,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
             <div className="reports-panel-head">
               <div>
                 <p className="reports-panel-kicker">Articulos</p>
-                <h3>Top vendidos</h3>
+                <h3>Listado de Articulos</h3>
               </div>
               <input value={articlesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setArticlesSearch(event.target.value)} placeholder="Buscar articulo..." />
             </div>
@@ -208,7 +208,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
             <div className="reports-panel-head">
               <div>
                 <p className="reports-panel-kicker">Alertas</p>
-                <h3>Stock critico</h3>
+                <h3>Listado de Stock Critico</h3>
               </div>
             </div>
             <table className="products-table">
@@ -241,7 +241,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
             <div className="reports-panel-head">
               <div>
                 <p className="reports-panel-kicker">Reparaciones</p>
-                <h3>Resumen por estado</h3>
+                <h3>Reparaciones</h3>
               </div>
             </div>
             <table className="products-table">
@@ -273,15 +273,15 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports-sales' ? (
         <div className="card reports-panel">
           <div className="reports-panel-head">
-            <div>
-              <p className="reports-panel-kicker">Ventas</p>
-                <h3>Ventas</h3>
+              <div>
+                <p className="reports-panel-kicker">Ventas</p>
+                <h3>Resumen del dia</h3>
             </div>
             <input value={salesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setSalesSearch(event.target.value)} placeholder="Buscar comprobante, cliente o notas..." />
           </div>
           <div className="reports-sales-summary">
-            <article className="reports-summary-card"><span>Total facturado</span><strong>{formatMoney(salesReport?.summary.totalRevenue || 0)}</strong></article>
-            <article className="reports-summary-card"><span>Transacciones</span><strong>{salesReport?.summary.totalTransactions || 0}</strong></article>
+            <article className="reports-summary-card"><span>Total vendido</span><strong>{formatMoney(salesReport?.summary.totalRevenue || 0)}</strong></article>
+            <article className="reports-summary-card"><span>Total</span><strong>{salesReport?.summary.totalTransactions || 0}</strong></article>
             <article className="reports-summary-card"><span>Promedio</span><strong>{formatMoney(salesReport?.summary.averageSale || 0)}</strong></article>
           </div>
           <table className="products-table">
@@ -316,11 +316,11 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports-purchases' ? (
         <div className="card reports-panel">
           <div className="reports-panel-head">
-            <div>
-              <p className="reports-panel-kicker">Compras</p>
-                <h3>Compras</h3>
+              <div>
+                <p className="reports-panel-kicker">Compras</p>
+                <h3>Compras entre fechas</h3>
             </div>
-            <input value={purchasesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setPurchasesSearch(event.target.value)} placeholder="Buscar proveedor, numero o notas..." />
+            <input value={purchasesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setPurchasesSearch(event.target.value)} placeholder="Buscar compra o proveedor..." />
           </div>
           <table className="products-table">
             <thead>
@@ -354,11 +354,11 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports-customers' ? (
         <div className="card reports-panel">
           <div className="reports-panel-head">
-            <div>
-              <p className="reports-panel-kicker">Clientes</p>
-                <h3>Clientes</h3>
+              <div>
+                <p className="reports-panel-kicker">Clientes</p>
+                <h3>Listado por nombre</h3>
             </div>
-            <input value={customersSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomersSearch(event.target.value)} placeholder="Buscar cliente, telefono, email o CUIT..." />
+            <input value={customersSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomersSearch(event.target.value)} placeholder="Buscar cliente..." />
           </div>
           <table className="products-table">
             <thead>
@@ -392,11 +392,11 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports-delivery-notes' ? (
         <div className="card reports-panel">
           <div className="reports-panel-head">
-            <div>
-              <p className="reports-panel-kicker">Remitos</p>
-                <h3>Remitos</h3>
+              <div>
+                <p className="reports-panel-kicker">Remitos</p>
+                <h3>Remitos entre fechas</h3>
             </div>
-            <input value={salesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setSalesSearch(event.target.value)} placeholder="Buscar cliente, vendedor o notas..." />
+            <input value={salesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setSalesSearch(event.target.value)} placeholder="Buscar remito o cliente..." />
           </div>
           <table className="products-table">
             <thead>
@@ -430,9 +430,9 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports-accounts' ? (
         <div className="card reports-panel">
           <div className="reports-panel-head">
-            <div>
-              <p className="reports-panel-kicker">Cuentas corrientes</p>
-                <h3>Cuentas corrientes</h3>
+              <div>
+                <p className="reports-panel-kicker">Cuentas corrientes</p>
+                <h3>Deudores</h3>
             </div>
             <input value={customersSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomersSearch(event.target.value)} placeholder="Buscar cliente..." />
           </div>
@@ -466,9 +466,9 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports-ranking' ? (
         <div className="card reports-panel">
           <div className="reports-panel-head">
-            <div>
-              <p className="reports-panel-kicker">Ranking</p>
-                <h3>Ranking de Ventas</h3>
+              <div>
+                <p className="reports-panel-kicker">Ranking</p>
+                <h3>Ranking por articulo</h3>
             </div>
             <input value={articlesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setArticlesSearch(event.target.value)} placeholder="Buscar articulo..." />
           </div>
@@ -512,14 +512,14 @@ export function ReportsPage({ pageId }: { pageId: string }) {
             <strong>{formatMoney(revenueReport?.repairsRevenue || 0)}</strong>
           </article>
           <article className="reports-summary-card">
-            <span>Total del periodo</span>
+            <span>Total</span>
             <strong>{formatMoney(revenueReport?.totalRevenue || 0)}</strong>
           </article>
           <div className="card reports-panel">
             <div className="reports-panel-head">
               <div>
                 <p className="reports-panel-kicker">Caja</p>
-                <h3>Caja</h3>
+                <h3>Caja diaria</h3>
               </div>
             </div>
             <table className="products-table">
@@ -553,11 +553,11 @@ export function ReportsPage({ pageId }: { pageId: string }) {
       {pageId === 'reports-excel' ? (
         <div className="card reports-panel">
           <div className="reports-panel-head">
-            <div>
-              <p className="reports-panel-kicker">Excel</p>
-                <h3>Excel</h3>
+              <div>
+                <p className="reports-panel-kicker">Excel</p>
+                <h3>Reportes a Excel</h3>
+              </div>
             </div>
-          </div>
           <div className="tools-actions-row">
             <button
               type="button"

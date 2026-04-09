@@ -23,6 +23,8 @@ export interface Sale {
   notes?: string | null;
   channel?: string | null;
   status?: string | null;
+  external_status?: string | null;
+  external_reference?: string | null;
   created_at?: string;
   items?: SaleItem[];
 }

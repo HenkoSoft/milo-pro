@@ -168,7 +168,6 @@ function PurchaseQueryPanel({
         <div className="purchases-query-toolbar">
           <div>
             <h2 className="purchases-title">Consulta de Compras</h2>
-            <p>Listado de comprobantes.</p>
           </div>
           <input
             value={search}
@@ -200,8 +199,8 @@ function PurchaseQueryPanel({
                   <td>{formatMoney(Number(purchase.total || 0))}</td>
                   <td>
                     <div className="btn-group">
-                      <button className="btn btn-action btn-edit" type="button" onClick={() => setSelectedPurchaseId(String(purchase.id))}>V</button>
-                      <button className="btn btn-action btn-delete" type="button" onClick={() => void onDelete(purchase)}>X</button>
+                      <button className="btn btn-sm btn-secondary" type="button" onClick={() => setSelectedPurchaseId(String(purchase.id))}>Ver</button>
+                      <button className="btn btn-sm btn-danger" type="button" onClick={() => void onDelete(purchase)}>Eliminar</button>
                     </div>
                   </td>
                 </tr>
@@ -438,7 +437,7 @@ function SupplierCreditsPanel({
                 {filteredProducts.map((product) => (
                   <button key={product.id} type="button" className="purchase-search-result" onClick={() => addItem(product)}>
                     <strong>{product.name}</strong>
-                    <span>{product.sku || product.barcode || `#${product.id}`} Â· Costo {formatMoney(Number(product.purchase_price || 0))}</span>
+                    <span>{product.sku || product.barcode || `#${product.id}`} - Costo {formatMoney(Number(product.purchase_price || 0))}</span>
                   </button>
                 ))}
               </div>
@@ -509,7 +508,7 @@ function SupplierCreditsPanel({
                   <td>{credit.credit_note_number || '-'}</td>
                   <td>{credit.invoice_date || '-'}</td>
                   <td>{formatMoney(Number(credit.total || 0))}</td>
-                  <td><button className="btn btn-action btn-delete" type="button" onClick={() => void onDelete(credit)}>X</button></td>
+                  <td><button className="btn btn-sm btn-danger" type="button" onClick={() => void onDelete(credit)}>Eliminar</button></td>
                 </tr>
               ))
             )}
@@ -545,7 +544,6 @@ function CreditsQueryPanel({
       <div className="purchases-query-toolbar">
           <div>
             <h2 className="purchases-title">Consulta de N/C</h2>
-            <p>Listado administrativo de notas de credito.</p>
           </div>
         <input
           value={search}
@@ -575,7 +573,7 @@ function CreditsQueryPanel({
                 <td>{credit.reference_invoice || '-'}</td>
                 <td>{credit.invoice_date || '-'}</td>
                 <td>{formatMoney(Number(credit.total || 0))}</td>
-                <td><button className="btn btn-action btn-delete" type="button" onClick={() => void onDelete(credit)}>X</button></td>
+                <td><button className="btn btn-sm btn-danger" type="button" onClick={() => void onDelete(credit)}>Eliminar</button></td>
               </tr>
             ))
           )}
@@ -1159,7 +1157,7 @@ export function PurchasesPage({ pageId }: { pageId: string }) {
                   filteredProducts.map((product) => (
                     <button key={product.id} type="button" className="purchase-search-result" onClick={() => handleAddItem(product)}>
                       <strong>{product.name}</strong>
-                      <span>{product.sku || product.barcode || `#${product.id}`} Â· Costo {formatMoney(Number(product.purchase_price || 0))}</span>
+                      <span>{product.sku || product.barcode || `#${product.id}`} - Costo {formatMoney(Number(product.purchase_price || 0))}</span>
                     </button>
                   ))
                 )}

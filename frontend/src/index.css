@@ -1127,6 +1127,13 @@ button, input, select, textarea { font: inherit; }
   font-size: 12px;
 }
 
+.products-help-inline {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .products-subtitle {
   margin: 0 0 12px;
   color: var(--text-secondary);

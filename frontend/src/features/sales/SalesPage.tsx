@@ -9,17 +9,17 @@ import type { Sale, SalePayloadItem } from '../../types/sale';
 
 const SALES_MODULES = [
   { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: '' },
-  { id: 'sales-delivery-notes', label: 'Remitos', title: 'Remitos', subtitle: 'Misma logica visual que facturacion para entregar mercaderia con datos claros del cliente.' },
-  { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: 'Preparado para carga rapida de propuestas comerciales con los mismos bloques del modulo principal.' },
-  { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: 'Estructura alineada con remitos y presupuestos para simplificar entrenamiento y carga.' },
-  { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: 'Pantalla visual consistente con facturacion para gestionar devoluciones y ajustes comerciales.' },
-  { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: 'Cuenta corriente de clientes.' },
-  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Tabla estandar con buscador, paginacion y acciones rapidas.' },
-  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Misma estructura de consulta para mantener criterios visuales en Ventas.' },
-  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta visual uniforme para operaciones comerciales y revisiones rapidas.' },
-  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Tabla preparada para listar presupuestos con filtro, estado y acciones.' },
-  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta administrativa alineada con el resto del sistema.' },
-  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Seguimiento y actualizacion de pedidos web.' }
+  { id: 'sales-delivery-notes', label: 'Remitos', title: 'Remitos', subtitle: '' },
+  { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: '' },
+  { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: '' },
+  { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: '' },
+  { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: '' },
+  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: '' },
+  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: '' },
+  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: '' },
+  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: '' },
+  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: '' },
+  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: '' }
 ] as const;
 
 const RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'] as const;
@@ -157,7 +157,6 @@ function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
         <div>
           <p className="sales-module-kicker">Cuenta corriente</p>
           <h2>Cobranzas</h2>
-          <p>Cuenta corriente de clientes.</p>
         </div>
       </div>
 
@@ -367,7 +366,6 @@ function SalesWebOrdersPanel() {
         <div>
           <p className="sales-module-kicker">Operacion Web</p>
           <h2>Pedidos Web</h2>
-          <p>Seguimiento y actualizacion de pedidos web.</p>
         </div>
       </div>
 
@@ -424,7 +422,7 @@ function SalesWebOrdersPanel() {
                     <th>Pedido</th>
                     <th>Cliente</th>
                     <th>Estado local</th>
-                    <th>Canal</th>
+                    <th>Estado Woo</th>
                     <th>Total</th>
                     <th>Acciones</th>
                   </tr>
@@ -446,11 +444,11 @@ function SalesWebOrdersPanel() {
                             <span className="sales-web-priority-pill">{getPriorityLabel(sale.status)}</span>
                           </div>
                         </td>
-                        <td>{sale.channel || 'woocommerce'}</td>
+                        <td>{sale.external_status || '-'}</td>
                         <td>{formatMoney(Number(sale.total || 0))}</td>
                         <td>
                           <button className="btn btn-sm btn-secondary" type="button" onClick={() => setSelectedSaleId(sale.id)}>
-                            Ver detalle
+                            Ver
                           </button>
                         </td>
                       </tr>
@@ -563,16 +561,13 @@ function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string 
         <div>
           <p className="sales-module-kicker">Consultas</p>
           <h2>{title}</h2>
-          <p>{subtitle}</p>
+          {subtitle ? <p>{subtitle}</p> : null}
         </div>
       </div>
 
       <div className="sales-table-card">
         <div className="sales-table-toolbar">
-          <div>
-            <h3>{title}</h3>
-            <p>Busqueda rapida por cliente, observaciones, estado, canal o comprobante.</p>
-          </div>
+          <div><h3>{title}</h3></div>
           <div className="search-box sales-query-search">
             <input
               type="text"
@@ -641,6 +636,7 @@ function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string 
 export function SalesPage({ pageId }: SalesPageProps) {
   const { currentUser } = useAuth();
   const [customerId, setCustomerId] = useState('');
+  const [customerCodeInput, setCustomerCodeInput] = useState('');
   const [receiptType, setReceiptType] = useState<string>('C');
   const [pointOfSale, setPointOfSale] = useState('001');
   const [priceList, setPriceList] = useState<string>('Lista 1');
@@ -688,12 +684,14 @@ export function SalesPage({ pageId }: SalesPageProps) {
 
   useEffect(() => {
     if (!selectedCustomer) {
+      setCustomerCodeInput('');
       setTaxId('');
       setIvaCondition('Consumidor Final');
       setAddress('');
       return;
     }
 
+    setCustomerCodeInput(String(selectedCustomer.id || ''));
     setTaxId(selectedCustomer.tax_id || '');
     setIvaCondition((selectedCustomer.iva_condition as string) || 'Consumidor Final');
     setAddress(buildCustomerAddress(selectedCustomer));
@@ -706,7 +704,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
   const ivaTotal = 0;
   const total = subtotal + ivaTotal;
   const customerSummary = selectedCustomer
-    ? `${selectedCustomer.name}${buildCustomerAddress(selectedCustomer) ? ` - ${buildCustomerAddress(selectedCustomer)}` : ''}`
+    ? selectedCustomer.name
     : 'Consumidor final';
   const nextNumber = formatReceiptNumber(nextNumberQuery.data?.receipt_number);
   const isAdmin = currentUser?.role === 'admin';
@@ -727,6 +725,21 @@ export function SalesPage({ pageId }: SalesPageProps) {
       return [...current, buildSaleItem(product)];
     });
     setItemSearch('');
+  }
+
+  function searchCustomerByCode() {
+    const normalized = customerCodeInput.trim();
+    if (!normalized) {
+      setCustomerId('');
+      return;
+    }
+    const found = customers.find((customer) => String(customer.id) === normalized);
+    if (found) {
+      setCustomerId(String(found.id));
+      setFeedback('');
+      return;
+    }
+    setFeedback('No se encontro el cliente indicado.');
   }
 
   function handleCartChange(productId: string, field: 'quantity' | 'unit_price', value: string) {
@@ -840,7 +853,23 @@ export function SalesPage({ pageId }: SalesPageProps) {
                       <h3>Datos del comprador</h3>
                     </div>
                     <div className="sales-compact-grid sales-compact-grid--buyer">
-                      <div className="form-group"><label>Codigo Cliente</label><input value={selectedCustomer ? String(selectedCustomer.id) : ''} readOnly placeholder="Codigo cliente" /></div>
+                      <div className="form-group">
+                        <label>Codigo Cliente</label>
+                        <div className="sales-inline-combo">
+                          <input
+                            value={customerCodeInput}
+                            placeholder="Codigo cliente"
+                            onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomerCodeInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                searchCustomerByCode();
+                              }
+                            }}
+                          />
+                          <button className="sales-addon-button sales-addon-button--wide" type="button" onClick={searchCustomerByCode}>Buscar</button>
+                        </div>
+                      </div>
                       <div className="form-group"><label>Nombre</label><select value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Consumidor final</option>{customers.map((item) => <option key={item.id} value={String(item.id)}>{item.name}</option>)}</select></div>
                       <div className="form-group"><label>CUIT</label><input value={taxId} onChange={(event: ChangeEvent<HTMLInputElement>) => setTaxId(event.target.value)} placeholder="CUIT o DNI" /></div>
                       <div className="form-group"><label>Condicion IVA</label><select value={ivaCondition} onChange={(event) => setIvaCondition(event.target.value)}>{IVA_CONDITIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
