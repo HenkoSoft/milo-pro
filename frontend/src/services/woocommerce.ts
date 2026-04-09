@@ -40,3 +40,9 @@ export function stopWooPolling() {
 export function getWooPollingStatus() {
   return apiRequest<{ active?: boolean; polling_active?: boolean }>('/woocommerce/polling-status');
 }
+
+export function syncWooProduct(id: number) {
+  return apiRequest<{ success: boolean; error?: string; woocommerce_id?: number | null }>(`/woocommerce/sync-product/${id}`, {
+    method: 'POST'
+  });
+}

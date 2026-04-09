@@ -2301,6 +2301,14 @@ button, input, select, textarea { font: inherit; }
   margin-bottom: 14px;
 }
 
+.admin-filter-card {
+  margin-bottom: 14px;
+}
+
+.admin-search-box input {
+  min-width: 280px;
+}
+
 .admin-status-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2318,6 +2326,29 @@ button, input, select, textarea { font: inherit; }
 }
 
 .admin-status-card span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.admin-tree-card {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.admin-tree-card h3 {
+  margin: 0 0 10px;
+}
+
+.admin-tree-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-tree-item {
   color: var(--text-secondary);
   font-size: 13px;
 }
@@ -2929,6 +2960,16 @@ button, input, select, textarea { font: inherit; }
   gap: 5px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.sales-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
 .btn-action {

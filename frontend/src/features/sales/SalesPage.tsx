@@ -8,18 +8,18 @@ import { createSale } from '../../services/sales';
 import type { Sale, SalePayloadItem } from '../../types/sale';
 
 const SALES_MODULES = [
-  { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: 'Carga y emision de comprobantes.' },
-  { id: 'sales-delivery-notes', label: 'Remitos', title: 'Remitos', subtitle: 'Carga y emision de remitos.' },
-  { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: 'Carga y consulta de presupuestos.' },
-  { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: 'Carga y consulta de pedidos.' },
-  { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: 'Carga y consulta de notas de credito.' },
+  { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: '' },
+  { id: 'sales-delivery-notes', label: 'Remitos', title: 'Remitos', subtitle: 'Misma logica visual que facturacion para entregar mercaderia con datos claros del cliente.' },
+  { id: 'sales-quotes', label: 'Presupuestos', title: 'Presupuestos', subtitle: 'Preparado para carga rapida de propuestas comerciales con los mismos bloques del modulo principal.' },
+  { id: 'sales-orders', label: 'Pedidos', title: 'Pedidos', subtitle: 'Estructura alineada con remitos y presupuestos para simplificar entrenamiento y carga.' },
+  { id: 'sales-credit-notes', label: 'Notas de Credito', title: 'Notas de Credito', subtitle: 'Pantalla visual consistente con facturacion para gestionar devoluciones y ajustes comerciales.' },
   { id: 'sales-collections', label: 'Cobranzas', title: 'Cobranzas', subtitle: 'Cuenta corriente de clientes.' },
-  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Consulta de comprobantes.' },
-  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Consulta de comprobantes.' },
-  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta de comprobantes.' },
-  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Consulta de comprobantes.' },
-  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta de comprobantes.' },
-  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Consulta y seguimiento de pedidos web.' }
+  { id: 'sales-query-invoices', label: 'Consultar Facturas', title: 'Consultar Facturas', subtitle: 'Tabla estandar con buscador, paginacion y acciones rapidas.' },
+  { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', title: 'Consultar Remitos', subtitle: 'Misma estructura de consulta para mantener criterios visuales en Ventas.' },
+  { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', title: 'Consultar Notas de Credito', subtitle: 'Consulta visual uniforme para operaciones comerciales y revisiones rapidas.' },
+  { id: 'sales-query-quotes', label: 'Consultar Presupuestos', title: 'Consultar Presupuestos', subtitle: 'Tabla preparada para listar presupuestos con filtro, estado y acciones.' },
+  { id: 'sales-query-orders', label: 'Consultar Pedidos', title: 'Consultar Pedidos', subtitle: 'Consulta administrativa alineada con el resto del sistema.' },
+  { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: 'Seguimiento y actualizacion de pedidos web.' }
 ] as const;
 
 const RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'] as const;
@@ -159,24 +159,6 @@ function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
           <h2>Cobranzas</h2>
           <p>Cuenta corriente de clientes.</p>
         </div>
-      </div>
-
-      <div className="sales-section-tabs" role="tablist" aria-label="Modulos de ventas">
-        {SALES_MODULES.map((module) => {
-          const isActive = module.id === 'sales-collections';
-          return (
-            <button
-              key={module.id}
-              type="button"
-              className={`sales-tab-button${module.id === 'sales-collections' ? ' active' : ''}`}
-              onClick={() => {
-                window.location.hash = module.id;
-              }}
-            >
-              {module.label}
-            </button>
-          );
-        })}
       </div>
 
       <div className="sales-collections-layout">
@@ -389,21 +371,6 @@ function SalesWebOrdersPanel() {
         </div>
       </div>
 
-      <div className="sales-section-tabs" role="tablist" aria-label="Modulos de ventas">
-        {SALES_MODULES.map((module) => (
-          <button
-            key={module.id}
-            type="button"
-            className={`sales-tab-button${module.id === 'sales-web-orders' ? ' active' : ''}`}
-            onClick={() => {
-              window.location.hash = module.id;
-            }}
-          >
-            {module.label}
-          </button>
-        ))}
-      </div>
-
       <div className="sales-web-summary-grid">
         <article className="sales-web-summary-card"><span>Pedidos web</span><strong>{counts.all}</strong></article>
         <article className="sales-web-summary-card"><span>Pendientes</span><strong>{counts.pending_payment}</strong></article>
@@ -564,7 +531,7 @@ function SalesWebOrdersPanel() {
   );
 }
 
-function SalesQueryPanel({ pageId, title }: { pageId: string; title: string }) {
+function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const salesHistoryQuery = useSalesHistory({});
@@ -596,23 +563,8 @@ function SalesQueryPanel({ pageId, title }: { pageId: string; title: string }) {
         <div>
           <p className="sales-module-kicker">Consultas</p>
           <h2>{title}</h2>
-          <p>Tabla con buscador y paginacion.</p>
+          <p>{subtitle}</p>
         </div>
-      </div>
-
-      <div className="sales-section-tabs" role="tablist" aria-label="Modulos de ventas">
-        {SALES_MODULES.map((module) => (
-          <button
-            key={module.id}
-            type="button"
-            className={`sales-tab-button${module.id === pageId ? ' active' : ''}`}
-            onClick={() => {
-              window.location.hash = module.id;
-            }}
-          >
-            {module.label}
-          </button>
-        ))}
       </div>
 
       <div className="sales-table-card">
@@ -849,7 +801,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
     || pageId === 'sales-query-quotes'
     || pageId === 'sales-query-orders'
   ) {
-    return <SalesQueryPanel pageId={pageId} title={moduleConfig.title} />;
+    return <SalesQueryPanel title={moduleConfig.title} subtitle={moduleConfig.subtitle} />;
   }
 
   return (
@@ -858,26 +810,8 @@ export function SalesPage({ pageId }: SalesPageProps) {
         <div>
           <p className="sales-module-kicker">Ventas</p>
           <h2>{moduleConfig.title}</h2>
-          <p>{moduleConfig.subtitle}</p>
+          {moduleConfig.subtitle ? <p>{moduleConfig.subtitle}</p> : null}
         </div>
-      </div>
-
-      <div className="sales-section-tabs" role="tablist" aria-label="Modulos de ventas">
-        {SALES_MODULES.map((module) => {
-          const isActive = module.id === pageId;
-          return (
-            <button
-              key={module.id}
-              type="button"
-              className={`sales-tab-button${isActive ? ' active' : ''}`}
-              onClick={() => {
-                window.location.hash = module.id;
-              }}
-            >
-              {module.label}
-            </button>
-          );
-        })}
       </div>
 
       <section className="sales-admin-content">
@@ -925,7 +859,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                 <div className="sales-article-toolbar sales-article-toolbar--compact">
                   <div className="form-group sales-article-search-group">
                     <label>Buscar producto para facturar</label>
-                    <div className="sales-search-callout">Busqueda por codigo, SKU o descripcion</div>
+                    <div className="sales-search-callout">Carga rapida por codigo, SKU o descripcion</div>
                     <div className="sales-inline-combo">
                       <input
                         value={itemSearch}
@@ -946,7 +880,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                     </div>
                   </div>
                 </div>
-                <div className="sales-search-meta">Selecciona un articulo para agregarlo al comprobante.</div>
+                <div className="sales-search-meta">Escribe un codigo o descripcion y presiona Enter para agregar.</div>
                 {itemSearch.trim() ? (
                   <div className="sales-search-results">
                     {filteredProducts.length === 0 ? (
@@ -977,7 +911,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                     </thead>
                     <tbody>
                       {cart.length === 0 ? (
-                        <tr><td colSpan={7} className="sales-empty-row">No agregaste articulos a la factura.</td></tr>
+                        <tr><td colSpan={7} className="sales-empty-row">Agrega articulos para comenzar la facturacion.</td></tr>
                       ) : (
                         cart.map((item) => {
                           const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);

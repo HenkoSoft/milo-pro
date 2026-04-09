@@ -4,14 +4,14 @@ import { useProductFormData, useProductMutations, useProducts } from './useProdu
 import type { Product, ProductPayload } from '../../types/product';
 
 const PRODUCT_MODULES = [
-  { id: 'products', label: 'Planilla', title: 'Planilla de Articulos', subtitle: 'Consulta y mantenimiento de articulos.' },
-  { id: 'products-price-update', label: 'Actualizacion de Precios', title: 'Actualizacion de Precios', subtitle: 'Calculo y consulta de listas de precios.' },
-  { id: 'products-stock-adjustment', label: 'Ajuste de Stock', title: 'Ajuste de Stock', subtitle: 'Registro de ajustes de stock.' },
-  { id: 'products-stock-output', label: 'Salida de Mercaderia', title: 'Salida de Mercaderia', subtitle: 'Registro de salidas de mercaderia.' },
-  { id: 'products-stock-query', label: 'Consulta de Salidas', title: 'Consulta de Salidas', subtitle: 'Consulta de movimientos registrados.' },
-  { id: 'products-labels', label: 'Imprimir Etiquetas', title: 'Imprimir Etiquetas', subtitle: 'Carga e impresion de etiquetas.' },
-  { id: 'products-barcodes', label: 'Impresion de Codigos de Barra', title: 'Impresion de Codigos de Barra', subtitle: 'Carga e impresion de codigos de barra.' },
-  { id: 'products-qr', label: 'Impresion de Codigos QR', title: 'Impresion de Codigos QR', subtitle: 'Carga e impresion de codigos QR.' }
+  { id: 'products', label: 'Planilla', title: 'Planilla de Articulos', subtitle: 'Vista principal con filtros, stock y acceso directo al alta de articulos.' },
+  { id: 'products-price-update', label: 'Actualizacion de Precios', title: 'Actualizacion de Precios', subtitle: 'Calcular Lista de Precios' },
+  { id: 'products-stock-adjustment', label: 'Ajuste de Stock', title: 'Ajuste de Stock', subtitle: 'Planilla de Ajuste' },
+  { id: 'products-stock-output', label: 'Salida de Mercaderia', title: 'Salida de Mercaderia', subtitle: 'Registrar Salida' },
+  { id: 'products-stock-query', label: 'Consulta de Salidas', title: 'Consulta de Salidas', subtitle: 'Historial de Salidas' },
+  { id: 'products-labels', label: 'Imprimir Etiquetas', title: 'Imprimir Etiquetas', subtitle: 'Cargar articulos' },
+  { id: 'products-barcodes', label: 'Impresion de Codigos de Barra', title: 'Impresion de Codigos de Barra', subtitle: 'Cargar articulos' },
+  { id: 'products-qr', label: 'Impresion de Codigos QR', title: 'Impresion de Codigos QR', subtitle: 'Cargar articulos' }
 ] as const;
 
 const EMPTY_PRODUCT_FORM: ProductPayload = {
@@ -221,25 +221,6 @@ function printProductRows(title: string, rows: Array<{ code: string; name: strin
   popup.print();
 }
 
-function ProductModuleTabs({ currentPage }: { currentPage: string }) {
-  return (
-    <div className="products-section-tabs" role="tablist" aria-label="Modulos de articulos">
-      {PRODUCT_MODULES.map((module) => (
-        <button
-          key={module.id}
-          type="button"
-          className={`products-tab-button${module.id === currentPage ? ' active' : ''}`}
-          onClick={() => {
-            window.location.hash = module.id;
-          }}
-        >
-          {module.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ProductPrintPanel({
   pageId,
   products,
@@ -317,9 +298,9 @@ function ProductPrintPanel({
     <div className="card products-price-card">
       <div className="products-module-head">
         <div>
-          <p className="products-module-kicker">Articulos</p>
+          <p className="products-module-kicker">{title}</p>
           <h2>{title}</h2>
-          <p>Seleccion de articulos y carga de cantidades.</p>
+          <p>{summaryText}</p>
         </div>
       </div>
 
@@ -486,9 +467,9 @@ function PriceUpdatePanel({ products }: { products: Product[] }) {
     <div className="card products-price-card">
       <div className="products-module-head">
         <div>
-          <p className="products-module-kicker">Articulos</p>
+          <p className="products-module-kicker">Actualizacion de Precios</p>
           <h2>Actualizacion de Precios</h2>
-          <p>Calcular listas de precios con margen, IVA y referencia visual del articulo seleccionado.</p>
+          <p>Calcular Lista de Precios</p>
         </div>
       </div>
 
@@ -635,9 +616,9 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
     <div className="card products-price-card">
       <div className="products-module-head">
         <div>
-          <p className="products-module-kicker">Articulos</p>
+          <p className="products-module-kicker">Ajuste de Stock</p>
           <h2>Ajuste de Stock</h2>
-          <p>Planilla para preparar cambios de stock.</p>
+          <p>Planilla de Ajuste</p>
         </div>
       </div>
 
@@ -647,7 +628,7 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
             <label>Buscar por codigo o descripcion (F1,F2)</label>
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar..." />
           </div>
-          <div className="products-help-line">Ingrese la cantidad del nuevo stock y revise la lista de ajustes a realizar.</div>
+          <div className="products-help-line">Ingrese la cantidad del nuevo stock y pulse Enter.</div>
           <div className="products-sheet-table-wrap">
             <table className="products-sheet-table">
               <thead>
@@ -714,7 +695,7 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
             </table>
           </div>
           <div className="products-actions-right">
-            <button className="btn btn-primary" type="button" onClick={handleSaveAdjustments}>Guardar cambios</button>
+            <button className="btn btn-success" type="button" onClick={handleSaveAdjustments}>Guardar cambios</button>
             <button className="btn btn-secondary" type="button" onClick={() => setDraftValues({})}>Limpiar</button>
           </div>
           <div className="alert alert-info">
@@ -782,9 +763,9 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
     <div className="card products-price-card">
       <div className="products-module-head">
         <div>
-          <p className="products-module-kicker">Articulos</p>
+          <p className="products-module-kicker">Salida de Mercaderia</p>
           <h2>Salida de Mercaderia</h2>
-          <p>Preparar una salida de mercaderia.</p>
+          <p>Registrar Salida</p>
         </div>
       </div>
 
@@ -902,9 +883,9 @@ function StockQueryPanel({ products }: { products: Product[] }) {
     <div className="card products-price-card">
       <div className="products-module-head">
         <div>
-          <p className="products-module-kicker">Articulos</p>
+          <p className="products-module-kicker">Consulta de Salidas</p>
           <h2>Consulta de Salidas</h2>
-          <p>Historial de salidas registradas.</p>
+          <p>Historial de Salidas</p>
         </div>
       </div>
 
@@ -977,7 +958,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const productsQuery = useProducts({ search, category: categoryFilter, lowStock: stockFilter === 'low' });
   const { categoriesQuery, brandsQuery, nextSkuQuery } = useProductFormData();
-  const { createMutation, updateMutation, deleteMutation } = useProductMutations();
+  const { createMutation, updateMutation, deleteMutation, syncMutation } = useProductMutations();
 
   const categories = categoriesQuery.data || [];
   const brands = brandsQuery.data || [];
@@ -1078,10 +1059,22 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
     }
   }
 
+  async function handleSync(product: Product) {
+    try {
+      const result = await syncMutation.mutateAsync(product.id);
+      if (result?.error) {
+        window.alert(result.error);
+        return;
+      }
+      window.alert(`Articulo sincronizado correctamente${result?.woocommerce_id ? ` (Woo ID ${result.woocommerce_id})` : ''}.`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo sincronizar el articulo.');
+    }
+  }
+
   if (pageId === 'products-price-update') {
     return (
       <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
         <PriceUpdatePanel products={products} />
       </section>
     );
@@ -1090,7 +1083,6 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   if (pageId === 'products-stock-adjustment') {
     return (
       <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
         <StockAdjustmentPanel products={products} />
       </section>
     );
@@ -1099,7 +1091,6 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   if (pageId === 'products-stock-output') {
     return (
       <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
         <StockOutputPanel products={products} currentUserName={currentUserName} />
       </section>
     );
@@ -1108,7 +1099,6 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   if (pageId === 'products-stock-query') {
     return (
       <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
         <StockQueryPanel products={products} />
       </section>
     );
@@ -1117,12 +1107,11 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   if (pageId === 'products-labels') {
     return (
       <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
         <ProductPrintPanel
           pageId="products-labels"
           products={products}
           title="Impresion de Etiquetas"
-          summaryText="La carga y la impresion final ocurren dentro de este submodulo."
+          summaryText="Cargar articulos"
         />
       </section>
     );
@@ -1131,12 +1120,11 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   if (pageId === 'products-barcodes') {
     return (
       <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
         <ProductPrintPanel
           pageId="products-barcodes"
           products={products}
           title="Impresion de Codigos de Barra"
-          summaryText="La seleccion de articulos y la impresion final ocurren dentro de este submodulo."
+          summaryText="Cargar articulos"
         />
       </section>
     );
@@ -1145,12 +1133,11 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   if (pageId === 'products-qr') {
     return (
       <section className="products-admin-content">
-        <ProductModuleTabs currentPage={pageId} />
         <ProductPrintPanel
           pageId="products-qr"
           products={products}
           title="Impresion de Codigos QR"
-          summaryText="La carga de articulos, cantidades y la impresion final ocurren dentro de este submodulo."
+          summaryText="Cargar articulos"
         />
       </section>
     );
@@ -1158,13 +1145,12 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
 
   return (
     <section className="products-admin-content">
-      <ProductModuleTabs currentPage={pageId} />
       <div className="products-admin-panel card">
         <div className="products-module-head">
           <div>
             <p className="products-module-kicker">Planilla</p>
             <h2>Planilla de Articulos</h2>
-            <p>Consulta y mantenimiento de articulos.</p>
+            <p>Vista principal con filtros, stock y acceso directo al alta de articulos.</p>
           </div>
           <div className="products-module-actions">
             <button className="btn btn-primary" type="button" onClick={openNewProductModal}>+ Nuevo Articulo</button>
@@ -1254,6 +1240,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
                     <td>
                       <div className="btn-group">
                         <button className="btn btn-sm btn-secondary" type="button" onClick={() => openEditProductModal(product)}>Editar</button>
+                        <button className="btn btn-sm btn-info" type="button" onClick={() => void handleSync(product)}>Sync</button>
                         <button className="btn btn-sm btn-danger" type="button" onClick={() => void handleDelete(product)}>Eliminar</button>
                       </div>
                     </td>

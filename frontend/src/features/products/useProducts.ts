@@ -2,6 +2,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBrands, getCategories } from '../../services/catalog';
 import { createProduct, deleteProduct, getNextSku, getProducts, updateProduct } from '../../services/products';
+import { syncWooProduct } from '../../services/woocommerce';
 import type { ProductListParams } from '../../types/product';
 
 export function useProducts(params: ProductListParams) {
@@ -60,10 +61,16 @@ export function useProductMutations() {
     onSuccess: refreshProducts
   });
 
+  const syncMutation = useMutation({
+    mutationFn: (id: number) => syncWooProduct(id),
+    onSuccess: refreshProducts
+  });
+
   return {
     createMutation,
     updateMutation,
-    deleteMutation
+    deleteMutation,
+    syncMutation
   };
 }
 

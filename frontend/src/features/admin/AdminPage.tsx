@@ -21,10 +21,11 @@ import type { Brand, Category, DeviceModel, DeviceType } from '../../types/catal
 import type { WooConfigPayload } from '../../types/woocommerce';
 
 const ADMIN_MODULES = [
-  { id: 'admin-users', label: 'Usuarios', title: 'Usuarios', subtitle: 'Administracion de usuarios.' },
-  { id: 'admin-device-options', label: 'Tipos de equipos', title: 'Tipos de equipos', subtitle: 'Alta, baja y modificacion de tipos, marcas y modelos.' },
-  { id: 'admin-categories', label: 'Rubros', title: 'Rubros', subtitle: 'ABM de categorias.' },
-  { id: 'admin-integrations-woocommerce', label: 'WooCommerce', title: 'WooCommerce', subtitle: 'Configuracion de la integracion.' }
+  { id: 'admin-users', label: 'Usuarios', title: 'Modificar Usuarios', subtitle: 'Gestion centralizada de accesos, estados y perfiles del sistema.' },
+  { id: 'admin-users-connected', label: 'Usuarios Conectados', title: 'Usuarios Conectados', subtitle: 'Seguimiento de sesiones activas y actividad reciente del sistema.' },
+  { id: 'admin-device-options', label: 'Tipos de equipos', title: 'Tipos de equipos', subtitle: '' },
+  { id: 'admin-categories', label: 'Rubros', title: 'Rubros', subtitle: '' },
+  { id: 'admin-integrations-woocommerce', label: 'WooCommerce', title: 'WooCommerce', subtitle: '' }
 ] as const;
 
 const EMPTY_CONFIG: WooConfigPayload = {
@@ -63,6 +64,15 @@ const EMPTY_USER_FORM: CreateAuthUserPayload = {
   name: ''
 };
 
+type AdminConnectedSession = {
+  id: string;
+  username: string;
+  ip?: string;
+  loginDate?: string;
+  lastActivity?: string;
+  connectionStatus?: string;
+};
+
 function getModuleConfig(pageId: string) {
   return ADMIN_MODULES.find((module) => module.id === pageId) || ADMIN_MODULES[0];
 }
@@ -73,29 +83,34 @@ function AdminModuleHeader({ title, subtitle }: { title: string; subtitle: strin
       <div>
         <p className="admin-module-kicker">Administracion</p>
         <h2>{title}</h2>
-        <p>{subtitle}</p>
+        {subtitle ? <p>{subtitle}</p> : null}
       </div>
     </div>
   );
 }
 
-function AdminTabs({ pageId }: { pageId: string }) {
+function getAdminRoleLabel(role: string) {
   return (
-    <div className="admin-section-tabs" role="tablist" aria-label="Modulos de administracion">
-      {ADMIN_MODULES.map((module) => (
-        <button
-          key={module.id}
-          type="button"
-          className={`admin-tab-button${module.id === pageId ? ' active' : ''}`}
-          onClick={() => {
-            window.location.hash = module.id;
-          }}
-        >
-          {module.label}
-        </button>
-      ))}
-    </div>
+    {
+      admin: 'Administrador',
+      supervisor: 'Supervisor',
+      seller: 'Vendedor',
+      technician: 'Usuario estandar'
+    }[role] || role || 'Usuario'
   );
+}
+
+function readConnectedSessions() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_connected_users') || '[]');
+    return Array.isArray(parsed) ? (parsed as AdminConnectedSession[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeConnectedSessions(sessions: AdminConnectedSession[]) {
+  window.localStorage.setItem('milo_admin_connected_users', JSON.stringify(sessions));
 }
 
 function UsersPanel({
@@ -107,6 +122,8 @@ function UsersPanel({
 }) {
   const queryClient = useQueryClient();
   const [formValues, setFormValues] = useState<CreateAuthUserPayload>(EMPTY_USER_FORM);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const usersQuery = useQuery({
     queryKey: ['auth', 'users'],
     queryFn: getUsers,
@@ -130,13 +147,97 @@ function UsersPanel({
     }
   }
 
+  const filteredUsers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const users = usersQuery.data || [];
+    if (!term) return users;
+
+    return users.filter((user) =>
+      [String(user.id), user.username, user.name, user.role]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(term))
+    );
+  }, [search, usersQuery.data]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / 10));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * 10, currentPage * 10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   return (
     <div className="admin-grid">
-      <div className="card admin-panel">
+      <div className="card admin-panel admin-panel-full">
         <div className="admin-panel-head">
           <div>
             <p className="admin-panel-kicker">Usuarios</p>
-            <h3>Alta de usuario</h3>
+            <h3>Listado</h3>
+          </div>
+        </div>
+        <div className="admin-filter-card">
+          <div className="search-box admin-search-box">
+            <input
+              type="text"
+              placeholder="Buscar usuario..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="sales-lines-table-wrap">
+          <table className="sales-lines-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Usuario</th>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Ultimo acceso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedUsers.length === 0 ? (
+                <tr><td colSpan={7} className="sales-empty-row">No hay usuarios para mostrar.</td></tr>
+              ) : (
+                paginatedUsers.map((user) => (
+                  <tr key={user.id}>
+                    <td>{user.id}</td>
+                    <td>{user.username}</td>
+                    <td>{user.name}</td>
+                    <td>-</td>
+                    <td><span className="badge badge-blue">{getAdminRoleLabel(user.role)}</span></td>
+                    <td><span className="badge badge-green">Activo</span></td>
+                    <td>{user.created_at ? new Date(user.created_at).toLocaleString('es-AR') : '-'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="sales-pagination">
+          <span>Pagina {currentPage} de {totalPages}</span>
+          <div className="btn-group">
+            <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>Anterior</button>
+            <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={currentPage >= totalPages}>Siguiente</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card admin-panel admin-panel-full">
+        <div className="admin-panel-head">
+          <div>
+            <p className="admin-panel-kicker">Usuarios</p>
+            <h3>Nuevo Usuario</h3>
           </div>
         </div>
         <form className="admin-form-grid" onSubmit={handleSubmit}>
@@ -147,40 +248,123 @@ function UsersPanel({
           <div className="admin-form-actions"><button type="submit" className="btn btn-primary" disabled={createUserMutation.isPending}>{createUserMutation.isPending ? 'Guardando...' : 'Guardar usuario'}</button></div>
         </form>
       </div>
+    </div>
+  );
+}
 
+function ConnectedUsersPanel({
+  feedback,
+  setFeedback
+}: {
+  feedback: string;
+  setFeedback: (value: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [sessions, setSessions] = useState<AdminConnectedSession[]>(() => readConnectedSessions());
+
+  useEffect(() => {
+    setSessions(readConnectedSessions());
+  }, []);
+
+  const filteredSessions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return sessions;
+
+    return sessions.filter((session) =>
+      [session.username, session.ip, session.connectionStatus]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term))
+    );
+  }, [search, sessions]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSessions.length / 10));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedSessions = filteredSessions.slice((currentPage - 1) * 10, currentPage * 10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  function handleForceClose(sessionId: string) {
+    if (!window.confirm('Desea forzar el cierre de sesion seleccionado?')) return;
+
+    const nextSessions = sessions.filter((session) => session.id !== sessionId);
+    setSessions(nextSessions);
+    writeConnectedSessions(nextSessions);
+    setFeedback('Sesion cerrada correctamente.');
+  }
+
+  return (
+    <div className="admin-grid">
       <div className="card admin-panel admin-panel-full">
         <div className="admin-panel-head">
           <div>
-            <p className="admin-panel-kicker">Usuarios</p>
+            <p className="admin-panel-kicker">Sesiones</p>
             <h3>Listado</h3>
           </div>
         </div>
-        <table className="products-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Usuario</th>
-              <th>Rol</th>
-              <th>Alta</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(usersQuery.data || []).length === 0 ? (
-              <tr><td colSpan={5} className="admin-empty-row">No hay usuarios para mostrar.</td></tr>
-            ) : (
-              (usersQuery.data || []).map((user) => (
-                <tr key={user.id}>
-                  <td>{user.id}</td>
-                  <td>{user.name}</td>
-                  <td>{user.username}</td>
-                  <td>{user.role}</td>
-                  <td>{user.created_at ? new Date(user.created_at).toLocaleDateString('es-AR') : '-'}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <div className="admin-filter-card">
+          <div className="search-box admin-search-box">
+            <input
+              type="text"
+              placeholder="Buscar sesion..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="sales-lines-table-wrap">
+          <table className="sales-lines-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>IP</th>
+                <th>Fecha login</th>
+                <th>Ultima actividad</th>
+                <th>Estado conexion</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedSessions.length === 0 ? (
+                <tr><td colSpan={6} className="sales-empty-row">No hay sesiones para mostrar.</td></tr>
+              ) : (
+                paginatedSessions.map((session) => (
+                  <tr key={session.id}>
+                    <td>{session.username || '-'}</td>
+                    <td>{session.ip || '-'}</td>
+                    <td>{session.loginDate ? new Date(session.loginDate).toLocaleString('es-AR') : '-'}</td>
+                    <td>{session.lastActivity ? new Date(session.lastActivity).toLocaleString('es-AR') : '-'}</td>
+                    <td>
+                      <span className={`badge ${session.connectionStatus === 'Activa' ? 'badge-green' : 'badge-yellow'}`}>
+                        {session.connectionStatus || 'Inactiva'}
+                      </span>
+                    </td>
+                    <td>
+                      <button className="btn btn-sm btn-danger" type="button" onClick={() => handleForceClose(session.id)}>
+                        Forzar cierre
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="sales-pagination">
+          <span>Pagina {currentPage} de {totalPages}</span>
+          <div className="btn-group">
+            <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>Anterior</button>
+            <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={currentPage >= totalPages}>Siguiente</button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -196,6 +380,8 @@ function CategoriesPanel({
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: getCategories, staleTime: 30_000 });
   const createMutation = useMutation({
     mutationFn: createCategory,
@@ -236,10 +422,99 @@ function CategoriesPanel({
   }
 
   const categories = categoriesQuery.data || [];
+  const filteredCategories = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return categories;
+
+    return categories.filter((category) =>
+      [String(category.id), category.name, category.full_name, String(category.parent_id ?? ''), String(category.product_count ?? 0)]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term))
+    );
+  }, [categories, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCategories.length / 8));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedCategories = filteredCategories.slice((currentPage - 1) * 8, currentPage * 8);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   return (
     <div className="admin-grid">
-      <div className="card admin-panel">
+      <div className="card admin-panel admin-panel-full">
+        <div className="admin-panel-head"><div><p className="admin-panel-kicker">Rubros</p><h3>Listado</h3></div></div>
+        <div className="admin-filter-card">
+          <div className="search-box admin-search-box">
+            <input
+              type="text"
+              placeholder="Buscar registro..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        </div>
+        {categories.length > 0 ? (
+          <div className="admin-tree-card">
+            <h3>Arbol de categorias</h3>
+            <div className="admin-tree-list">
+              {categories.map((category) => (
+                <div key={category.id} className="admin-tree-item">
+                  {category.parent_id ? '└ ' : ''}{category.full_name || category.name}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="sales-lines-table-wrap">
+          <table className="sales-lines-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Descripcion</th>
+                <th>Estado</th>
+                <th>Productos</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedCategories.length === 0 ? (
+                <tr><td colSpan={5} className="sales-empty-row">No hay registros para mostrar.</td></tr>
+              ) : (
+                paginatedCategories.map((category) => (
+                  <tr key={category.id}>
+                    <td>{category.id}</td>
+                    <td>{category.full_name || category.name}</td>
+                    <td><span className="badge badge-green">Activo</span></td>
+                    <td>{category.product_count || 0}</td>
+                    <td>
+                      <div className="btn-group">
+                        <button className="btn btn-sm btn-danger" type="button" onClick={() => void handleDelete(category)}>Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="sales-pagination">
+          <span>Pagina {currentPage} de {totalPages}</span>
+          <div className="btn-group">
+            <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>Anterior</button>
+            <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={currentPage >= totalPages}>Siguiente</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card admin-panel admin-panel-full">
         <div className="admin-panel-head"><div><p className="admin-panel-kicker">Rubros</p><h3>Alta</h3></div></div>
         <form className="admin-form-grid" onSubmit={handleSubmit}>
           <div className="form-group"><label>Nombre</label><input value={name} onChange={(event) => setName(event.target.value)} /></div>
@@ -254,35 +529,6 @@ function CategoriesPanel({
           </div>
           <div className="admin-form-actions"><button type="submit" className="btn btn-primary" disabled={createMutation.isPending}>{createMutation.isPending ? 'Guardando...' : 'Guardar rubro'}</button></div>
         </form>
-      </div>
-      <div className="card admin-panel admin-panel-full">
-        <div className="admin-panel-head"><div><p className="admin-panel-kicker">Rubros</p><h3>Listado</h3></div></div>
-        <table className="products-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Padre</th>
-              <th>Productos</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.length === 0 ? (
-              <tr><td colSpan={5} className="admin-empty-row">No hay rubros para mostrar.</td></tr>
-            ) : (
-              categories.map((category) => (
-                <tr key={category.id}>
-                  <td>{category.id}</td>
-                  <td>{category.full_name || category.name}</td>
-                  <td>{category.parent_id || '-'}</td>
-                  <td>{category.product_count || 0}</td>
-                  <td><button className="btn btn-action btn-delete" type="button" onClick={() => void handleDelete(category)}>X</button></td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
       </div>
     </div>
   );
@@ -509,10 +755,10 @@ export function AdminPage({ pageId }: { pageId: string }) {
   return (
     <div className="admin-module-shell">
       <AdminModuleHeader title={moduleConfig.title} subtitle={moduleConfig.subtitle} />
-      <AdminTabs pageId={pageId} />
       {feedback ? <div className={`alert ${feedback.includes('No se pudo') ? 'alert-warning' : 'alert-info'}`}>{feedback}</div> : null}
 
       {pageId === 'admin-users' ? <UsersPanel feedback={feedback} setFeedback={setFeedback} /> : null}
+      {pageId === 'admin-users-connected' ? <ConnectedUsersPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-categories' ? <CategoriesPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-device-options' ? <DeviceOptionsPanel feedback={feedback} setFeedback={setFeedback} /> : null}
 

@@ -7,15 +7,15 @@ import type { Customer } from '../../types/customer';
 import type { PurchasesSummaryRow } from '../../types/report';
 
 const REPORT_MODULES = [
-  { id: 'reports', section: 'articles', label: 'Dashboard', title: 'Reportes de Articulos', subtitle: 'Control de stock, ventas y reparaciones.' },
-  { id: 'reports-sales', section: 'sales', label: 'Ventas', title: 'Reportes de Ventas', subtitle: 'Consulta comercial de ventas.' },
-  { id: 'reports-purchases', section: 'purchases', label: 'Compras', title: 'Reportes de Compras', subtitle: 'Consulta administrativa de compras.' },
-  { id: 'reports-customers', section: 'customers', label: 'Clientes', title: 'Reportes de Clientes', subtitle: 'Consulta por cliente y movimientos.' },
-  { id: 'reports-delivery-notes', section: 'deliveryNotes', label: 'Remitos', title: 'Reportes de Remitos', subtitle: 'Consulta de remitos.' },
-  { id: 'reports-accounts', section: 'accounts', label: 'Ctas Ctes', title: 'Reportes de Cuentas Corrientes', subtitle: 'Consulta de cuentas corrientes.' },
-  { id: 'reports-ranking', section: 'ranking', label: 'Ranking de Productos', title: 'Ranking de Ventas', subtitle: 'Ranking de articulos vendidos.' },
-  { id: 'reports-cash', section: 'cash', label: 'Caja', title: 'Reportes de Caja', subtitle: 'Resumen comercial del periodo.' },
-  { id: 'reports-excel', section: 'excel', label: 'Excel', title: 'Reportes a Excel', subtitle: 'Exportacion de reportes.' }
+  { id: 'reports', section: 'articles', label: 'Dashboard', title: 'Reportes de Articulos', subtitle: 'Filtros simples, tabla clara y exportacion directa para control de stock y catalogo.' },
+  { id: 'reports-sales', section: 'sales', label: 'Ventas', title: 'Reportes de Ventas', subtitle: 'Pantalla unificada para consultas comerciales, margenes y seguimiento diario.' },
+  { id: 'reports-purchases', section: 'purchases', label: 'Compras', title: 'Reportes de Compras', subtitle: 'Consultas de compras preparadas para filtrar rapidamente por proveedor y fechas.' },
+  { id: 'reports-customers', section: 'customers', label: 'Clientes', title: 'Reportes de Clientes', subtitle: 'Seguimiento comercial por cliente, vendedor y comportamiento de compra.' },
+  { id: 'reports-delivery-notes', section: 'deliveryNotes', label: 'Remitos', title: 'Reportes de Remitos', subtitle: 'Consulta operativa con la misma estetica de Ventas para revisar entregas y pendientes.' },
+  { id: 'reports-accounts', section: 'accounts', label: 'Ctas Ctes', title: 'Reportes de Cuentas Corrientes', subtitle: 'Vista administrativa para deudores, cobranzas y saldo pendiente por cliente.' },
+  { id: 'reports-ranking', section: 'ranking', label: 'Ranking de Productos', title: 'Ranking de Ventas', subtitle: 'Comparativos rapidos para detectar articulos, clientes y vendedores destacados.' },
+  { id: 'reports-cash', section: 'cash', label: 'Caja', title: 'Reportes de Caja', subtitle: 'Resumen diario de ingresos y egresos para control financiero operativo.' },
+  { id: 'reports-excel', section: 'excel', label: 'Excel', title: 'Reportes a Excel', subtitle: 'Generador simple para exportaciones rapidas sin salir del flujo administrativo.' }
 ] as const;
 
 function formatMoney(value: number) {
@@ -149,21 +149,6 @@ export function ReportsPage({ pageId }: { pageId: string }) {
         </div>
       </div>
 
-      <div className="reports-section-tabs" role="tablist" aria-label="Modulos de reportes">
-        {REPORT_MODULES.map((module) => (
-          <button
-            key={module.id}
-            type="button"
-            className={`reports-tab-button${module.id === pageId ? ' active' : ''}`}
-            onClick={() => {
-              window.location.hash = module.id;
-            }}
-          >
-            {module.label}
-          </button>
-        ))}
-      </div>
-
       {pageId === 'reports' ? (
         <div className="reports-grid">
           <article className="reports-summary-card">
@@ -290,7 +275,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-panel-head">
             <div>
               <p className="reports-panel-kicker">Ventas</p>
-              <h3>Resumen comercial</h3>
+                <h3>Ventas</h3>
             </div>
             <input value={salesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setSalesSearch(event.target.value)} placeholder="Buscar comprobante, cliente o notas..." />
           </div>
@@ -333,7 +318,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-panel-head">
             <div>
               <p className="reports-panel-kicker">Compras</p>
-              <h3>Consulta administrativa</h3>
+                <h3>Compras</h3>
             </div>
             <input value={purchasesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setPurchasesSearch(event.target.value)} placeholder="Buscar proveedor, numero o notas..." />
           </div>
@@ -371,7 +356,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-panel-head">
             <div>
               <p className="reports-panel-kicker">Clientes</p>
-              <h3>Listado comercial</h3>
+                <h3>Clientes</h3>
             </div>
             <input value={customersSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomersSearch(event.target.value)} placeholder="Buscar cliente, telefono, email o CUIT..." />
           </div>
@@ -409,7 +394,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-panel-head">
             <div>
               <p className="reports-panel-kicker">Remitos</p>
-              <h3>Consulta administrativa</h3>
+                <h3>Remitos</h3>
             </div>
             <input value={salesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setSalesSearch(event.target.value)} placeholder="Buscar cliente, vendedor o notas..." />
           </div>
@@ -447,7 +432,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-panel-head">
             <div>
               <p className="reports-panel-kicker">Cuentas corrientes</p>
-              <h3>Clientes con saldo</h3>
+                <h3>Cuentas corrientes</h3>
             </div>
             <input value={customersSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomersSearch(event.target.value)} placeholder="Buscar cliente..." />
           </div>
@@ -483,7 +468,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-panel-head">
             <div>
               <p className="reports-panel-kicker">Ranking</p>
-              <h3>Productos mas vendidos</h3>
+                <h3>Ranking de Ventas</h3>
             </div>
             <input value={articlesSearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setArticlesSearch(event.target.value)} placeholder="Buscar articulo..." />
           </div>
@@ -534,7 +519,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
             <div className="reports-panel-head">
               <div>
                 <p className="reports-panel-kicker">Caja</p>
-                <h3>Ultimos movimientos comerciales</h3>
+                <h3>Caja</h3>
               </div>
             </div>
             <table className="products-table">
@@ -570,7 +555,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-panel-head">
             <div>
               <p className="reports-panel-kicker">Excel</p>
-              <h3>Exportacion directa</h3>
+                <h3>Excel</h3>
             </div>
           </div>
           <div className="tools-actions-row">

@@ -151,7 +151,7 @@ export function CustomersPage() {
     <>
       <div className="card">
         <div className="card-header">
-          <h3 className="card-title">Clientes</h3>
+          <h3 className="card-title">Gestion de Clientes</h3>
           <button className="btn btn-primary" type="button" onClick={openNewCustomerModal}>
             + Nuevo Cliente
           </button>
@@ -229,9 +229,7 @@ export function CustomersPage() {
             <div className="modal-header customer-modal-header">
               <div>
                 <h3 id="customer-modal-title">{selectedCustomer ? 'Editar Cliente' : 'Nuevo Cliente'}</h3>
-                <p className="customer-modal-subtitle">
-                  Datos del cliente.
-                </p>
+                <p className="customer-modal-subtitle">Completa los datos principales, comerciales y observaciones del cliente.</p>
               </div>
               <button type="button" className="modal-close" onClick={closeModal}>
                 &times;

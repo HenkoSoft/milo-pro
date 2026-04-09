@@ -31,11 +31,11 @@ import type {
 } from '../../types/purchase';
 
 const PURCHASE_MODULES = [
-  { id: 'merchandise-entry', label: 'Ingreso de Mercaderia', title: 'Ingreso de Mercaderia', subtitle: 'Carga de compras.' },
-  { id: 'nc-proveedor', label: 'N/C Proveedor (Carga)', title: 'N/C Proveedor (Carga)', subtitle: 'Carga de notas de credito a proveedor.' },
-  { id: 'purchase-query', label: 'Consulta de Compras', title: 'Consulta de Compras', subtitle: 'Listado y detalle de comprobantes.' },
-  { id: 'nc-query', label: 'Consulta de N/C', title: 'Consulta de N/C', subtitle: 'Listado de notas de credito a proveedor.' },
-  { id: 'supplier-payments', label: 'Pagos a Proveedores', title: 'Pagos a Proveedores', subtitle: 'Pagos y cuenta corriente.' }
+  { id: 'merchandise-entry', label: 'Ingreso de Mercaderia', title: 'Ingreso de Mercaderia', subtitle: '' },
+  { id: 'nc-proveedor', label: 'N/C Proveedor (Carga)', title: 'N/C Proveedor (Carga)', subtitle: '' },
+  { id: 'purchase-query', label: 'Consulta de Compras', title: 'Consulta de Compras', subtitle: '' },
+  { id: 'nc-query', label: 'Consulta de N/C', title: 'Consulta de N/C', subtitle: '' },
+  { id: 'supplier-payments', label: 'Pagos a Proveedores', title: 'Pagos a Proveedores', subtitle: '' }
 ] as const;
 
 const INVOICE_TYPES = [
@@ -124,32 +124,13 @@ function mapPurchaseLineToPayload(item: PurchaseLine): PurchaseItemPayload {
   };
 }
 
-function PurchaseTabs({ pageId }: { pageId: string }) {
-  return (
-    <div className="purchases-section-tabs" role="tablist" aria-label="Modulos de compras">
-      {PURCHASE_MODULES.map((module) => (
-        <button
-          key={module.id}
-          type="button"
-          className={`purchases-tab-button${module.id === pageId ? ' active' : ''}`}
-          onClick={() => {
-            window.location.hash = module.id;
-          }}
-        >
-          {module.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function PurchasesModuleHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="purchases-module-head">
       <div>
         <p className="purchases-module-kicker">Compras</p>
         <h2>{title}</h2>
-        <p>{subtitle}</p>
+        {subtitle ? <p>{subtitle}</p> : null}
       </div>
     </div>
   );
@@ -1251,7 +1232,6 @@ export function PurchasesPage({ pageId }: { pageId: string }) {
   return (
     <div className="purchases-module-shell">
       <PurchasesModuleHeader title={moduleConfig.title} subtitle={moduleConfig.subtitle} />
-      <PurchaseTabs pageId={pageId} />
       {renderContent()}
 
       {isSupplierModalOpen ? (
