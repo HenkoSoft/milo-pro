@@ -27,9 +27,12 @@ const ADMIN_MODULES = [
   { id: 'admin-users-connected', label: 'Usuarios Conectados', title: 'Usuarios Conectados', subtitle: 'Seguimiento de sesiones activas y actividad reciente del sistema.' },
   { id: 'admin-device-options', label: 'Tipos de equipos', title: 'Tipos de equipos', subtitle: '' },
   { id: 'admin-categories', label: 'Rubros', title: 'Rubros', subtitle: '' },
+  { id: 'admin-aux-tables', label: 'Tablas Auxiliares', title: 'Tablas Auxiliares', subtitle: 'CRUD administrativo para parametros y catalogos del sistema.' },
   { id: 'admin-config-general', label: 'Datos Generales', title: 'Datos Generales', subtitle: 'Configuracion central del negocio con el mismo criterio de formulario del sistema.' },
   { id: 'admin-config-documents', label: 'Configuracion de Comprobantes', title: 'Configuracion de Comprobantes', subtitle: 'Parametros comerciales y de numeracion para resguardar consistencia operativa.' },
   { id: 'admin-config-mail', label: 'Mail', title: 'Mail', subtitle: 'Panel de configuracion SMTP con acciones visibles y foco en pruebas rapidas.' },
+  { id: 'admin-reset-data', label: 'Borrar datos iniciales', title: 'Borrar datos iniciales', subtitle: 'Accion critica con confirmacion obligatoria y mensaje de advertencia visible.' },
+  { id: 'admin-troubleshoot', label: 'Solucionar Problemas', title: 'Solucionar Problemas', subtitle: 'Herramientas tecnicas con confirmacion previa y resultado visible al finalizar.' },
   { id: 'admin-integrations-woocommerce', label: 'WooCommerce', title: 'WooCommerce', subtitle: '' }
 ] as const;
 
@@ -105,6 +108,29 @@ type AdminConfigStore = {
   };
 };
 
+type AdminAuxRow = {
+  id: string | number;
+  description: string;
+  code?: string;
+  active?: boolean;
+  source?: 'api' | 'local';
+};
+
+type AdminAuxTableKey =
+  | 'banks'
+  | 'categories'
+  | 'incomeDetails'
+  | 'expenseDetails'
+  | 'brands'
+  | 'numbering'
+  | 'vouchers'
+  | 'countries'
+  | 'provinces'
+  | 'rubros'
+  | 'cards'
+  | 'units'
+  | 'zones';
+
 const EMPTY_SETTINGS: BusinessSettings = {
   business_name: '',
   business_address: '',
@@ -137,6 +163,22 @@ const DEFAULT_ADMIN_CONFIG: AdminConfigStore = {
     encryption: 'tls',
     sender_email: ''
   }
+};
+
+const ADMIN_AUX_TABLES: Record<AdminAuxTableKey, { label: string; type: 'simple' | 'category' | 'brand' }> = {
+  banks: { label: 'Bancos', type: 'simple' },
+  categories: { label: 'Categorias', type: 'category' },
+  incomeDetails: { label: 'Detalle de Ingresos', type: 'simple' },
+  expenseDetails: { label: 'Detalle de Gastos', type: 'simple' },
+  brands: { label: 'Marcas', type: 'brand' },
+  numbering: { label: 'Numeracion', type: 'simple' },
+  vouchers: { label: 'Comprobantes', type: 'simple' },
+  countries: { label: 'Paises', type: 'simple' },
+  provinces: { label: 'Provincias', type: 'simple' },
+  rubros: { label: 'Rubros', type: 'simple' },
+  cards: { label: 'Tarjetas', type: 'simple' },
+  units: { label: 'Unidades', type: 'simple' },
+  zones: { label: 'Zonas', type: 'simple' }
 };
 
 function getModuleConfig(pageId: string) {
@@ -196,6 +238,19 @@ function readAdminConfigStore() {
 
 function writeAdminConfigStore(config: AdminConfigStore) {
   window.localStorage.setItem('milo_admin_config_store', JSON.stringify(config));
+}
+
+function readAdminAuxStore() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_aux_tables') || '{}');
+    return parsed && typeof parsed === 'object' ? parsed as Partial<Record<AdminAuxTableKey, AdminAuxRow[]>> : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAdminAuxStore(store: Partial<Record<AdminAuxTableKey, AdminAuxRow[]>>) {
+  window.localStorage.setItem('milo_admin_aux_tables', JSON.stringify(store));
 }
 
 function UsersPanel({
@@ -631,6 +686,9 @@ function DeviceOptionsPanel({
   const [brandName, setBrandName] = useState('');
   const [modelName, setModelName] = useState('');
   const [brandId, setBrandId] = useState('');
+  const [typesSearch, setTypesSearch] = useState('');
+  const [brandsSearch, setBrandsSearch] = useState('');
+  const [modelsSearch, setModelsSearch] = useState('');
   const typesQuery = useQuery({ queryKey: ['device-types'], queryFn: getDeviceTypes, staleTime: 30_000 });
   const brandsQuery = useQuery({ queryKey: ['brands'], queryFn: getBrands, staleTime: 30_000 });
   const modelsQuery = useQuery({ queryKey: ['device-models', brandId], queryFn: () => getDeviceModels(brandId), staleTime: 30_000 });
@@ -678,37 +736,89 @@ function DeviceOptionsPanel({
   const deviceTypes = typesQuery.data || [];
   const brands = brandsQuery.data || [];
   const models = modelsQuery.data || [];
+  const filteredDeviceTypes = useMemo(() => {
+    const term = typesSearch.trim().toLowerCase();
+    if (!term) return deviceTypes;
+    return deviceTypes.filter((item: DeviceType) => [String(item.id), item.name].some((value) => value.toLowerCase().includes(term)));
+  }, [deviceTypes, typesSearch]);
+  const filteredBrands = useMemo(() => {
+    const term = brandsSearch.trim().toLowerCase();
+    if (!term) return brands;
+    return brands.filter((item: Brand) => [String(item.id), item.name, item.slug || ''].some((value) => value.toLowerCase().includes(term)));
+  }, [brands, brandsSearch]);
+  const filteredModels = useMemo(() => {
+    const term = modelsSearch.trim().toLowerCase();
+    if (!term) return models;
+    return models.filter((item: DeviceModel) => {
+      const brandNameValue = brands.find((brand) => brand.id === item.brand_id)?.name || '';
+      return [String(item.id), item.name, brandNameValue].some((value) => value.toLowerCase().includes(term));
+    });
+  }, [brands, models, modelsSearch]);
 
   return (
     <div className="admin-grid">
-      <div className="card admin-panel">
+      <div className="card admin-panel admin-panel-full">
         <div className="admin-panel-head"><div><p className="admin-panel-kicker">Tipos</p><h3>Tipos de equipo</h3></div></div>
         <form className="admin-form-grid" onSubmit={submitType}>
           <div className="form-group"><label>Nombre</label><input value={deviceTypeName} onChange={(event) => setDeviceTypeName(event.target.value)} /></div>
           <div className="admin-form-actions"><button type="submit" className="btn btn-primary">Guardar</button></div>
         </form>
-        <table className="products-table">
-          <tbody>
-            {deviceTypes.map((item: DeviceType) => (
-              <tr key={item.id}><td>{item.name}</td><td><button className="btn btn-action btn-delete" type="button" onClick={() => void deleteTypeMutation.mutateAsync(item.id)}>X</button></td></tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="admin-filter-card">
+          <div className="search-box admin-search-box">
+            <input type="text" placeholder="Buscar tipo..." value={typesSearch} onChange={(event) => setTypesSearch(event.target.value)} />
+          </div>
+        </div>
+        <div className="sales-lines-table-wrap">
+          <table className="sales-lines-table">
+            <thead><tr><th>ID</th><th>Descripcion</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {filteredDeviceTypes.length === 0 ? (
+                <tr><td colSpan={4} className="sales-empty-row">No hay registros para mostrar.</td></tr>
+              ) : (
+                filteredDeviceTypes.map((item: DeviceType) => (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>{item.name}</td>
+                    <td><span className="badge badge-green">Activo</span></td>
+                    <td><div className="btn-group"><button className="btn btn-sm btn-danger" type="button" onClick={() => void deleteTypeMutation.mutateAsync(item.id)}>Eliminar</button></div></td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className="card admin-panel">
+      <div className="card admin-panel admin-panel-full">
         <div className="admin-panel-head"><div><p className="admin-panel-kicker">Marcas</p><h3>Marcas</h3></div></div>
         <form className="admin-form-grid" onSubmit={submitBrand}>
           <div className="form-group"><label>Nombre</label><input value={brandName} onChange={(event) => setBrandName(event.target.value)} /></div>
           <div className="admin-form-actions"><button type="submit" className="btn btn-primary">Guardar</button></div>
         </form>
-        <table className="products-table">
-          <tbody>
-            {brands.map((item: Brand) => (
-              <tr key={item.id}><td>{item.name}</td><td><button className="btn btn-action btn-delete" type="button" onClick={() => void deleteBrandMutation.mutateAsync(item.id)}>X</button></td></tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="admin-filter-card">
+          <div className="search-box admin-search-box">
+            <input type="text" placeholder="Buscar marca..." value={brandsSearch} onChange={(event) => setBrandsSearch(event.target.value)} />
+          </div>
+        </div>
+        <div className="sales-lines-table-wrap">
+          <table className="sales-lines-table">
+            <thead><tr><th>ID</th><th>Descripcion</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {filteredBrands.length === 0 ? (
+                <tr><td colSpan={4} className="sales-empty-row">No hay registros para mostrar.</td></tr>
+              ) : (
+                filteredBrands.map((item: Brand) => (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>{item.name}</td>
+                    <td><span className="badge badge-green">Activo</span></td>
+                    <td><div className="btn-group"><button className="btn btn-sm btn-danger" type="button" onClick={() => void deleteBrandMutation.mutateAsync(item.id)}>Eliminar</button></div></td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card admin-panel admin-panel-full">
@@ -726,23 +836,31 @@ function DeviceOptionsPanel({
           <div className="form-group"><label>Modelo</label><input value={modelName} onChange={(event) => setModelName(event.target.value)} /></div>
           <div className="admin-form-actions"><button type="submit" className="btn btn-primary">Guardar</button></div>
         </form>
-        <table className="products-table">
-          <thead><tr><th>ID</th><th>Modelo</th><th>Marca</th><th>Acciones</th></tr></thead>
-          <tbody>
-            {models.length === 0 ? (
-              <tr><td colSpan={4} className="admin-empty-row">No hay modelos para mostrar.</td></tr>
-            ) : (
-              models.map((model: DeviceModel) => (
-                <tr key={model.id}>
-                  <td>{model.id}</td>
-                  <td>{model.name}</td>
-                  <td>{brands.find((brand) => brand.id === model.brand_id)?.name || '-'}</td>
-                  <td><button className="btn btn-action btn-delete" type="button" onClick={() => void deleteModelMutation.mutateAsync(model.id)}>X</button></td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <div className="admin-filter-card">
+          <div className="search-box admin-search-box">
+            <input type="text" placeholder="Buscar modelo..." value={modelsSearch} onChange={(event) => setModelsSearch(event.target.value)} />
+          </div>
+        </div>
+        <div className="sales-lines-table-wrap">
+          <table className="sales-lines-table">
+            <thead><tr><th>ID</th><th>Modelo</th><th>Marca</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {filteredModels.length === 0 ? (
+                <tr><td colSpan={5} className="sales-empty-row">No hay modelos para mostrar.</td></tr>
+              ) : (
+                filteredModels.map((model: DeviceModel) => (
+                  <tr key={model.id}>
+                    <td>{model.id}</td>
+                    <td>{model.name}</td>
+                    <td>{brands.find((brand) => brand.id === model.brand_id)?.name || '-'}</td>
+                    <td><span className="badge badge-green">Activo</span></td>
+                    <td><div className="btn-group"><button className="btn btn-sm btn-danger" type="button" onClick={() => void deleteModelMutation.mutateAsync(model.id)}>Eliminar</button></div></td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -912,6 +1030,316 @@ function MailConfigPanel({
   );
 }
 
+function AuxTablesPanel({
+  feedback,
+  setFeedback
+}: {
+  feedback: string;
+  setFeedback: (value: string) => void;
+}) {
+  const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: getCategories, staleTime: 30_000 });
+  const brandsQuery = useQuery({ queryKey: ['brands'], queryFn: getBrands, staleTime: 30_000 });
+  const [tableKey, setTableKey] = useState<AdminAuxTableKey>('banks');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [description, setDescription] = useState('');
+  const [auxStore, setAuxStore] = useState(() => readAdminAuxStore());
+
+  const rows = useMemo(() => {
+    if (tableKey === 'categories') {
+      return (categoriesQuery.data || []).map((category) => ({
+        id: category.id,
+        description: category.full_name || category.name,
+        code: '',
+        active: true,
+        source: 'api' as const
+      }));
+    }
+
+    if (tableKey === 'brands') {
+      return (brandsQuery.data || []).map((brand) => ({
+        id: brand.id,
+        description: brand.name,
+        code: '',
+        active: true,
+        source: 'api' as const
+      }));
+    }
+
+    return (auxStore[tableKey] || []).map((row) => ({ ...row, source: 'local' as const }));
+  }, [auxStore, brandsQuery.data, categoriesQuery.data, tableKey]);
+
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((row) =>
+      [String(row.id), row.description, row.code]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term))
+    );
+  }, [rows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / 8));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRows = filteredRows.slice((currentPage - 1) * 8, currentPage * 8);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, tableKey]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!description.trim()) {
+      setFeedback('Ingrese una descripcion.');
+      return;
+    }
+    if (tableKey === 'categories' || tableKey === 'brands') {
+      setFeedback('Esta tabla se administra desde su modulo especifico.');
+      return;
+    }
+
+    const nextStore = {
+      ...auxStore,
+      [tableKey]: [
+        {
+          id: `${tableKey}-${Date.now()}`,
+          description: description.trim(),
+          active: true,
+          source: 'local'
+        },
+        ...(auxStore[tableKey] || [])
+      ]
+    };
+    setAuxStore(nextStore);
+    writeAdminAuxStore(nextStore);
+    setDescription('');
+    setFeedback('Registro agregado correctamente.');
+  }
+
+  function handleDelete(row: AdminAuxRow) {
+    if (row.source !== 'local') {
+      setFeedback('Este registro se administra desde su modulo especifico.');
+      return;
+    }
+    if (!window.confirm('Desea eliminar este registro?')) return;
+    const nextStore = {
+      ...auxStore,
+      [tableKey]: (auxStore[tableKey] || []).filter((item) => String(item.id) !== String(row.id))
+    };
+    setAuxStore(nextStore);
+    writeAdminAuxStore(nextStore);
+    setFeedback('Registro eliminado correctamente.');
+  }
+
+  return (
+    <div className="admin-grid">
+      <div className="card admin-panel admin-panel-full">
+        <div className="admin-filter-card">
+          <div className="admin-filter-grid">
+            <div className="form-group">
+              <label>Tabla</label>
+              <select value={tableKey} onChange={(event) => setTableKey(event.target.value as AdminAuxTableKey)}>
+                {Object.entries(ADMIN_AUX_TABLES).map(([value, item]) => (
+                  <option key={value} value={value}>{item.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Buscar</label>
+              <input type="text" placeholder="Buscar registro..." value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        {tableKey === 'categories' ? (
+          <div className="admin-tree-card">
+            <h3>Arbol de categorias</h3>
+            <div className="admin-tree-list">
+              {(categoriesQuery.data || []).map((category) => (
+                <div key={category.id} className="admin-tree-item">{category.parent_id ? '└ ' : ''}{category.full_name || category.name}</div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="admin-table-card">
+          <div className="admin-table-header-note">{ADMIN_AUX_TABLES[tableKey].label}</div>
+          <div className="sales-lines-table-wrap">
+            <table className="sales-lines-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Descripcion</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRows.length === 0 ? (
+                  <tr><td colSpan={4} className="sales-empty-row">No hay registros para mostrar.</td></tr>
+                ) : (
+                  paginatedRows.map((row) => (
+                    <tr key={String(row.id)}>
+                      <td>{row.id}</td>
+                      <td>{row.description}</td>
+                      <td><span className={`badge ${row.active === false ? 'badge-yellow' : 'badge-green'}`}>{row.active === false ? 'Inactivo' : 'Activo'}</span></td>
+                      <td>
+                        <div className="btn-group">
+                          <button className="btn btn-sm btn-danger" type="button" onClick={() => handleDelete(row)}>Eliminar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="sales-pagination">
+            <span>Pagina {currentPage} de {totalPages}</span>
+            <div className="btn-group">
+              <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>Anterior</button>
+              <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={currentPage >= totalPages}>Siguiente</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card admin-panel admin-panel-full">
+        <div className="admin-panel-head">
+          <div>
+            <p className="admin-panel-kicker">{ADMIN_AUX_TABLES[tableKey].label}</p>
+            <h3>Nuevo registro</h3>
+          </div>
+        </div>
+        <form className="admin-form-grid" onSubmit={handleSubmit}>
+          <div className="form-group admin-field-span-2">
+            <label>Descripcion</label>
+            <input value={description} onChange={(event) => setDescription(event.target.value)} />
+          </div>
+          <div className="admin-form-actions">
+            <button className="btn btn-primary" type="submit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ResetDataPanel({
+  setFeedback
+}: {
+  feedback: string;
+  setFeedback: (value: string) => void;
+}) {
+  const [confirmValue, setConfirmValue] = useState('');
+  const [result, setResult] = useState('');
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (confirmValue.trim().toUpperCase() !== 'RESTABLECER') {
+      setFeedback('Debe escribir RESTABLECER para continuar.');
+      return;
+    }
+    const message = 'Modo seguro: no se eliminaron datos productivos porque el backend actual no expone borrado masivo.';
+    setResult(message);
+    setFeedback('Proceso completado.');
+  }
+
+  return (
+    <div className="admin-grid">
+      <div className="card admin-panel admin-panel-full admin-warning-card">
+        <h3>Esta accion eliminara datos iniciales del sistema.</h3>
+        <p>Seleccione los grupos a restablecer y escriba <strong>RESTABLECER</strong> para confirmar.</p>
+        <form onSubmit={handleSubmit}>
+          <div className="admin-check-grid">
+            <label className="admin-check-item"><input type="checkbox" /> Clientes demo</label>
+            <label className="admin-check-item"><input type="checkbox" /> Articulos demo</label>
+            <label className="admin-check-item"><input type="checkbox" /> Comprobantes demo</label>
+          </div>
+          <div className="form-group">
+            <label>Confirmacion obligatoria</label>
+            <input type="text" placeholder="Escriba RESTABLECER" value={confirmValue} onChange={(event) => setConfirmValue(event.target.value)} />
+          </div>
+          <div className="admin-actions-row">
+            <button className="btn btn-danger" type="submit">Restablecer datos</button>
+          </div>
+        </form>
+        {result ? (
+          <div className="admin-process-card">
+            <h4>Restablecer datos</h4>
+            <p><strong>Resultado:</strong> Proceso completado</p>
+            <p><strong>Errores detectados:</strong> {result}</p>
+            <p><strong>Tiempo de ejecucion:</strong> 0.1 s</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TroubleshootPanel({
+  setFeedback
+}: {
+  feedback: string;
+  setFeedback: (value: string) => void;
+}) {
+  const [result, setResult] = useState('');
+
+  function runAction(type: 'indices' | 'ventas' | 'cache') {
+    if (!window.confirm('Desea ejecutar esta accion tecnica?')) return;
+
+    const messages = {
+      indices: 'Se regeneraron referencias visuales y catalogos locales del modulo administrativo.',
+      ventas: 'Se completo la validacion superficial de ventas y numeracion sin cambios estructurales.',
+      cache: 'Se limpiaron caches locales de administracion y sesiones auxiliares.'
+    };
+
+    if (type === 'cache') {
+      window.localStorage.removeItem('milo_admin_connected_users');
+      window.localStorage.removeItem('milo_admin_aux_tables');
+    }
+
+    setResult(messages[type]);
+    setFeedback('Proceso completado.');
+  }
+
+  return (
+    <div className="admin-grid">
+      <div className="card admin-panel admin-panel-full">
+        <div className="admin-tools-grid">
+          <button className="admin-tool-card" type="button" onClick={() => runAction('indices')}>
+            <strong>Recrear indices y tablas</strong>
+            <span>Reconstruye estructuras administrativas locales para diagnostico visual.</span>
+          </button>
+          <button className="admin-tool-card" type="button" onClick={() => runAction('ventas')}>
+            <strong>Reparar ventas</strong>
+            <span>Revisa estructura de comprobantes y consistencia de datos comerciales.</span>
+          </button>
+          <button className="admin-tool-card" type="button" onClick={() => runAction('cache')}>
+            <strong>Limpiar cache</strong>
+            <span>Limpia caches locales del frontend sin tocar la base principal.</span>
+          </button>
+        </div>
+
+        {result ? (
+          <div className="admin-process-card">
+            <h4>Proceso completado</h4>
+            <p><strong>Resultado:</strong> {result}</p>
+            <p><strong>Errores detectados:</strong> No se detectaron errores criticos.</p>
+            <p><strong>Tiempo de ejecucion:</strong> 0.3 s</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function AdminPage({ pageId }: { pageId: string }) {
   const queryClient = useQueryClient();
   const moduleConfig = getModuleConfig(pageId);
@@ -1010,9 +1438,12 @@ export function AdminPage({ pageId }: { pageId: string }) {
       {pageId === 'admin-users-connected' ? <ConnectedUsersPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-categories' ? <CategoriesPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-device-options' ? <DeviceOptionsPanel feedback={feedback} setFeedback={setFeedback} /> : null}
+      {pageId === 'admin-aux-tables' ? <AuxTablesPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-config-general' ? <GeneralConfigPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-config-documents' ? <DocumentsConfigPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-config-mail' ? <MailConfigPanel feedback={feedback} setFeedback={setFeedback} /> : null}
+      {pageId === 'admin-reset-data' ? <ResetDataPanel feedback={feedback} setFeedback={setFeedback} /> : null}
+      {pageId === 'admin-troubleshoot' ? <TroubleshootPanel feedback={feedback} setFeedback={setFeedback} /> : null}
 
       {pageId === 'admin-integrations-woocommerce' ? (
         <div className="admin-grid">

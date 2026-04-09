@@ -2395,6 +2395,77 @@ button, input, select, textarea { font: inherit; }
   font-size: 12px;
 }
 
+.admin-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-table-card {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px;
+}
+
+.admin-table-header-note {
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.admin-warning-card h3 {
+  margin: 0 0 10px;
+}
+
+.admin-check-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.admin-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-tool-card {
+  border: 1px solid var(--border-color);
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.admin-tool-card span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.admin-process-card {
+  margin-top: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px;
+}
+
+.admin-process-card h4 {
+  margin: 0 0 10px;
+}
+
 .admin-form-actions {
   grid-column: 1 / -1;
   display: flex;
