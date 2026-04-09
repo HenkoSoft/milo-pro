@@ -15,9 +15,11 @@ import {
   getDeviceModels,
   getDeviceTypes
 } from '../../services/catalog';
+import { getSettings, updateSettings } from '../../services/settings';
 import { disconnectWoo, getWooPollingStatus, getWooStatus, startWooPolling, stopWooPolling, testWooConnection, updateWooConfig } from '../../services/woocommerce';
 import type { CreateAuthUserPayload } from '../../types/auth';
 import type { Brand, Category, DeviceModel, DeviceType } from '../../types/catalog';
+import type { BusinessSettings } from '../../types/settings';
 import type { WooConfigPayload } from '../../types/woocommerce';
 
 const ADMIN_MODULES = [
@@ -25,6 +27,9 @@ const ADMIN_MODULES = [
   { id: 'admin-users-connected', label: 'Usuarios Conectados', title: 'Usuarios Conectados', subtitle: 'Seguimiento de sesiones activas y actividad reciente del sistema.' },
   { id: 'admin-device-options', label: 'Tipos de equipos', title: 'Tipos de equipos', subtitle: '' },
   { id: 'admin-categories', label: 'Rubros', title: 'Rubros', subtitle: '' },
+  { id: 'admin-config-general', label: 'Datos Generales', title: 'Datos Generales', subtitle: 'Configuracion central del negocio con el mismo criterio de formulario del sistema.' },
+  { id: 'admin-config-documents', label: 'Configuracion de Comprobantes', title: 'Configuracion de Comprobantes', subtitle: 'Parametros comerciales y de numeracion para resguardar consistencia operativa.' },
+  { id: 'admin-config-mail', label: 'Mail', title: 'Mail', subtitle: 'Panel de configuracion SMTP con acciones visibles y foco en pruebas rapidas.' },
   { id: 'admin-integrations-woocommerce', label: 'WooCommerce', title: 'WooCommerce', subtitle: '' }
 ] as const;
 
@@ -73,6 +78,67 @@ type AdminConnectedSession = {
   connectionStatus?: string;
 };
 
+type AdminConfigStore = {
+  general?: {
+    legal_name?: string;
+    tax_id?: string;
+    currency?: string;
+    date_format?: string;
+    timezone?: string;
+    logo_name?: string;
+  };
+  documents?: {
+    numbering_format?: string;
+    prefixes?: string;
+    control_stock?: boolean;
+    allow_negative_stock?: boolean;
+    control_min_price?: boolean;
+    decimals?: number;
+  };
+  mail?: {
+    smtp_server?: string;
+    port?: string;
+    username?: string;
+    password?: string;
+    encryption?: string;
+    sender_email?: string;
+  };
+};
+
+const EMPTY_SETTINGS: BusinessSettings = {
+  business_name: '',
+  business_address: '',
+  business_phone: '',
+  business_email: ''
+};
+
+const DEFAULT_ADMIN_CONFIG: AdminConfigStore = {
+  general: {
+    legal_name: '',
+    tax_id: '',
+    currency: 'ARS',
+    date_format: 'dd/MM/yyyy',
+    timezone: 'America/Argentina/Buenos_Aires',
+    logo_name: ''
+  },
+  documents: {
+    numbering_format: 'PV-00000000',
+    prefixes: '',
+    control_stock: true,
+    allow_negative_stock: false,
+    control_min_price: false,
+    decimals: 2
+  },
+  mail: {
+    smtp_server: '',
+    port: '587',
+    username: '',
+    password: '',
+    encryption: 'tls',
+    sender_email: ''
+  }
+};
+
 function getModuleConfig(pageId: string) {
   return ADMIN_MODULES.find((module) => module.id === pageId) || ADMIN_MODULES[0];
 }
@@ -111,6 +177,25 @@ function readConnectedSessions() {
 
 function writeConnectedSessions(sessions: AdminConnectedSession[]) {
   window.localStorage.setItem('milo_admin_connected_users', JSON.stringify(sessions));
+}
+
+function readAdminConfigStore() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_config_store') || 'null');
+    return {
+      ...DEFAULT_ADMIN_CONFIG,
+      ...(parsed || {}),
+      general: { ...DEFAULT_ADMIN_CONFIG.general, ...(parsed?.general || {}) },
+      documents: { ...DEFAULT_ADMIN_CONFIG.documents, ...(parsed?.documents || {}) },
+      mail: { ...DEFAULT_ADMIN_CONFIG.mail, ...(parsed?.mail || {}) }
+    } as AdminConfigStore;
+  } catch {
+    return DEFAULT_ADMIN_CONFIG;
+  }
+}
+
+function writeAdminConfigStore(config: AdminConfigStore) {
+  window.localStorage.setItem('milo_admin_config_store', JSON.stringify(config));
 }
 
 function UsersPanel({
@@ -663,6 +748,170 @@ function DeviceOptionsPanel({
   );
 }
 
+function GeneralConfigPanel({
+  feedback,
+  setFeedback
+}: {
+  feedback: string;
+  setFeedback: (value: string) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [settingsValues, setSettingsValues] = useState<BusinessSettings>(EMPTY_SETTINGS);
+  const [generalValues, setGeneralValues] = useState(() => readAdminConfigStore().general || DEFAULT_ADMIN_CONFIG.general!);
+  const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 30_000 });
+  const updateMutation = useMutation({
+    mutationFn: updateSettings,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+    }
+  });
+
+  useEffect(() => {
+    if (!settingsQuery.data) return;
+    setSettingsValues({
+      business_name: settingsQuery.data.business_name || '',
+      business_address: settingsQuery.data.business_address || '',
+      business_phone: settingsQuery.data.business_phone || '',
+      business_email: settingsQuery.data.business_email || ''
+    });
+  }, [settingsQuery.data]);
+
+  function handleExtraChange(event: ChangeEvent<HTMLInputElement>) {
+    const { name, value } = event.target;
+    setGeneralValues((current) => ({ ...current, [name]: value }));
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      await updateMutation.mutateAsync(settingsValues);
+      const nextConfig = { ...readAdminConfigStore(), general: generalValues };
+      writeAdminConfigStore(nextConfig);
+      setFeedback('Datos generales guardados correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo guardar la configuracion.');
+    }
+  }
+
+  return (
+    <div className="admin-grid">
+      <div className="card admin-panel admin-panel-full">
+        <form className="admin-form-card" onSubmit={handleSubmit}>
+          <div className="admin-form-grid">
+            <div className="form-group"><label>Nombre empresa</label><input value={settingsValues.business_name} onChange={(event) => setSettingsValues((current) => ({ ...current, business_name: event.target.value }))} /></div>
+            <div className="form-group"><label>Razon social</label><input name="legal_name" value={generalValues.legal_name || ''} onChange={handleExtraChange} /></div>
+            <div className="form-group"><label>CUIT</label><input name="tax_id" value={generalValues.tax_id || ''} onChange={handleExtraChange} /></div>
+            <div className="form-group"><label>Telefono</label><input value={settingsValues.business_phone || ''} onChange={(event) => setSettingsValues((current) => ({ ...current, business_phone: event.target.value }))} /></div>
+            <div className="form-group admin-field-span-2"><label>Direccion</label><input value={settingsValues.business_address || ''} onChange={(event) => setSettingsValues((current) => ({ ...current, business_address: event.target.value }))} /></div>
+            <div className="form-group"><label>Email</label><input type="email" value={settingsValues.business_email || ''} onChange={(event) => setSettingsValues((current) => ({ ...current, business_email: event.target.value }))} /></div>
+            <div className="form-group"><label>Moneda</label><input name="currency" value={generalValues.currency || ''} onChange={handleExtraChange} /></div>
+            <div className="form-group"><label>Formato fecha</label><input name="date_format" value={generalValues.date_format || ''} onChange={handleExtraChange} /></div>
+            <div className="form-group"><label>Zona horaria</label><input name="timezone" value={generalValues.timezone || ''} onChange={handleExtraChange} /></div>
+            <div className="form-group admin-field-span-2">
+              <label>Logo empresa</label>
+              <input type="file" accept="image/*" onChange={(event) => setGeneralValues((current) => ({ ...current, logo_name: event.target.files?.[0]?.name || '' }))} />
+              <small className="admin-help-inline">
+                {generalValues.logo_name ? `Archivo seleccionado: ${generalValues.logo_name}` : 'Puede seleccionar un archivo para registrar el logo en la configuracion local.'}
+              </small>
+            </div>
+          </div>
+          <div className="admin-actions-row">
+            <button className="btn btn-success" type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function DocumentsConfigPanel({
+  setFeedback
+}: {
+  feedback: string;
+  setFeedback: (value: string) => void;
+}) {
+  const [values, setValues] = useState(() => readAdminConfigStore().documents || DEFAULT_ADMIN_CONFIG.documents!);
+
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const target = event.target;
+    const value = target.type === 'checkbox' ? target.checked : target.value;
+    setValues((current) => ({ ...current, [target.name]: value }));
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextConfig = { ...readAdminConfigStore(), documents: { ...values, decimals: Number(values.decimals || 2) } };
+    writeAdminConfigStore(nextConfig);
+    setFeedback('Configuracion de comprobantes guardada correctamente.');
+  }
+
+  return (
+    <div className="admin-grid">
+      <div className="card admin-panel admin-panel-full">
+        <form className="admin-form-card" onSubmit={handleSubmit}>
+          <div className="admin-form-grid">
+            <div className="form-group"><label>Formato numeracion</label><input name="numbering_format" value={values.numbering_format || ''} onChange={handleChange} /></div>
+            <div className="form-group"><label>Prefijos</label><input name="prefixes" value={values.prefixes || ''} onChange={handleChange} /></div>
+            <div className="form-group"><label>Decimales permitidos</label><input name="decimals" value={String(values.decimals ?? 2)} onChange={handleChange} /></div>
+            <div className="form-group admin-field-span-2"><label className="admin-switch-row"><input name="control_stock" type="checkbox" checked={values.control_stock !== false} onChange={handleChange} /><span>Control de stock</span></label></div>
+            <div className="form-group admin-field-span-2"><label className="admin-switch-row"><input name="allow_negative_stock" type="checkbox" checked={Boolean(values.allow_negative_stock)} onChange={handleChange} /><span>Permitir stock negativo</span></label></div>
+            <div className="form-group admin-field-span-2"><label className="admin-switch-row"><input name="control_min_price" type="checkbox" checked={Boolean(values.control_min_price)} onChange={handleChange} /><span>Control de precios minimos</span></label></div>
+          </div>
+          <div className="admin-actions-row">
+            <button className="btn btn-success" type="submit">Guardar configuracion</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function MailConfigPanel({
+  setFeedback
+}: {
+  feedback: string;
+  setFeedback: (value: string) => void;
+}) {
+  const [values, setValues] = useState(() => readAdminConfigStore().mail || DEFAULT_ADMIN_CONFIG.mail!);
+
+  function handleChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    const { name, value } = event.target;
+    setValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextConfig = { ...readAdminConfigStore(), mail: values };
+    writeAdminConfigStore(nextConfig);
+    setFeedback('Configuracion de mail guardada correctamente.');
+  }
+
+  function handleTestConnection() {
+    setFeedback('Prueba de conexion registrada localmente.');
+  }
+
+  return (
+    <div className="admin-grid">
+      <div className="card admin-panel admin-panel-full">
+        <form className="admin-form-card" onSubmit={handleSubmit}>
+          <div className="admin-form-grid">
+            <div className="form-group"><label>Servidor SMTP</label><input name="smtp_server" value={values.smtp_server || ''} onChange={handleChange} /></div>
+            <div className="form-group"><label>Puerto</label><input name="port" type="number" value={values.port || ''} onChange={handleChange} /></div>
+            <div className="form-group"><label>Usuario</label><input name="username" value={values.username || ''} onChange={handleChange} /></div>
+            <div className="form-group"><label>Contrasena</label><input name="password" type="password" value={values.password || ''} onChange={handleChange} /></div>
+            <div className="form-group"><label>TLS / SSL</label><select name="encryption" value={values.encryption || 'tls'} onChange={handleChange}><option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">Sin cifrado</option></select></div>
+            <div className="form-group"><label>Email remitente</label><input name="sender_email" type="email" value={values.sender_email || ''} onChange={handleChange} /></div>
+          </div>
+          <div className="admin-actions-row">
+            <button className="btn btn-secondary" type="button" onClick={handleTestConnection}>Probar conexion</button>
+            <button className="btn btn-success" type="submit">Guardar configuracion</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function AdminPage({ pageId }: { pageId: string }) {
   const queryClient = useQueryClient();
   const moduleConfig = getModuleConfig(pageId);
@@ -761,6 +1010,9 @@ export function AdminPage({ pageId }: { pageId: string }) {
       {pageId === 'admin-users-connected' ? <ConnectedUsersPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-categories' ? <CategoriesPanel feedback={feedback} setFeedback={setFeedback} /> : null}
       {pageId === 'admin-device-options' ? <DeviceOptionsPanel feedback={feedback} setFeedback={setFeedback} /> : null}
+      {pageId === 'admin-config-general' ? <GeneralConfigPanel feedback={feedback} setFeedback={setFeedback} /> : null}
+      {pageId === 'admin-config-documents' ? <DocumentsConfigPanel feedback={feedback} setFeedback={setFeedback} /> : null}
+      {pageId === 'admin-config-mail' ? <MailConfigPanel feedback={feedback} setFeedback={setFeedback} /> : null}
 
       {pageId === 'admin-integrations-woocommerce' ? (
         <div className="admin-grid">
