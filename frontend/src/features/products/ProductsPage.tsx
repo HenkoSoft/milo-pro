@@ -956,6 +956,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   const [formValues, setFormValues] = useState<ProductPayload>({ ...EMPTY_PRODUCT_FORM });
   const [feedback, setFeedback] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'data' | 'prices'>('data');
   const productsQuery = useProducts({ search, category: categoryFilter, lowStock: stockFilter === 'low' });
   const { categoriesQuery, brandsQuery, nextSkuQuery } = useProductFormData();
   const { createMutation, updateMutation, deleteMutation, syncMutation } = useProductMutations();
@@ -987,6 +988,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
     setSelectedProduct(null);
     setFormValues({ ...EMPTY_PRODUCT_FORM, sku: nextSkuQuery.data?.sku || '' });
     setFeedback('');
+    setModalTab('data');
     setIsModalOpen(true);
   }
 
@@ -994,6 +996,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
     setSelectedProduct(product);
     setFormValues(toProductFormValues(product));
     setFeedback('');
+    setModalTab('data');
     setIsModalOpen(true);
   }
 
@@ -1269,145 +1272,165 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
               <button type="button" className="modal-close" onClick={closeModal}>&times;</button>
             </div>
             <form onSubmit={handleSubmit}>
+              <div className="products-modal-tabs">
+                <button
+                  type="button"
+                  className={`products-modal-tab${modalTab === 'data' ? ' is-active' : ''}`}
+                  onClick={() => setModalTab('data')}
+                >
+                  Datos
+                </button>
+                <button
+                  type="button"
+                  className={`products-modal-tab${modalTab === 'prices' ? ' is-active' : ''}`}
+                  onClick={() => setModalTab('prices')}
+                >
+                  Listas de precios
+                </button>
+              </div>
               <div className="modal-body">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="product-sku">Codigo / SKU</label>
-                    <input id="product-sku" name="sku" value={formValues.sku} onChange={handleChange} />
+                <section className={`products-modal-panel${modalTab === 'data' ? ' is-active' : ''}`}>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-sku">Codigo / SKU</label>
+                      <input id="product-sku" name="sku" value={formValues.sku} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-barcode">Cod. Prov.</label>
+                      <input id="product-barcode" name="barcode" value={formValues.barcode} onChange={handleChange} />
+                    </div>
                   </div>
                   <div className="form-group">
-                    <label htmlFor="product-barcode">Cod. Prov.</label>
-                    <input id="product-barcode" name="barcode" value={formValues.barcode} onChange={handleChange} />
+                    <label htmlFor="product-name">Descripcion</label>
+                    <input id="product-name" name="name" value={formValues.name} onChange={handleChange} required />
                   </div>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="product-name">Descripcion</label>
-                  <input id="product-name" name="name" value={formValues.name} onChange={handleChange} required />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="product-category">Categoria principal</label>
-                    <select id="product-category" name="category_primary_id" value={formValues.category_primary_id} onChange={handleChange}>
-                      <option value="">Seleccionar categoria</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={String(category.id)}>{category.full_name || category.name}</option>
-                      ))}
-                    </select>
-                    <div className="products-help-inline">Gestiona el arbol en Administracion - Categorias</div>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="product-category-multi">Categorias adicionales</label>
-                    <select
-                      id="product-category-multi"
-                      name="category_ids"
-                      multiple
-                      size={6}
-                      value={formValues.category_ids}
-                      onChange={handleChange}
-                    >
-                      {categories.map((category) => (
-                        <option key={`extra-${category.id}`} value={String(category.id)}>{category.full_name || category.name}</option>
-                      ))}
-                    </select>
-                    <div className="products-help-inline">Puede elegir varias categorias. La principal tambien queda dentro de esta relacion.</div>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="product-brand">Marca</label>
-                    <select id="product-brand" name="brand_id" value={formValues.brand_id} onChange={handleChange}>
-                      <option value="">Seleccionar marca</option>
-                      {brands.map((brand) => (
-                        <option key={brand.id} value={String(brand.id)}>{brand.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="product-supplier">Proveedor</label>
-                    <input id="product-supplier" name="supplier" value={formValues.supplier} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="product-color">Color</label>
-                    <input id="product-color" name="color" value={formValues.color} onChange={handleChange} />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="product-short-description">Descripcion corta</label>
-                  <input id="product-short-description" name="short_description" value={formValues.short_description} onChange={handleChange} />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="product-purchase-price">Costo</label>
-                    <input id="product-purchase-price" name="purchase_price" type="number" value={formValues.purchase_price} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="product-sale-price">Lista 1</label>
-                    <input id="product-sale-price" name="sale_price" type="number" value={formValues.sale_price} onChange={handleChange} />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="product-sale-price-2">Lista 2</label>
-                    <input id="product-sale-price-2" name="sale_price_2" type="number" value={formValues.sale_price_2} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="product-sale-price-3">Lista 3</label>
-                    <input id="product-sale-price-3" name="sale_price_3" type="number" value={formValues.sale_price_3} onChange={handleChange} />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="product-sale-price-4">Lista 4</label>
-                    <input id="product-sale-price-4" name="sale_price_4" type="number" value={formValues.sale_price_4} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="product-sale-price-5">Lista 5</label>
-                    <input id="product-sale-price-5" name="sale_price_5" type="number" value={formValues.sale_price_5} onChange={handleChange} />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="product-sale-price-6">Lista 6</label>
-                    <input id="product-sale-price-6" name="sale_price_6" type="number" value={formValues.sale_price_6} onChange={handleChange} />
-                  </div>
-                  <div className="form-group">
-                    <label>&nbsp;</label>
-                    <label className="products-check-row">
-                      <input
-                        id="product-sale-price-tax"
-                        name="sale_price_includes_tax"
-                        type="checkbox"
-                        checked={formValues.sale_price_includes_tax}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-category">Categoria principal</label>
+                      <select id="product-category" name="category_primary_id" value={formValues.category_primary_id} onChange={handleChange}>
+                        <option value="">Seleccionar categoria</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={String(category.id)}>{category.full_name || category.name}</option>
+                        ))}
+                      </select>
+                      <div className="products-help-inline">Gestiona el arbol en Administracion - Categorias</div>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-category-multi">Categorias adicionales</label>
+                      <select
+                        id="product-category-multi"
+                        name="category_ids"
+                        multiple
+                        size={6}
+                        value={formValues.category_ids}
                         onChange={handleChange}
-                      />
-                      Incluye IVA
-                    </label>
+                      >
+                        {categories.map((category) => (
+                          <option key={`extra-${category.id}`} value={String(category.id)}>{category.full_name || category.name}</option>
+                        ))}
+                      </select>
+                      <div className="products-help-inline">Puede elegir varias categorias. La principal tambien queda dentro de esta relacion.</div>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-brand">Marca</label>
+                      <select id="product-brand" name="brand_id" value={formValues.brand_id} onChange={handleChange}>
+                        <option value="">Seleccionar marca</option>
+                        {brands.map((brand) => (
+                          <option key={brand.id} value={String(brand.id)}>{brand.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
-                <div className="form-row">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-supplier">Proveedor</label>
+                      <input id="product-supplier" name="supplier" value={formValues.supplier} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-color">Color</label>
+                      <input id="product-color" name="color" value={formValues.color} onChange={handleChange} />
+                    </div>
+                  </div>
                   <div className="form-group">
-                    <label htmlFor="product-stock">Stock</label>
-                    <input id="product-stock" name="stock" type="number" value={formValues.stock} onChange={handleChange} />
+                    <label htmlFor="product-short-description">Descripcion corta</label>
+                    <input id="product-short-description" name="short_description" value={formValues.short_description} onChange={handleChange} />
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-stock">Stock</label>
+                      <input id="product-stock" name="stock" type="number" value={formValues.stock} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-min-stock">Stock minimo</label>
+                      <input id="product-min-stock" name="min_stock" type="number" value={formValues.min_stock} onChange={handleChange} />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Estado sync</label>
+                      <input value={selectedProduct?.sync_status || 'pending'} readOnly />
+                    </div>
+                    <div className="form-group">
+                      <label>ID WooCommerce</label>
+                      <input value={selectedProduct?.woocommerce_product_id || selectedProduct?.woocommerce_id || ''} readOnly />
+                    </div>
                   </div>
                   <div className="form-group">
-                    <label htmlFor="product-min-stock">Stock minimo</label>
-                    <input id="product-min-stock" name="min_stock" type="number" value={formValues.min_stock} onChange={handleChange} />
+                    <label htmlFor="product-image-url">URL de imagen principal</label>
+                    <input id="product-image-url" name="image_url" value={formValues.image_url} onChange={handleChange} />
                   </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Estado sync</label>
-                    <input value={selectedProduct?.sync_status || 'pending'} readOnly />
+                </section>
+                <section className={`products-modal-panel${modalTab === 'prices' ? ' is-active' : ''}`}>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-purchase-price">Costo</label>
+                      <input id="product-purchase-price" name="purchase_price" type="number" value={formValues.purchase_price} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-sale-price">Lista 1</label>
+                      <input id="product-sale-price" name="sale_price" type="number" value={formValues.sale_price} onChange={handleChange} />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>ID WooCommerce</label>
-                    <input value={selectedProduct?.woocommerce_product_id || selectedProduct?.woocommerce_id || ''} readOnly />
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-sale-price-2">Lista 2</label>
+                      <input id="product-sale-price-2" name="sale_price_2" type="number" value={formValues.sale_price_2} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-sale-price-3">Lista 3</label>
+                      <input id="product-sale-price-3" name="sale_price_3" type="number" value={formValues.sale_price_3} onChange={handleChange} />
+                    </div>
                   </div>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="product-image-url">URL de imagen principal</label>
-                  <input id="product-image-url" name="image_url" value={formValues.image_url} onChange={handleChange} />
-                </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-sale-price-4">Lista 4</label>
+                      <input id="product-sale-price-4" name="sale_price_4" type="number" value={formValues.sale_price_4} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="product-sale-price-5">Lista 5</label>
+                      <input id="product-sale-price-5" name="sale_price_5" type="number" value={formValues.sale_price_5} onChange={handleChange} />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="product-sale-price-6">Lista 6</label>
+                      <input id="product-sale-price-6" name="sale_price_6" type="number" value={formValues.sale_price_6} onChange={handleChange} />
+                    </div>
+                    <div className="form-group">
+                      <label>&nbsp;</label>
+                      <label className="products-check-row">
+                        <input
+                          id="product-sale-price-tax"
+                          name="sale_price_includes_tax"
+                          type="checkbox"
+                          checked={formValues.sale_price_includes_tax}
+                          onChange={handleChange}
+                        />
+                        Incluye IVA
+                      </label>
+                    </div>
+                  </div>
+                </section>
                 {feedback ? <div className="alert alert-warning">{feedback}</div> : null}
               </div>
               <div className="modal-footer">

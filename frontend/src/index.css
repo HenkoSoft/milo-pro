@@ -1134,6 +1134,39 @@ button, input, select, textarea { font: inherit; }
   line-height: 1.5;
 }
 
+.products-modal-tabs {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.products-modal-tab {
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  background: #f8fafc;
+  color: var(--text-secondary);
+  padding: 12px 18px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.products-modal-tab.is-active {
+  background: #ffffff;
+  color: var(--primary);
+  border-color: #bfdbfe;
+}
+
+.products-modal-panel {
+  display: none;
+}
+
+.products-modal-panel.is-active {
+  display: block;
+}
+
 .products-subtitle {
   margin: 0 0 12px;
   color: var(--text-secondary);
