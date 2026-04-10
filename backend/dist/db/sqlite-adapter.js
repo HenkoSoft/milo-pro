@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SqliteDatabaseAdapter = void 0;
-const legacyDatabase = require('../../src/config/database.js');
+const legacyDatabase = require('../config/database.js');
 const database = legacyDatabase;
 class SqliteDatabaseAdapter {
     dialect = 'sqlite';

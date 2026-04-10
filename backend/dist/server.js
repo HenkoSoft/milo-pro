@@ -43,18 +43,18 @@ function frontendRequestHandler(strategy) {
 async function startServer() {
     try {
         const databaseState = await initializeRuntimeDatabase();
-        const authRoutes = require('../src/routes/auth.js');
-        const categoryRoutes = require('../src/routes/categories.js');
-        const productRoutes = require('../src/routes/products.js');
-        const saleRoutes = require('../src/routes/sales.js');
-        const customerRoutes = require('../src/routes/customers.js');
-        const repairRoutes = require('../src/routes/repairs.js');
-        const dashboardRoutes = require('../src/routes/dashboard.js');
-        const reportRoutes = require('../src/routes/reports.js');
-        const settingsRoutes = require('../src/routes/settings.js');
-        const woocommerceRoutes = require('../src/routes/woocommerce.js');
-        const deviceOptionsRoutes = require('../src/routes/deviceOptions.js');
-        const purchaseRoutes = require('../src/routes/purchases.js');
+        const authRoutes = require('./routes/auth.js');
+        const categoryRoutes = require('./routes/categories.js');
+        const productRoutes = require('./routes/products.js');
+        const saleRoutes = require('./routes/sales.js');
+        const customerRoutes = require('./routes/customers.js');
+        const repairRoutes = require('./routes/repairs.js');
+        const dashboardRoutes = require('./routes/dashboard.js');
+        const reportRoutes = require('./routes/reports.js');
+        const settingsRoutes = require('./routes/settings.js');
+        const woocommerceRoutes = require('./routes/woocommerce.js');
+        const deviceOptionsRoutes = require('./routes/deviceOptions.js');
+        const purchaseRoutes = require('./routes/purchases.js');
         const catalogService = require('../src/services/catalog.js');
         const woocommerceSyncService = require('../src/services/woocommerce-sync.js');
         const wooOrderSyncService = require('../src/services/woo-order-sync.js');
