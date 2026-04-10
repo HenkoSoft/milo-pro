@@ -227,13 +227,14 @@ function registerGroupPages(group: MenuGroup, rootGroupId: string): void {
 pageTitleMap.set('tools-import', 'Herramientas');
 pageTitleMap.set('tools-export', 'Herramientas');
 pageTitleMap.set('tools-backup', 'Herramientas');
+pageTitleMap.set('help-buy', 'Ayuda');
+pageTitleMap.set('help-support', 'Ayuda');
 pageTitleMap.set('help-center', 'Ayuda');
 pageTitleMap.set('help-shortcuts', 'Ayuda');
 
 function normalizePage(page: string) {
   if (page === 'settings') return 'admin-integrations-woocommerce';
   if (page === 'tools') return 'tools-import';
-  if (page === 'help') return 'help-center';
   return page || 'dashboard';
 }
 
@@ -332,7 +333,7 @@ function renderPage(pageId: string): ReactNode {
   }
 
   if (pageId === 'help') {
-    return <HelpPage pageId="help-center" />;
+    return <HelpPage pageId="help" />;
   }
 
   const title = pageTitleMap.get(pageId) || 'Inicio';

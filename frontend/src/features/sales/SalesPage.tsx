@@ -26,6 +26,54 @@ const RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'] as const;
 const PRICE_LISTS = ['Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'] as const;
 const IVA_CONDITIONS = ['Consumidor Final', 'Responsable Inscripto', 'Monotributista', 'Exento'] as const;
 
+const DOCUMENT_STUB_CONFIG = {
+  'sales-delivery-notes': {
+    kicker: 'Remitos',
+    title: 'Remitos',
+    subtitle: 'Misma logica visual que facturacion para entregar mercaderia con datos claros del cliente.',
+    numberLabel: 'Remito Nro',
+    receiptLabel: 'P.Venta',
+    documentButtonLabel: 'Aceptar',
+    exitButtonLabel: 'Salir',
+    checkboxLabel: 'Descontar stock',
+    searchPlaceholder: 'Codigo articulo (F5)',
+    totalLabel: 'Total remito'
+  },
+  'sales-quotes': {
+    kicker: 'Presupuestos',
+    title: 'Presupuestos',
+    subtitle: 'Preparado para carga rapida de propuestas comerciales con los mismos bloques del modulo principal.',
+    numberLabel: 'Presupuesto Nro',
+    receiptLabel: 'P.Venta',
+    documentButtonLabel: 'Aceptar',
+    exitButtonLabel: 'Salir',
+    searchPlaceholder: 'Codigo articulo (F5)'
+  },
+  'sales-orders': {
+    kicker: 'Pedidos',
+    title: 'Pedidos',
+    subtitle: 'Estructura alineada con remitos y presupuestos para simplificar entrenamiento y carga.',
+    numberLabel: 'Pedido Nro',
+    receiptLabel: 'Lista',
+    documentButtonLabel: 'Aceptar',
+    exitButtonLabel: 'Salir',
+    searchPlaceholder: 'Codigo articulo (F5)'
+  },
+  'sales-credit-notes': {
+    kicker: 'Notas de Credito',
+    title: 'Notas de Credito',
+    subtitle: 'Pantalla visual consistente con facturacion para gestionar devoluciones y ajustes comerciales.',
+    numberLabel: 'Nro Nota de Credito',
+    receiptLabel: 'P.Venta',
+    documentButtonLabel: 'Guardar nota de credito',
+    exitButtonLabel: undefined,
+    extraFieldLabel: 'Factura asociada',
+    extraFieldButton: 'Buscar',
+    checkboxLabel: 'Devolver stock',
+    searchPlaceholder: 'Codigo articulo (F5)'
+  }
+} as const;
+
 interface CartItem {
   product_id: string;
   name: string;
@@ -37,6 +85,21 @@ interface CartItem {
 
 interface SalesPageProps {
   pageId: string;
+}
+
+interface DocumentStubConfig {
+  kicker: string;
+  title: string;
+  subtitle: string;
+  numberLabel: string;
+  receiptLabel?: string;
+  documentButtonLabel: string;
+  exitButtonLabel?: string;
+  checkboxLabel?: string;
+  searchPlaceholder?: string;
+  totalLabel?: string;
+  extraFieldLabel?: string;
+  extraFieldButton?: string;
 }
 
 function formatMoney(value: number) {
@@ -529,11 +592,72 @@ function SalesWebOrdersPanel() {
   );
 }
 
-function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string }) {
+function getSalesQueryColumns(pageId: string, sellerName: string) {
+  const dateCell = (sale: Sale) => sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-AR') : '-';
+  const timeCell = (sale: Sale) => sale.created_at ? new Date(sale.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-';
+  const totalCell = (sale: Sale) => formatMoney(Number(sale.total || 0));
+  const statusCell = (sale: Sale) => sale.status || '-';
+
+  if (pageId === 'sales-query-delivery-notes') {
+    return [
+      { label: 'Numero', render: buildReceiptNumber },
+      { label: 'Fecha', render: dateCell },
+      { label: 'Hora', render: timeCell },
+      { label: 'Cliente', render: (sale: Sale) => sale.customer_name || 'Consumidor final' },
+      { label: 'Total', render: totalCell }
+    ];
+  }
+
+  if (pageId === 'sales-query-credit-notes') {
+    return [
+      { label: 'Numero', render: buildReceiptNumber },
+      { label: 'Fecha', render: dateCell },
+      { label: 'Hora', render: timeCell },
+      { label: 'Cliente', render: (sale: Sale) => sale.customer_name || 'Consumidor final' },
+      { label: 'Total', render: totalCell }
+    ];
+  }
+
+  if (pageId === 'sales-query-quotes') {
+    return [
+      { label: 'Numero', render: buildReceiptNumber },
+      { label: 'Fecha', render: dateCell },
+      { label: 'Hora', render: timeCell },
+      { label: 'Cliente', render: (sale: Sale) => sale.customer_name || 'Consumidor final' },
+      { label: 'Estado', render: () => 'Emitido' },
+      { label: 'Total', render: totalCell }
+    ];
+  }
+
+  if (pageId === 'sales-query-orders') {
+    return [
+      { label: 'Numero', render: buildReceiptNumber },
+      { label: 'Fecha', render: dateCell },
+      { label: 'Hora', render: timeCell },
+      { label: 'Cliente', render: (sale: Sale) => sale.customer_name || 'Consumidor final' },
+      { label: 'Vendedor', render: (sale: Sale) => sale.user_name || sellerName },
+      { label: 'Estado', render: statusCell },
+      { label: 'Total', render: totalCell }
+    ];
+  }
+
+  return [
+    { label: 'Fecha', render: dateCell },
+    { label: 'Hora', render: timeCell },
+    { label: 'N fact.', render: buildReceiptNumber },
+    { label: 'Cliente', render: (sale: Sale) => sale.customer_name || 'Consumidor final' },
+    { label: 'Canal', render: (sale: Sale) => sale.channel || 'Local' },
+    { label: 'Estado', render: statusCell },
+    { label: 'Total', render: totalCell }
+  ];
+}
+
+function SalesQueryPanel({ pageId, title, subtitle, sellerName }: { pageId: string; title: string; subtitle: string; sellerName: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const salesHistoryQuery = useSalesHistory({});
   const salesHistory = salesHistoryQuery.data || [];
+  const columns = getSalesQueryColumns(pageId, sellerName);
 
   const rows = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -550,10 +674,9 @@ function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string 
     });
   }, [salesHistory, search]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / 10));
+  const totalPages = Math.max(1, Math.ceil(rows.length / 8));
   const safePage = Math.max(1, Math.min(totalPages, page));
-  const visibleRows = rows.slice((safePage - 1) * 10, safePage * 10);
-  const totalAmount = rows.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const visibleRows = rows.slice((safePage - 1) * 8, safePage * 8);
 
   return (
     <div className="sales-module-shell">
@@ -567,7 +690,7 @@ function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string 
 
       <div className="sales-table-card">
         <div className="sales-table-toolbar">
-          <div><h3>{title}</h3></div>
+          <button className="btn btn-secondary" type="button">Borrar entre fechas</button>
           <div className="search-box sales-query-search">
             <input
               type="text"
@@ -581,39 +704,24 @@ function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string 
           </div>
         </div>
 
-        <div className="sales-table-toolbar sales-query-toolbar">
-          <span className="sales-query-total">Registros: <strong>{rows.length}</strong></span>
-          <span className="sales-query-total">Total: <strong>{formatMoney(totalAmount)}</strong></span>
-        </div>
-
         <div className="sales-lines-table-wrap">
           <table className="sales-lines-table">
             <thead>
               <tr>
-                <th>Fecha</th>
-                <th>Hora</th>
-                <th>Comprobante</th>
-                <th>Cliente</th>
-                <th>Canal</th>
-                <th>Estado</th>
-                <th>Total</th>
+                {columns.map((column) => <th key={column.label}>{column.label}</th>)}
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {salesHistoryQuery.isLoading ? (
-                <tr><td colSpan={7} className="sales-empty-row">Cargando...</td></tr>
+                <tr><td colSpan={columns.length + 1} className="sales-empty-row">Cargando...</td></tr>
               ) : visibleRows.length === 0 ? (
-                <tr><td colSpan={7} className="sales-empty-row">No hay registros para mostrar.</td></tr>
+                <tr><td colSpan={columns.length + 1} className="sales-empty-row">No hay registros para mostrar.</td></tr>
               ) : (
                 visibleRows.map((sale) => (
                   <tr key={sale.id}>
-                    <td>{sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-AR') : '-'}</td>
-                    <td>{sale.created_at ? new Date(sale.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                    <td>{buildReceiptNumber(sale)}</td>
-                    <td>{sale.customer_name || 'Consumidor final'}</td>
-                    <td>{sale.channel || 'Mostrador'}</td>
-                    <td>{sale.status || '-'}</td>
-                    <td>{formatMoney(Number(sale.total || 0))}</td>
+                    {columns.map((column) => <td key={column.label}>{column.render(sale)}</td>)}
+                    <td><div className="btn-group"><button className="btn btn-sm btn-secondary" type="button">Ver</button></div></td>
                   </tr>
                 ))
               )}
@@ -628,6 +736,116 @@ function SalesQueryPanel({ title, subtitle }: { title: string; subtitle: string 
             <button className="btn btn-sm btn-secondary" type="button" onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage >= totalPages}>Siguiente</button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SalesDocumentStub({ config, customers, sellerName }: { config: DocumentStubConfig; customers: Customer[]; sellerName: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="sales-module-shell">
+      <div className="sales-module-head">
+        <div>
+          <p className="sales-module-kicker">{config.kicker}</p>
+          <h2>{config.title}</h2>
+          <p>{config.subtitle}</p>
+        </div>
+      </div>
+      <div className="sales-workspace">
+        <div className="sales-panel-stack">
+          <div className="sales-form-card">
+            <div className="sales-section-head">
+              <div><p className="sales-section-kicker">Encabezado</p><h3>Datos del comprobante</h3></div>
+            </div>
+            <div className="sales-form-grid sales-form-grid--document">
+              <div className="form-group"><label>{config.receiptLabel || 'P.Venta'}</label><input type="text" value="001" readOnly /></div>
+              <div className="form-group"><label>{config.numberLabel}</label><input type="text" value="00000001" readOnly /></div>
+              <div className="form-group"><label>Vendedor</label><select value={sellerName} onChange={() => undefined}><option value={sellerName}>{sellerName}</option></select></div>
+              <div className="form-group"><label>Lista de precios</label><select value="Lista 1" onChange={() => undefined}>{PRICE_LISTS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+              <div className="form-group"><label>Desc %</label><input type="number" value="0" readOnly /></div>
+              <div className="form-group"><label>Fecha</label><input type="date" value={today} readOnly /></div>
+              {config.extraFieldLabel ? (
+                <div className="form-group sales-field-span-2">
+                  <label>{config.extraFieldLabel}</label>
+                  <div className="sales-inline-combo">
+                    <input type="text" placeholder={config.extraFieldLabel} readOnly />
+                    <button className="sales-addon-button sales-addon-button--wide" type="button">{config.extraFieldButton || 'Buscar'}</button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="sales-form-card">
+            <div className="sales-section-head">
+              <div><p className="sales-section-kicker">Cliente</p><h3>Datos del cliente</h3></div>
+              <div className="sales-shortcut-badge">F3</div>
+            </div>
+            <div className="sales-form-grid sales-form-grid--customer">
+              <div className="form-group"><label>Codigo cliente</label><div className="sales-inline-combo"><input type="text" placeholder="Codigo" readOnly /><button className="sales-addon-button sales-addon-button--wide" type="button">Buscar</button></div></div>
+              <div className="form-group sales-field-span-2"><label>Nombre</label><select value="" onChange={() => undefined}><option value="">Seleccionar cliente</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+              <div className="form-group"><label>Direccion</label><input type="text" placeholder="Direccion" readOnly /></div>
+              <div className="form-group"><label>CUIT/DNI</label><input type="text" placeholder="CUIT o DNI" readOnly /></div>
+              <div className="form-group"><label>Condicion IVA</label><select value="Consumidor Final" onChange={() => undefined}>{IVA_CONDITIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+              <div className="form-group sales-field-span-3"><label>Observaciones</label><input type="text" placeholder="Observaciones" readOnly /></div>
+            </div>
+          </div>
+
+          <div className="sales-form-card">
+            <div className="sales-section-head">
+              <div><p className="sales-section-kicker">Items</p><h3>Carga de articulos</h3></div>
+              <div className="sales-shortcut-badge">F5</div>
+            </div>
+            <div className="form-group sales-article-search-group">
+              <label>{config.searchPlaceholder || 'Codigo articulo (F5)'}</label>
+              <div className="sales-inline-combo">
+                <input type="text" placeholder={config.searchPlaceholder || 'Codigo articulo'} readOnly />
+                <button className="sales-addon-button sales-addon-button--wide" type="button">Buscar</button>
+              </div>
+            </div>
+            <div className="sales-lines-table-wrap">
+              <table className="sales-lines-table">
+                <thead>
+                  <tr>
+                    <th>Cant.</th>
+                    <th>Cod.</th>
+                    <th>Descripcion</th>
+                    <th>Precio unit.</th>
+                    <th>Desc %</th>
+                    <th>Total</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colSpan={7} className="sales-empty-row">La estructura visual ya esta preparada para este comprobante sin alterar la logica actual.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            {config.checkboxLabel ? (
+              <div className="sales-check-row"><label><input type="checkbox" readOnly /> {config.checkboxLabel}</label></div>
+            ) : null}
+          </div>
+        </div>
+
+        <aside className="sales-side-stack">
+          <div className="sales-summary-card">
+            <div className="sales-summary-row"><span>Neto</span><strong>$ 0,00</strong></div>
+            <div className="sales-summary-row"><span>Descuento</span><strong>$ 0,00</strong></div>
+            <div className="sales-summary-row"><span>Subtotal</span><strong>$ 0,00</strong></div>
+            <div className="sales-summary-row"><span>IVA</span><strong>$ 0,00</strong></div>
+            <div className="sales-summary-total"><span>{config.totalLabel || 'Total'}</span><strong>$ 0,00</strong></div>
+          </div>
+          <div className="sales-shortcuts-card">
+            <h3>Atajos visibles</h3>
+            <div className="sales-shortcuts-list">{['F3', 'F5'].map((shortcut) => <span className="sales-shortcut-chip" key={shortcut}>{shortcut}</span>)}</div>
+          </div>
+          <div className="sales-footer-actions">
+            {config.exitButtonLabel ? <button className="btn btn-secondary" type="button">Salir</button> : null}
+            <button className="btn btn-success" type="button">{config.documentButtonLabel}</button>
+          </div>
+        </aside>
       </div>
     </div>
   );
@@ -708,7 +926,6 @@ export function SalesPage({ pageId }: SalesPageProps) {
     : 'Consumidor final';
   const nextNumber = formatReceiptNumber(nextNumberQuery.data?.receipt_number);
   const isAdmin = currentUser?.role === 'admin';
-  const mainDocumentPages = new Set(['sales', 'sales-delivery-notes', 'sales-quotes', 'sales-orders', 'sales-credit-notes']);
   const actionLabel = getSalesActionLabel(pageId);
 
   function addProduct(product: Product) {
@@ -807,6 +1024,16 @@ export function SalesPage({ pageId }: SalesPageProps) {
     return <SalesWebOrdersPanel />;
   }
 
+  if (pageId in DOCUMENT_STUB_CONFIG) {
+    return (
+      <SalesDocumentStub
+        config={DOCUMENT_STUB_CONFIG[pageId as keyof typeof DOCUMENT_STUB_CONFIG]}
+        customers={customers}
+        sellerName={currentUser?.name || 'Operador'}
+      />
+    );
+  }
+
   if (
     pageId === 'sales-query-invoices'
     || pageId === 'sales-query-delivery-notes'
@@ -814,7 +1041,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
     || pageId === 'sales-query-quotes'
     || pageId === 'sales-query-orders'
   ) {
-    return <SalesQueryPanel title={moduleConfig.title} subtitle={moduleConfig.subtitle} />;
+    return <SalesQueryPanel pageId={pageId} title={moduleConfig.title} subtitle={moduleConfig.subtitle} sellerName={currentUser?.name || 'Operador'} />;
   }
 
   return (

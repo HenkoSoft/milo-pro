@@ -3,9 +3,9 @@ import { getProducts } from '../../services/products';
 import type { Product } from '../../types/product';
 
 const TOOLS_MODULES = [
-  { id: 'tools-import', section: 'sync', label: 'Sincronizar articulos', title: 'Offline', subtitle: 'Actualizacion del catalogo offline.' },
-  { id: 'tools-export', section: 'offline-prices', label: 'Consultar precios offline', title: 'Offline', subtitle: 'Consulta por codigo o descripcion.' },
-  { id: 'tools-backup', section: 'sync-status', label: 'Estado de sincronizacion', title: 'Offline', subtitle: 'Resumen de datos guardados en este navegador.' }
+  { id: 'tools-import', section: 'sync', label: 'Sincronizar articulos', title: 'Offline', description: 'Descarga articulos para trabajar sin internet.' },
+  { id: 'tools-export', section: 'offline-prices', label: 'Consultar precios offline', title: 'Offline', description: 'Busqueda rapida por codigo o descripcion.' },
+  { id: 'tools-backup', section: 'sync-status', label: 'Estado de sincronizacion', title: 'Offline', description: 'Resumen del estado offline disponible.' }
 ] as const;
 
 const TOOLS_STORAGE_KEYS = {
@@ -108,11 +108,14 @@ export function ToolsPage({ pageId }: { pageId: string }) {
 
   const filteredCatalog = useMemo(() => {
     const normalized = normalizeText(search);
-    if (!normalized) return catalog;
-    return catalog.filter((item) => {
-      const haystack = [item.code, item.barcode, item.description].map((value) => normalizeText(value));
-      return haystack.some((value) => value.includes(normalized));
-    });
+    if (!normalized) return [];
+    return [...catalog]
+      .sort((a, b) => a.description.localeCompare(b.description, 'es'))
+      .filter((item) => {
+        const haystack = [item.code, item.barcode, item.description].map((value) => normalizeText(value));
+        return haystack.some((value) => value.includes(normalized));
+      })
+      .slice(0, 150);
   }, [catalog, search]);
 
   async function handleSync() {
@@ -134,6 +137,12 @@ export function ToolsPage({ pageId }: { pageId: string }) {
   }
 
   const section = moduleConfig.section;
+  const offlineEmptyMessage = catalog.length === 0
+    ? 'Todavia no hay articulos sincronizados en este navegador.'
+    : search.trim()
+      ? 'No hay coincidencias para la busqueda actual.'
+      : 'Ingrese codigo o descripcion para comenzar la busqueda.';
+  const lastSyncText = meta.lastSyncAt ? new Date(meta.lastSyncAt).toLocaleString('es-AR') : 'Sin sincronizar';
 
   return (
     <div className="tools-module-shell">
@@ -141,7 +150,7 @@ export function ToolsPage({ pageId }: { pageId: string }) {
         <div>
           <p className="tools-module-kicker">Herramientas</p>
           <h2>{moduleConfig.title}</h2>
-          <p>{moduleConfig.subtitle}</p>
+          <p>Modulo preparado para sincronizar articulos, consultar precios sin conexion y visualizar el estado del trabajo offline.</p>
         </div>
         <div className={`tools-connection-indicator ${isOnline ? 'is-online' : 'is-offline'}`}>
           <span className="tools-connection-dot" />
@@ -149,32 +158,41 @@ export function ToolsPage({ pageId }: { pageId: string }) {
         </div>
       </div>
 
-      <div className="tools-section-tabs" role="tablist" aria-label="Herramientas offline">
-        {TOOLS_MODULES.map((module) => (
-          <button
-            key={module.id}
-            type="button"
-            className={`tools-tab-button${module.id === pageId ? ' active' : ''}`}
-            onClick={() => {
-              window.location.hash = module.id;
-            }}
-          >
-            {module.label}
-          </button>
-        ))}
+      <div className="tools-switcher-card">
+        <div className="tools-switcher-head">
+          <span className="tools-switcher-kicker">Offline</span>
+          <p>Seleccione la herramienta offline que desea utilizar.</p>
+        </div>
+        <div className="tools-switcher-grid" role="tablist" aria-label="Herramientas offline">
+          {TOOLS_MODULES.map((module) => (
+            <button
+              key={module.id}
+              type="button"
+              className={`tools-switcher-button${module.id === pageId ? ' is-active' : ''}`}
+              onClick={() => {
+                window.location.hash = module.id;
+              }}
+            >
+              <strong>{module.label}</strong>
+              <span>{module.description}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {section === 'sync' ? (
-        <div className="tools-grid">
-          <div className="card tools-panel">
-            <div className="tools-panel-head">
+        <>
+          <div className="tools-card">
+            <div className="tools-card-head">
               <div>
-                <p className="tools-panel-kicker">Offline</p>
                 <h3>Sincronizar articulos</h3>
+                <p>Permite descargar los articulos necesarios para consultar codigo, descripcion y precio sin conexion.</p>
+              </div>
+              <div className={`tools-inline-status ${isOnline ? 'is-online' : 'is-offline'}`}>
+                {isOnline ? 'Online' : 'Offline'}
               </div>
             </div>
-            <p className="tools-panel-copy">Permite descargar articulos para consultar codigo, descripcion y precio sin conexion.</p>
-            <div className="tools-actions-row">
+            <div className="tools-primary-action">
               <button className="btn btn-primary" type="button" onClick={handleSync} disabled={!isOnline || isSyncing}>
                 {isSyncing ? 'Sincronizando articulos...' : 'Sincronizar articulos'}
               </button>
@@ -183,55 +201,68 @@ export function ToolsPage({ pageId }: { pageId: string }) {
             {feedback ? <div className={`alert ${feedback.includes('No se pudo') ? 'alert-warning' : 'alert-info'}`}>{feedback}</div> : null}
           </div>
 
-          <article className="tools-summary-card"><span>Ultima sincronizacion</span><strong>{meta.lastSyncAt ? new Date(meta.lastSyncAt).toLocaleString('es-AR') : 'Sin sincronizar'}</strong></article>
-          <article className="tools-summary-card"><span>Articulos descargados</span><strong>{catalog.length}</strong></article>
-          <article className="tools-summary-card"><span>Estado de red</span><strong>{isOnline ? 'Online' : 'Offline'}</strong></article>
-        </div>
+          <div className="tools-summary-grid">
+            <article className="tools-summary-card"><span>Ultima sincronizacion</span><strong>{lastSyncText}</strong></article>
+            <article className="tools-summary-card"><span>Articulos descargados</span><strong>{catalog.length}</strong></article>
+            <article className="tools-summary-card"><span>Lista de precios</span><strong>Precio de venta</strong></article>
+          </div>
+        </>
       ) : null}
 
       {section === 'offline-prices' ? (
-        <div className="card tools-panel">
-          <div className="tools-panel-head">
+        <div className="tools-card">
+          <div className="tools-card-head">
             <div>
-              <p className="tools-panel-kicker">Offline</p>
               <h3>Consultar precios offline</h3>
+              <p>Busqueda rapida por codigo, codigo de barras o descripcion sobre el catalogo sincronizado.</p>
             </div>
-            <input value={search} onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)} placeholder="Buscar por codigo o descripcion..." />
+            <div className="tools-table-badge">{filteredCatalog.length} resultados</div>
           </div>
-          <table className="products-table">
-            <thead>
-              <tr>
-                <th>Codigo</th>
-                <th>Codigo de barras</th>
-                <th>Descripcion</th>
-                <th>Precio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCatalog.length === 0 ? (
-                <tr><td colSpan={4} className="tools-empty-row">No hay articulos offline para mostrar.</td></tr>
-              ) : (
-                filteredCatalog.slice(0, 60).map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.code}</td>
-                    <td>{item.barcode || '-'}</td>
-                    <td>{item.description}</td>
-                    <td>{formatMoney(item.price)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <div className="form-group tools-search-group">
+            <label>Buscar por codigo o descripcion</label>
+            <input value={search} onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)} placeholder="Escriba codigo o descripcion" autoComplete="off" />
+            <small>Busqueda por prefijo o contenido dentro del catalogo offline.</small>
+          </div>
+          <div className="tools-table-wrap">
+            <table className="tools-table">
+              <thead>
+                <tr>
+                  <th>Codigo</th>
+                  <th>Descripcion</th>
+                  <th>Precio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCatalog.length === 0 ? (
+                  <tr><td colSpan={3} className="tools-empty-row">{offlineEmptyMessage}</td></tr>
+                ) : (
+                  filteredCatalog.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.code}</td>
+                      <td>{item.description}</td>
+                      <td>{formatMoney(item.price)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
 
       {section === 'sync-status' ? (
-        <div className="tools-grid">
-          <article className="tools-summary-card"><span>Sincronizacion</span><strong>{catalog.length > 0 ? 'Disponible' : 'Pendiente'}</strong></article>
-          <article className="tools-summary-card"><span>Articulos guardados</span><strong>{catalog.length}</strong></article>
-          <article className="tools-summary-card"><span>Ultima sincronizacion</span><strong>{meta.lastSyncAt ? new Date(meta.lastSyncAt).toLocaleString('es-AR') : 'Sin registro'}</strong></article>
-          <article className="tools-summary-card"><span>Navegador</span><strong>Este equipo</strong></article>
-        </div>
+        <>
+          <div className="tools-summary-grid">
+            <article className="tools-summary-card"><span>Sincronizacion</span><strong>{catalog.length > 0 ? 'Disponible' : 'Pendiente'}</strong></article>
+            <article className="tools-summary-card"><span>Articulos guardados</span><strong>{catalog.length}</strong></article>
+            <article className="tools-summary-card"><span>Ultima sincronizacion</span><strong>{meta.lastSyncAt ? new Date(meta.lastSyncAt).toLocaleString('es-AR') : 'Sin registro'}</strong></article>
+            <article className="tools-summary-card"><span>Navegador</span><strong>Este equipo</strong></article>
+          </div>
+          <div className={`tools-status-banner ${catalog.length > 0 ? 'is-available' : 'is-empty'}`}>
+            <strong>{catalog.length > 0 ? 'Catalogo offline disponible' : 'Catalogo offline pendiente'}</strong>
+            <span>{catalog.length > 0 ? 'Este navegador tiene datos para consulta sin conexion.' : 'Sincronice articulos para habilitar la consulta offline.'}</span>
+          </div>
+        </>
       ) : null}
     </div>
   );

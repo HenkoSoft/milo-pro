@@ -31,12 +31,7 @@ const CASH_STORAGE_KEYS: Record<CashEntryType, string> = {
   withdrawals: 'milo_cash_withdrawals'
 };
 
-const CASH_MODULES = [
-  { id: 'cash', label: 'Ingresos varios' },
-  { id: 'cash-expenses', label: 'Gastos varios' },
-  { id: 'cash-withdrawals', label: 'Retiros' },
-  { id: 'cash-day', label: 'Caja del Dia' }
-] as const;
+const CASH_PAGE_IDS = ['cash', 'cash-expenses', 'cash-withdrawals', 'cash-day'] as const;
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('es-AR', {
@@ -68,7 +63,7 @@ function saveCashEntries(type: CashEntryType, entries: CashEntry[]) {
 function getCashConfig(type: CashEntryType) {
   return {
     income: {
-      title: 'Ingresos varios',
+      title: 'Ingresos del dia',
       button: 'Nuevo Ingreso',
       personLabel: 'Cliente',
       modalTitle: 'Nuevo Ingreso',
@@ -76,7 +71,7 @@ function getCashConfig(type: CashEntryType) {
       notesLabel: 'Observaciones'
     },
     expenses: {
-      title: 'Gastos varios',
+      title: 'Gastos del dia',
       button: 'Nuevo Gasto',
       personLabel: 'Proveedor / Nombre',
       modalTitle: 'Nuevo Gasto',
@@ -84,7 +79,7 @@ function getCashConfig(type: CashEntryType) {
       notesLabel: 'Observaciones'
     },
     withdrawals: {
-      title: 'Retiros',
+      title: 'Retiros del dia',
       button: 'Nuevo Retiro',
       personLabel: 'Responsable',
       modalTitle: 'Nuevo Retiro',
@@ -99,25 +94,6 @@ function getCashSectionType(pageId: CashPageId): CashEntryType | null {
   if (pageId === 'cash-expenses') return 'expenses';
   if (pageId === 'cash-withdrawals') return 'withdrawals';
   return null;
-}
-
-function CashModuleTabs({ currentPage }: { currentPage: CashPageId }) {
-  return (
-    <div className="cash-section-tabs" role="tablist" aria-label="Modulos de caja">
-      {CASH_MODULES.map((module) => (
-        <button
-          key={module.id}
-          type="button"
-          className={`products-tab-button${module.id === currentPage ? ' active' : ''}`}
-          onClick={() => {
-            window.location.hash = module.id;
-          }}
-        >
-          {module.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function CashTableSection({
@@ -319,7 +295,7 @@ function CashDaySection({
 }
 
 export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
-  const normalizedPage = (CASH_MODULES.some((item) => item.id === pageId) ? pageId : 'cash') as CashPageId;
+  const normalizedPage = (CASH_PAGE_IDS.includes(pageId as CashPageId) ? pageId : 'cash') as CashPageId;
   const customersQuery = useQuery({
     queryKey: ['cash', 'customers'],
     queryFn: () => getCustomers(''),
@@ -403,7 +379,6 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
   if (customersQuery.isLoading || salesQuery.isLoading) {
     return (
       <section className="cash-admin-content">
-        <CashModuleTabs currentPage={normalizedPage} />
         <div className="card cash-admin-panel">Cargando...</div>
       </section>
     );
@@ -412,7 +387,6 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
   if (customersQuery.isError || salesQuery.isError) {
     return (
       <section className="cash-admin-content">
-        <CashModuleTabs currentPage={normalizedPage} />
         <div className="card cash-admin-panel">
           Error: {customersQuery.error instanceof Error ? customersQuery.error.message : salesQuery.error instanceof Error ? salesQuery.error.message : 'No se pudo cargar caja.'}
         </div>
@@ -424,8 +398,6 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
 
   return (
     <section className="cash-admin-content">
-      <CashModuleTabs currentPage={normalizedPage} />
-
       {activeType === 'income' ? (
         <CashTableSection
           type="income"
@@ -491,7 +463,7 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
             <div className="modal-header cash-modal-header">
               <div>
                 <h3>{getCashConfig(modalType).modalTitle}</h3>
-                <p className="cash-modal-subtitle">Carga manual de movimientos de caja.</p>
+                <p className="cash-modal-subtitle">Carga manual de movimientos de caja con la misma estetica del resto del sistema.</p>
               </div>
               <button type="button" className="modal-close" onClick={closeModal}>&times;</button>
             </div>

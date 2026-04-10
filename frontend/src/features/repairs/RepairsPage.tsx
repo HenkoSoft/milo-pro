@@ -53,31 +53,36 @@ function getStatusBadgeClass(status: string) {
 }
 
 function printRepairTicket(repair: Repair) {
+  const businessName = 'Milo Pro';
   const lines = [
-    'TECHFIX SOLUTIONS',
-    '========================================',
+    `               ${businessName}`,
+    '          ORDEN DE SERVICIO',
+    '==========================================',
     `Ticket: ${repair.ticket_number}`,
     `Fecha: ${repair.created_at ? new Date(repair.created_at).toLocaleString('es-AR') : '-'}`,
-    '',
+    '------------------------------------------',
     'CLIENTE:',
     String(repair.customer_name || '-'),
     `Tel: ${repair.customer_phone || 'Sin telefono'}`,
-    '',
+    '==========================================',
     'DISPOSITIVO:',
     `Tipo: ${repair.device_type || '-'}`,
     `Marca: ${repair.brand || '-'}  Modelo: ${repair.model || '-'}`,
     `N/S: ${repair.serial_number || '-'}`,
     `IMEI: ${repair.imei || '-'}`,
+    '==========================================',
     `Clave: ${repair.password || '-'}`,
     `Patron: ${repair.pattern || '-'}`,
-    '',
+    '==========================================',
     'PROBLEMA:',
     String(repair.problem_description || '-'),
-    '',
+    '------------------------------------------',
     `Accesorios: ${repair.accessories || 'Ninguno'}`,
+    '==========================================',
     `ESTADO: ${repair.status_label || repair.status || '-'}`,
     repair.estimated_price ? `Presupuesto: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(repair.estimated_price))}` : '',
-    repair.final_price ? `Total: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(repair.final_price))}` : ''
+    repair.final_price ? `Total: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(repair.final_price))}` : '',
+    '=========================================='
   ].filter(Boolean);
 
   const popup = window.open('', '_blank', 'width=480,height=640');
@@ -114,12 +119,6 @@ export function RepairsPage() {
     if (!selectedBrand) return models;
     return models.filter((model) => Number(model.brand_id || 0) === Number(selectedBrand.id));
   }, [brands, createFormValues.brand, models]);
-
-  const filteredDetailModels = useMemo(() => {
-    const selectedBrand = brands.find((brand) => brand.name === detailFormValues.brand);
-    if (!selectedBrand) return models;
-    return models.filter((model) => Number(model.brand_id || 0) === Number(selectedBrand.id));
-  }, [brands, detailFormValues.brand, models]);
 
   useEffect(() => {
     if (!repairDetailQuery.data) return;
@@ -404,32 +403,17 @@ export function RepairsPage() {
                     <div className="form-row">
                       <div className="form-group">
                         <label>Tipo</label>
-                        <select name="device_type" value={detailFormValues.device_type} onChange={handleDetailChange}>
-                          <option value="">Seleccionar tipo...</option>
-                          {deviceTypes.map((type) => (
-                            <option key={type.id ?? type.name} value={type.name}>{type.name}</option>
-                          ))}
-                        </select>
+                        <input name="device_type" value={detailFormValues.device_type} onChange={handleDetailChange} />
                       </div>
                       <div className="form-group">
                         <label>Marca</label>
-                        <select name="brand" value={detailFormValues.brand} onChange={handleDetailChange}>
-                          <option value="">Seleccionar marca...</option>
-                          {brands.map((brand) => (
-                            <option key={brand.id} value={brand.name}>{brand.name}</option>
-                          ))}
-                        </select>
+                        <input name="brand" value={detailFormValues.brand} onChange={handleDetailChange} />
                       </div>
                     </div>
                     <div className="form-row">
                       <div className="form-group">
                         <label>Modelo</label>
-                        <select name="model" value={detailFormValues.model} onChange={handleDetailChange}>
-                          <option value="">Seleccionar modelo...</option>
-                          {filteredDetailModels.map((model) => (
-                            <option key={model.id} value={model.name}>{model.name}</option>
-                          ))}
-                        </select>
+                        <input name="model" value={detailFormValues.model} onChange={handleDetailChange} />
                       </div>
                       <div className="form-group">
                         <label>Numero de Serie</label>

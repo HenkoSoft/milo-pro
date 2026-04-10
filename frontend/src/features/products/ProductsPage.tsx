@@ -564,53 +564,16 @@ function PriceUpdatePanel({ products }: { products: Product[] }) {
 function StockAdjustmentPanel({ products }: { products: Product[] }) {
   const [search, setSearch] = useState('');
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
-  const [feedback, setFeedback] = useState('');
 
   const filteredProducts = useMemo(() => {
     const normalized = search.trim().toLowerCase();
-    if (!normalized) return products.slice(0, 12);
+    if (!normalized) return products.slice(0, 8);
     return products.filter((product) => {
       const haystack = [product.name, product.sku, product.barcode]
         .map((value) => String(value || '').toLowerCase());
       return haystack.some((value) => value.includes(normalized));
-    }).slice(0, 12);
+    }).slice(0, 8);
   }, [products, search]);
-
-  const pendingRows = filteredProducts
-    .map((product) => {
-      const nextValue = draftValues[String(product.id)];
-      if (nextValue === undefined || nextValue === '' || Number(nextValue) === Number(product.stock || 0)) {
-        return null;
-      }
-      return {
-        id: product.id,
-        sku: product.sku || `ART-${product.id}`,
-        name: product.name,
-        currentStock: Number(product.stock || 0),
-        nextStock: Number(nextValue)
-      };
-    })
-    .filter(Boolean) as Array<{ id: number; sku: string; name: string; currentStock: number; nextStock: number }>;
-
-  function handleSaveAdjustments() {
-    if (pendingRows.length === 0) {
-      setFeedback('No hay ajustes preparados para guardar.');
-      return;
-    }
-
-    appendProductUiMovements(
-      pendingRows.map((row) => ({
-        id: `adjustment-${row.id}-${Date.now()}`,
-        type: 'adjustment',
-        date: new Date().toISOString().slice(0, 10),
-        code: row.sku,
-        description: row.name,
-        quantity: row.nextStock - row.currentStock,
-        reference: `Stock nuevo ${row.nextStock}`
-      }))
-    );
-    setFeedback('Ajustes registrados correctamente.');
-  }
 
   return (
     <div className="card products-price-card">
@@ -651,7 +614,8 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
                       <td>
                         <input
                           className="products-inline-number"
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           value={draftValues[String(product.id)] ?? String(product.stock ?? 0)}
                           onChange={(event: ChangeEvent<HTMLInputElement>) => {
                             setDraftValues((current) => ({ ...current, [String(product.id)]: event.target.value }));
@@ -679,29 +643,13 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
                 </tr>
               </thead>
               <tbody>
-                {pendingRows.length === 0 ? (
-                  <tr><td colSpan={4} className="products-sheet-empty">No hay ajustes preparados.</td></tr>
-                ) : (
-                  pendingRows.map((row) => (
-                    <tr key={row.id}>
-                      <td>{row.sku}</td>
-                      <td>{row.name}</td>
-                      <td>{row.nextStock}</td>
-                      <td>{row.nextStock > row.currentStock ? 'Ingreso' : row.nextStock < row.currentStock ? 'Salida' : 'Sin cambio'}</td>
-                    </tr>
-                  ))
-                )}
+                <tr><td colSpan={4} className="products-sheet-empty">Vista UI preparada para futura integracion.</td></tr>
               </tbody>
             </table>
           </div>
           <div className="products-actions-right">
-            <button className="btn btn-success" type="button" onClick={handleSaveAdjustments}>Guardar cambios</button>
-            <button className="btn btn-secondary" type="button" onClick={() => setDraftValues({})}>Limpiar</button>
+            <button className="btn btn-success" type="button">Guardar cambios</button>
           </div>
-          <div className="alert alert-info">
-        Los ajustes quedan guardados en el historial del modulo.
-          </div>
-          {feedback ? <div className="alert alert-info">{feedback}</div> : null}
         </section>
       </div>
     </div>

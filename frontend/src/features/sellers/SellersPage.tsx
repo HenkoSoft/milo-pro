@@ -41,12 +41,7 @@ type SellerFormValues = {
 const SELLERS_STORAGE_KEY = 'milo_sellers_catalog';
 const SELLERS_PAYMENTS_STORAGE_KEY = 'milo_sellers_payments';
 
-const SELLER_MODULES = [
-  { id: 'sellers', label: 'Planilla' },
-  { id: 'sellers-commissions', label: 'Comisiones' },
-  { id: 'sellers-payments', label: 'Consulta de Pagos' },
-  { id: 'sellers-sales-report', label: 'Reporte de Ventas' }
-] as const;
+const SELLER_PAGE_IDS = ['sellers', 'sellers-commissions', 'sellers-payments', 'sellers-sales-report'] as const;
 
 const EMPTY_FORM: SellerFormValues = {
   code: '',
@@ -164,10 +159,6 @@ function buildReceiptNumber(sale: Sale) {
   return `${String(sale.point_of_sale || '001')}-${String(sale.receipt_number || sale.id).padStart(8, '0')}`;
 }
 
-function getModuleLabel(pageId: SellersPageId) {
-  return SELLER_MODULES.find((item) => item.id === pageId)?.label || SELLER_MODULES[0].label;
-}
-
 function getSellerFormValues(seller: SellerRecord | null): SellerFormValues {
   if (!seller) return { ...EMPTY_FORM };
   return {
@@ -178,25 +169,6 @@ function getSellerFormValues(seller: SellerRecord | null): SellerFormValues {
     cell: seller.cell || '',
     commission_percent: Number(seller.commission_percent ?? 5).toFixed(2)
   };
-}
-
-function SellerModuleTabs({ currentPage }: { currentPage: SellersPageId }) {
-  return (
-    <div className="sellers-section-tabs" role="tablist" aria-label="Modulos de vendedores">
-      {SELLER_MODULES.map((module) => (
-        <button
-          key={module.id}
-          type="button"
-          className={`products-tab-button${module.id === currentPage ? ' active' : ''}`}
-          onClick={() => {
-            window.location.hash = module.id;
-          }}
-        >
-          {module.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function SellersPlanilla({
@@ -236,7 +208,7 @@ function SellersPlanilla({
       <div className="sellers-module-head">
         <div>
           <p className="sellers-module-kicker">Planilla</p>
-          <h2>Planilla de Vendedores</h2>
+          <h2>Gestion de Vendedores</h2>
         </div>
         <button className="btn btn-primary" type="button" onClick={onCreate}>+ Nuevo Vendedor</button>
       </div>
@@ -577,46 +549,46 @@ function SellersSalesReport({
         </div>
       </div>
 
-      <div className="sellers-table-card">
-        <div className="sales-lines-table-wrap">
-          <table className="sales-lines-table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Comprobante</th>
-                <th>Cliente</th>
-                <th>Canal</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr><td colSpan={5} className="sales-empty-row">No hay ventas para el reporte actual.</td></tr>
-              ) : rows.map((sale) => {
-                const customer = customers.find((item) => String(item.id) === String(sale.customer_id));
-                return (
-                  <tr key={sale.id}>
-                    <td>{sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-AR') : '-'}</td>
-                    <td>{buildReceiptNumber(sale)}</td>
-                    <td>{customer?.name || sale.customer_name || 'Consumidor final'}</td>
-                    <td>{sale.channel || 'Mostrador'}</td>
-                    <td>{formatMoney(Number(sale.total || 0))}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {generated ? (
+        <div className="sellers-table-card">
+          <div className="sellers-report-summary">
+            <span><strong>{rows.length}</strong> ventas</span>
+            <span><strong>{formatMoney(total)}</strong> total vendido</span>
+          </div>
+          <div className="sales-lines-table-wrap">
+            <table className="sales-lines-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Numero</th>
+                  <th>Cliente</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr><td colSpan={4} className="sales-empty-row">No hay ventas para el filtro seleccionado.</td></tr>
+                ) : rows.map((sale) => {
+                  return (
+                    <tr key={sale.id}>
+                      <td>{sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-AR') : '-'}</td>
+                      <td>{buildReceiptNumber(sale)}</td>
+                      <td>{sale.customer_name || 'Consumidor final'}</td>
+                      <td>{formatMoney(Number(sale.total || 0))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div className="sellers-totals-panel">
-          <div className="sales-summary-total"><span>Total vendido</span><strong>{formatMoney(total)}</strong></div>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }
 
 export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
-  const normalizedPage = (SELLER_MODULES.some((item) => item.id === pageId) ? pageId : 'sellers') as SellersPageId;
+  const normalizedPage = (SELLER_PAGE_IDS.includes(pageId as SellersPageId) ? pageId : 'sellers') as SellersPageId;
   const customersQuery = useQuery({
     queryKey: ['sellers', 'customers'],
     queryFn: () => getCustomers(''),
@@ -738,7 +710,6 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
   if (customersQuery.isLoading || salesQuery.isLoading) {
     return (
       <section className="sellers-admin-content">
-        <SellerModuleTabs currentPage={normalizedPage} />
         <div className="card sellers-admin-panel">Cargando...</div>
       </section>
     );
@@ -747,7 +718,6 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
   if (customersQuery.isError || salesQuery.isError) {
     return (
       <section className="sellers-admin-content">
-        <SellerModuleTabs currentPage={normalizedPage} />
         <div className="card sellers-admin-panel">
           Error: {customersQuery.error instanceof Error ? customersQuery.error.message : salesQuery.error instanceof Error ? salesQuery.error.message : 'No se pudo cargar vendedores.'}
         </div>
@@ -757,8 +727,6 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
 
   return (
     <section className="sellers-admin-content">
-      <SellerModuleTabs currentPage={normalizedPage} />
-
       {normalizedPage === 'sellers' ? (
         <SellersPlanilla
           sellers={sellers}
@@ -811,7 +779,7 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
             <div className="modal-header seller-modal-header">
               <div>
                 <h3>{editingSeller ? 'Editar Vendedor' : 'Nuevo Vendedor'}</h3>
-                <p className="seller-modal-subtitle">Datos del vendedor.</p>
+                <p className="seller-modal-subtitle">Completa los datos administrativos y comerciales del vendedor.</p>
               </div>
               <button type="button" className="modal-close" onClick={closeModal}>&times;</button>
             </div>
@@ -844,7 +812,7 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer seller-modal-footer">
                 <button className="btn btn-secondary" type="button" onClick={closeModal}>Cancelar</button>
                 <button className="btn btn-success" type="submit">Guardar</button>
               </div>
