@@ -81,6 +81,8 @@ interface CartItem {
   quantity: string;
   unit_price: string;
   stock: number;
+  discount: string;
+  manual_price?: boolean;
 }
 
 interface SalesPageProps {
@@ -130,8 +132,43 @@ function buildSaleItem(product: Product): CartItem {
     sku: product.sku || `#${product.id}`,
     quantity: '1',
     unit_price: String(Number(product.sale_price || 0)),
-    stock: Number(product.stock || 0)
+    stock: Number(product.stock || 0),
+    discount: '0.00',
+    manual_price: false
   };
+}
+
+function getPriceListKey(priceList: string) {
+  const match = String(priceList || 'Lista 1').match(/(\d+)/);
+  return match ? match[1] : '1';
+}
+
+function getProductPriceByList(product: Product, priceList: string) {
+  const listKey = getPriceListKey(priceList);
+  const directPrice = listKey === '1'
+    ? Number(product.sale_price || 0)
+    : Number((product as Product & Record<string, unknown>)[`sale_price_${listKey}`] || 0);
+  return directPrice > 0 ? directPrice : Number(product.sale_price || 0);
+}
+
+function getLineTotal(item: CartItem, globalDiscount: string) {
+  const quantity = Math.max(0, Number(item.quantity || 0));
+  const price = Math.max(0, Number(item.unit_price || 0));
+  const lineDiscount = Math.min(100, Math.max(0, Number(item.discount || 0)));
+  const globalDiscountValue = Math.min(100, Math.max(0, Number(globalDiscount || 0)));
+  return price * quantity * (1 - lineDiscount / 100) * (1 - globalDiscountValue / 100);
+}
+
+function safeImageUrl(value?: string | null) {
+  const url = String(value ?? '').trim();
+  if (!url) return '';
+  if (/^data:image\//i.test(url)) return url;
+  if (url.startsWith('/') || /^https?:\/\//i.test(url)) return url;
+  return '';
+}
+
+function getProductImageUrl(product: Product) {
+  return safeImageUrl(product.image_url || null);
 }
 
 function normalizeSaleItems(cart: CartItem[]): SalePayloadItem[] {
@@ -869,6 +906,9 @@ export function SalesPage({ pageId }: SalesPageProps) {
   const [itemSearch, setItemSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [feedback, setFeedback] = useState('');
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [cashReceived, setCashReceived] = useState('0.00');
   const normalizedPointOfSale = normalizePointOfSale(pointOfSale);
   const moduleConfig = getModuleConfig(pageId);
   const { productsQuery, customersQuery, nextNumberQuery } = useSaleComposerData(receiptType, normalizedPointOfSale);
@@ -915,21 +955,60 @@ export function SalesPage({ pageId }: SalesPageProps) {
     setAddress(buildCustomerAddress(selectedCustomer));
   }, [selectedCustomer]);
 
+  useEffect(() => {
+    setCart((current) => current.map((item) => {
+      if (item.manual_price) return item;
+      const product = products.find((entry) => String(entry.id) === item.product_id);
+      if (!product) return item;
+      return {
+        ...item,
+        unit_price: String(getProductPriceByList(product, priceList))
+      };
+    }));
+  }, [priceList, products]);
+
   const netTotal = cart.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0);
   const discountPercent = Math.min(100, Math.max(0, Number.parseFloat(globalDiscount || '0') || 0));
-  const discountAmount = netTotal * discountPercent / 100;
-  const subtotal = netTotal - discountAmount;
+  const lineDiscountAmount = cart.reduce((sum, item) => {
+    const base = Math.max(0, Number(item.quantity || 0)) * Math.max(0, Number(item.unit_price || 0));
+    return sum + (base * (Math.min(100, Math.max(0, Number(item.discount || 0))) / 100));
+  }, 0);
+  const subtotalBeforeGlobal = netTotal - lineDiscountAmount;
+  const globalDiscountAmount = subtotalBeforeGlobal * discountPercent / 100;
+  const discountAmount = lineDiscountAmount + globalDiscountAmount;
+  const subtotal = subtotalBeforeGlobal - globalDiscountAmount;
   const ivaTotal = 0;
   const total = subtotal + ivaTotal;
   const customerSummary = selectedCustomer
-    ? selectedCustomer.name
+    ? `${selectedCustomer.name}${buildCustomerAddress(selectedCustomer) ? ` - ${buildCustomerAddress(selectedCustomer)}` : ''}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}`
     : 'Consumidor final';
   const nextNumber = formatReceiptNumber(nextNumberQuery.data?.receipt_number);
   const isAdmin = currentUser?.role === 'admin';
   const actionLabel = getSalesActionLabel(pageId);
+  const filteredProductsWithSearch = useMemo(() => {
+    const normalized = itemSearch.trim().toLowerCase();
+    if (!normalized) return [] as Product[];
+    return products
+      .filter((product) => {
+        const haystack = [product.name, product.sku, product.brand_name, product.barcode, String(product.id)]
+          .map((value) => String(value || '').toLowerCase());
+        return haystack.some((value) => value.includes(normalized));
+      })
+      .slice(0, 8);
+  }, [itemSearch, products]);
+  const paymentTotalPaid = paymentMethod === 'cash'
+    ? Math.max(0, Number.parseFloat(cashReceived || '0') || 0)
+    : total;
+  const paymentChange = paymentMethod === 'cash'
+    ? Math.max(0, paymentTotalPaid - total)
+    : 0;
 
   function addProduct(product: Product) {
     setFeedback('');
+    if (Number(product.stock || 0) <= 0) {
+      setFeedback('El articulo no tiene stock disponible.');
+      return;
+    }
     setCart((current) => {
       const existing = current.find((item) => item.product_id === String(product.id));
       if (existing) {
@@ -939,7 +1018,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
             : item
         ));
       }
-      return [...current, buildSaleItem(product)];
+      return [...current, { ...buildSaleItem(product), unit_price: String(getProductPriceByList(product, priceList)) }];
     });
     setItemSearch('');
   }
@@ -959,30 +1038,46 @@ export function SalesPage({ pageId }: SalesPageProps) {
     setFeedback('No se encontro el cliente indicado.');
   }
 
-  function handleCartChange(productId: string, field: 'quantity' | 'unit_price', value: string) {
+  function handleCartChange(productId: string, field: 'quantity' | 'unit_price' | 'discount', value: string) {
     setCart((current) => current.map((item) => (
-      item.product_id === productId ? { ...item, [field]: value } : item
+      item.product_id === productId ? { ...item, [field]: value, ...(field === 'unit_price' ? { manual_price: true } : {}) } : item
     )));
+  }
+
+  function updateCartQuantity(productId: string, nextQuantity: number) {
+    if (nextQuantity <= 0) {
+      handleRemoveItem(productId);
+      return;
+    }
+
+    setCart((current) => current.map((item) => {
+      if (item.product_id !== productId) return item;
+      const safeQuantity = Math.min(nextQuantity, Math.max(1, item.stock));
+      return { ...item, quantity: String(safeQuantity) };
+    }));
   }
 
   function handleRemoveItem(productId: string) {
     setCart((current) => current.filter((item) => item.product_id !== productId));
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function openPaymentModal() {
     setFeedback('');
-
     if (!isAdmin) {
       setFeedback('Solo un usuario administrador puede facturar desde esta pantalla.');
       return;
     }
-
     if (cart.length === 0) {
       setFeedback('Debes agregar al menos un articulo a la factura.');
       return;
     }
+    setPaymentMethod('cash');
+    setCashReceived('0.00');
+    setPaymentModalOpen(true);
+  }
 
+  async function confirmSale() {
+    setFeedback('');
     const invalidItem = cart.find((item) => Number(item.quantity || 0) <= 0 || Number(item.unit_price || 0) <= 0);
     if (invalidItem) {
       setFeedback('Revisa cantidades y precios antes de facturar.');
@@ -992,7 +1087,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
     try {
       const response = await createSale({
         customer_id: customerId,
-        payment_method: 'cash',
+        payment_method: paymentMethod,
         notes: [observations, oc ? `O.C: ${oc}` : '', remito ? `Rem: ${remito}` : ''].filter(Boolean).join(' | '),
         receipt_type: receiptType,
         point_of_sale: normalizedPointOfSale,
@@ -1005,15 +1100,23 @@ export function SalesPage({ pageId }: SalesPageProps) {
           ? `Factura ${response.sale.id} guardada con advertencias de sync Woo en ${warningCount} articulo(s).`
           : `Factura ${response.sale.id} guardada correctamente.`
       );
+      setPaymentModalOpen(false);
       setCart([]);
       setObservations('');
       setOc('');
       setRemito('');
       setGlobalDiscount('0.00');
       setItemSearch('');
+      setPaymentMethod('cash');
+      setCashReceived('0.00');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No se pudo registrar la factura.');
     }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    openPaymentModal();
   }
 
   if (pageId === 'sales-collections') {
@@ -1045,168 +1148,237 @@ export function SalesPage({ pageId }: SalesPageProps) {
   }
 
   return (
-    <div className="sales-module-shell">
-      <div className="sales-module-head">
-        <div>
-          <p className="sales-module-kicker">Ventas</p>
-          <h2>{moduleConfig.title}</h2>
-          {moduleConfig.subtitle ? <p>{moduleConfig.subtitle}</p> : null}
-        </div>
-      </div>
+    <section className="sales-admin-content">
+      <div className="sales-admin-panel card">
+        <form onSubmit={handleSubmit}>
+          <div className="sales-invoice-layout">
+            <div className="sales-form-card sales-invoice-compact-card">
+              <div className="sales-invoice-sections">
+                <section className="sales-invoice-block">
+                  <div className="sales-invoice-block-head">
+                    <h3>Datos de la factura</h3>
+                  </div>
+                  <div className="sales-compact-grid sales-compact-grid--invoice">
+                    <div className="form-group"><label>Nro.</label><select value="1" onChange={() => undefined}><option value="1">1</option><option value="2">2</option></select></div>
+                    <div className="form-group"><label>P.Venta</label><input value={pointOfSale} onChange={(event: ChangeEvent<HTMLInputElement>) => setPointOfSale(event.target.value.replace(/\D/g, '').slice(0, 3))} /></div>
+                    <div className="form-group"><label>Numero</label><input value={nextNumber} readOnly /></div>
+                    <div className="form-group"><label>Tipo</label><select value={receiptType} onChange={(event) => setReceiptType(event.target.value)}>{RECEIPT_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+                    <div className="form-group"><label>Lista</label><select value={priceList} onChange={(event) => setPriceList(event.target.value)}>{PRICE_LISTS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+                    <div className="form-group"><label>Desc.</label><input value={globalDiscount} onChange={(event: ChangeEvent<HTMLInputElement>) => setGlobalDiscount(event.target.value)} /></div>
+                    <div className="form-group"><label>Vendedor</label><input value={seller} onChange={(event: ChangeEvent<HTMLInputElement>) => setSeller(event.target.value)} /></div>
+                  </div>
+                </section>
 
-      <section className="sales-admin-content">
-        <div className="sales-admin-panel card">
-          <form onSubmit={handleSubmit}>
-            <div className="sales-invoice-layout">
-              <div className="sales-form-card sales-invoice-compact-card">
-                <div className="sales-invoice-sections">
-                  <section className="sales-invoice-block">
-                    <div className="sales-invoice-block-head">
-                      <h3>Datos de la factura</h3>
-                    </div>
-                    <div className="sales-compact-grid sales-compact-grid--invoice">
-                      <div className="form-group"><label>Nro.</label><select value="1" onChange={() => undefined}><option value="1">1</option><option value="2">2</option></select></div>
-                      <div className="form-group"><label>P.Venta</label><input value={pointOfSale} onChange={(event: ChangeEvent<HTMLInputElement>) => setPointOfSale(event.target.value.replace(/\D/g, '').slice(0, 3))} /></div>
-                      <div className="form-group"><label>Numero</label><input value={nextNumber} readOnly /></div>
-                      <div className="form-group"><label>Tipo</label><select value={receiptType} onChange={(event) => setReceiptType(event.target.value)}>{RECEIPT_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-                      <div className="form-group"><label>Lista</label><select value={priceList} onChange={(event) => setPriceList(event.target.value)}>{PRICE_LISTS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-                      <div className="form-group"><label>Desc.</label><input value={globalDiscount} onChange={(event: ChangeEvent<HTMLInputElement>) => setGlobalDiscount(event.target.value)} /></div>
-                      <div className="form-group"><label>Vendedor</label><input value={seller} onChange={(event: ChangeEvent<HTMLInputElement>) => setSeller(event.target.value)} /></div>
-                    </div>
-                  </section>
-
-                  <section className="sales-invoice-block">
-                    <div className="sales-invoice-block-head">
-                      <h3>Datos del comprador</h3>
-                    </div>
-                    <div className="sales-compact-grid sales-compact-grid--buyer">
-                      <div className="form-group">
-                        <label>Codigo Cliente</label>
-                        <div className="sales-inline-combo">
-                          <input
-                            value={customerCodeInput}
-                            placeholder="Codigo cliente"
-                            onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomerCodeInput(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault();
-                                searchCustomerByCode();
-                              }
-                            }}
-                          />
-                          <button className="sales-addon-button sales-addon-button--wide" type="button" onClick={searchCustomerByCode}>Buscar</button>
-                        </div>
+                <section className="sales-invoice-block">
+                  <div className="sales-invoice-block-head">
+                    <h3>Datos del comprador</h3>
+                  </div>
+                  <div className="sales-compact-grid sales-compact-grid--buyer">
+                    <div className="form-group">
+                      <label>Codigo Cliente</label>
+                      <div className="sales-inline-combo">
+                        <input
+                          value={customerCodeInput}
+                          placeholder="Codigo cliente"
+                          onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomerCodeInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              searchCustomerByCode();
+                            }
+                          }}
+                        />
+                        <button className="sales-addon-button sales-addon-button--wide" type="button" onClick={searchCustomerByCode}>Buscar</button>
                       </div>
-                      <div className="form-group"><label>Nombre</label><select value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Consumidor final</option>{customers.map((item) => <option key={item.id} value={String(item.id)}>{item.name}</option>)}</select></div>
-                      <div className="form-group"><label>CUIT</label><input value={taxId} onChange={(event: ChangeEvent<HTMLInputElement>) => setTaxId(event.target.value)} placeholder="CUIT o DNI" /></div>
-                      <div className="form-group"><label>Condicion IVA</label><select value={ivaCondition} onChange={(event) => setIvaCondition(event.target.value)}>{IVA_CONDITIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-                      <div className="form-group"><label>Direccion</label><input value={address} onChange={(event: ChangeEvent<HTMLInputElement>) => setAddress(event.target.value)} placeholder="Direccion del cliente" /></div>
-                      <div className="form-group sales-field-span-2"><label>Obs:</label><input value={observations} onChange={(event: ChangeEvent<HTMLInputElement>) => setObservations(event.target.value)} placeholder="Observaciones del comprobante" /></div>
-                      <div className="form-group"><label>O.C:</label><input value={oc} onChange={(event: ChangeEvent<HTMLInputElement>) => setOc(event.target.value)} placeholder="Orden de compra" /></div>
-                      <div className="form-group"><label>Rem:</label><input value={remito} onChange={(event: ChangeEvent<HTMLInputElement>) => setRemito(event.target.value)} placeholder="Referencia" /></div>
                     </div>
-                  </section>
-                </div>
-
-                <div className="sales-customer-summary">{customerSummary}</div>
+                    <div className="form-group"><label>Nombre</label><select value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Consumidor final</option>{customers.map((item) => <option key={item.id} value={String(item.id)}>{item.name}</option>)}</select></div>
+                    <div className="form-group"><label>CUIT</label><input value={taxId} onChange={(event: ChangeEvent<HTMLInputElement>) => setTaxId(event.target.value)} placeholder="CUIT o DNI" /></div>
+                    <div className="form-group"><label>Condicion IVA</label><select value={ivaCondition} onChange={(event) => setIvaCondition(event.target.value)}>{IVA_CONDITIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+                    <div className="form-group"><label>Direccion</label><input value={address} onChange={(event: ChangeEvent<HTMLInputElement>) => setAddress(event.target.value)} placeholder="Direccion del cliente" /></div>
+                    <div className="form-group sales-field-span-2"><label>Obs:</label><input value={observations} onChange={(event: ChangeEvent<HTMLInputElement>) => setObservations(event.target.value)} placeholder="Observaciones del comprobante" /></div>
+                    <div className="form-group"><label>O.C:</label><input value={oc} onChange={(event: ChangeEvent<HTMLInputElement>) => setOc(event.target.value)} placeholder="Orden de compra" /></div>
+                    <div className="form-group"><label>Rem:</label><input value={remito} onChange={(event: ChangeEvent<HTMLInputElement>) => setRemito(event.target.value)} placeholder="Referencia" /></div>
+                  </div>
+                </section>
               </div>
 
-              <div className="sales-form-card sales-items-card">
-                <div className="sales-article-toolbar sales-article-toolbar--compact">
-                  <div className="form-group sales-article-search-group">
-                    <label>Buscar producto para facturar</label>
-                    <div className="sales-search-callout">Carga rapida por codigo, SKU o descripcion</div>
-                    <div className="sales-inline-combo">
-                      <input
-                        value={itemSearch}
-                        onChange={(event: ChangeEvent<HTMLInputElement>) => setItemSearch(event.target.value)}
-                        placeholder="Ej. modulo a10, ART-000086 o codigo de barras"
-                      />
-                      <button
-                        className="sales-addon-button sales-addon-button--wide"
-                        type="button"
-                        onClick={() => {
-                          if (filteredProducts[0]) {
-                            addProduct(filteredProducts[0]);
-                          }
-                        }}
-                      >
-                        Agregar
-                      </button>
-                    </div>
+              <div className="sales-customer-summary">{customerSummary}</div>
+              <div className="sales-live-metrics" hidden aria-hidden="true">
+                <strong>{receiptType}</strong>
+                <strong>{normalizedPointOfSale}</strong>
+                <strong>{selectedCustomer ? selectedCustomer.name : 'Consumidor final'}</strong>
+                <strong>{globalDiscount || '0.00'}%</strong>
+              </div>
+              <input type="hidden" value={paymentMethod} />
+            </div>
+
+            <div className="sales-form-card sales-items-card">
+              <div className="sales-article-toolbar sales-article-toolbar--compact">
+                <div className="form-group sales-article-search-group">
+                  <label>Buscar producto para facturar</label>
+                  <div className="sales-search-callout">Carga rapida por codigo, SKU o descripcion</div>
+                  <div className="sales-inline-combo">
+                    <input
+                      value={itemSearch}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) => setItemSearch(event.target.value)}
+                      placeholder="Ej. modulo a10, ART-000086 o codigo de barras"
+                    />
+                    <button
+                      className="sales-addon-button sales-addon-button--wide"
+                      type="button"
+                      onClick={() => {
+                        if (filteredProductsWithSearch[0]) {
+                          addProduct(filteredProductsWithSearch[0]);
+                        }
+                      }}
+                    >
+                      Agregar
+                    </button>
                   </div>
                 </div>
-                <div className="sales-search-meta">Escribe un codigo o descripcion y presiona Enter para agregar.</div>
-                {itemSearch.trim() ? (
-                  <div className="sales-search-results">
-                    {filteredProducts.length === 0 ? (
-                      <div className="sales-search-result is-empty">No se encontraron articulos para la busqueda actual.</div>
+              </div>
+              <div className="sales-search-meta">
+                {itemSearch.trim()
+                  ? filteredProductsWithSearch.length === 0
+                    ? `No hay coincidencias para "${itemSearch.trim().toLowerCase()}".`
+                    : `${filteredProductsWithSearch.length} coincidencias. Primero: ${(filteredProductsWithSearch[0]?.sku || `ART-${filteredProductsWithSearch[0]?.id}`)} - ${filteredProductsWithSearch[0]?.name}`
+                  : 'Escribe un codigo o descripcion y presiona Enter para agregar.'}
+              </div>
+              {itemSearch.trim() && filteredProductsWithSearch.length > 0 ? (
+                <div className="sales-search-results">
+                  {filteredProductsWithSearch.map((product) => (
+                    <button key={product.id} type="button" className={`sales-search-result${Number(product.stock || 0) > 0 ? '' : ' is-out-of-stock'}`} onClick={() => addProduct(product)}>
+                      <span className="sales-search-result-thumb">
+                        {getProductImageUrl(product) ? (
+                          <img src={getProductImageUrl(product)} alt={product.name || 'Articulo'} />
+                        ) : (
+                          <span className="sales-search-result-thumb-placeholder">Sin foto</span>
+                        )}
+                      </span>
+                      <span className="sales-search-result-main">
+                        <span className="sales-search-result-name">{product.name}</span>
+                        <span className="sales-search-result-code">{product.sku || `ART-${product.id}`}</span>
+                      </span>
+                      <span className="sales-search-result-side">
+                        <span className="sales-search-result-price">{formatMoney(getProductPriceByList(product, priceList))}</span>
+                        <span className={`sales-search-result-stock${Number(product.stock || 0) > 0 ? '' : ' is-empty'}`}>{Number(product.stock || 0) > 0 ? `Stock ${product.stock ?? 0}` : 'Sin stock'}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="sales-lines-table-wrap">
+                <table className="sales-lines-table">
+                  <thead>
+                    <tr>
+                      <th>Cant.</th>
+                      <th>Codigo</th>
+                      <th>Descripcion</th>
+                      <th>Precio Unit.</th>
+                      <th>Desc. %</th>
+                      <th>Total</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.length === 0 ? (
+                      <tr><td colSpan={7} className="sales-empty-row">Agrega articulos para comenzar la facturacion.</td></tr>
                     ) : (
-                      filteredProducts.map((product) => (
-                        <button key={product.id} type="button" className="sales-search-result" onClick={() => addProduct(product)}>
-                          <strong>{product.name}</strong>
-                          <span>{product.sku || `#${product.id}`} - {getCategoryLabel(product)} - Stock {product.stock ?? 0}</span>
-                        </button>
-                      ))
+                      cart.map((item) => {
+                        const lineTotal = getLineTotal(item, globalDiscount);
+                        return (
+                          <tr key={item.product_id}>
+                            <td>
+                              <div className="sales-qty-control">
+                                <button type="button" onClick={() => updateCartQuantity(item.product_id, Number(item.quantity || 0) - 1)}>-</button>
+                                <input value={item.quantity} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'quantity', event.target.value)} />
+                                <button type="button" onClick={() => updateCartQuantity(item.product_id, Number(item.quantity || 0) + 1)}>+</button>
+                              </div>
+                            </td>
+                            <td>{item.sku}</td>
+                            <td><div className="sales-line-name">{item.name}</div></td>
+                            <td><input className="sales-line-input sales-line-input--price" value={item.unit_price} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'unit_price', event.target.value)} /></td>
+                            <td><input className="sales-line-input sales-line-input--discount" value={item.discount} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'discount', event.target.value)} /></td>
+                            <td>{formatMoney(lineTotal)}</td>
+                            <td><button type="button" className="btn btn-danger btn-small" onClick={() => handleRemoveItem(item.product_id)}>Quitar</button></td>
+                          </tr>
+                        );
+                      })
                     )}
-                  </div>
-                ) : null}
+                  </tbody>
+                </table>
+              </div>
 
-                <div className="sales-lines-table-wrap">
-                  <table className="sales-lines-table">
-                    <thead>
-                      <tr>
-                        <th>Cant.</th>
-                        <th>Codigo</th>
-                        <th>Descripcion</th>
-                        <th>Precio Unit.</th>
-                        <th>Desc. %</th>
-                        <th>Total</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cart.length === 0 ? (
-                        <tr><td colSpan={7} className="sales-empty-row">Agrega articulos para comenzar la facturacion.</td></tr>
-                      ) : (
-                        cart.map((item) => {
-                          const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
-                          return (
-                            <tr key={item.product_id}>
-                              <td><input value={item.quantity} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'quantity', event.target.value)} /></td>
-                              <td>{item.sku}</td>
-                              <td>{item.name}<div className="sales-line-meta">Stock local {item.stock}</div></td>
-                              <td><input value={item.unit_price} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'unit_price', event.target.value)} /></td>
-                              <td>0,00</td>
-                              <td>{formatMoney(lineTotal)}</td>
-                              <td><button type="button" className="btn btn-secondary btn-small" onClick={() => handleRemoveItem(item.product_id)}>Quitar</button></td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+              <div className="sales-summary-inline">
+                <div className="sales-summary-card sales-summary-card--full">
+                  {feedback ? <div className={`alert ${feedback.includes('No se pudo') || feedback.includes('Debes') || feedback.includes('Revisa') || feedback.includes('Solo ') ? 'alert-warning' : 'alert-info'}`}>{feedback}</div> : null}
+                  <div className="sales-summary-row"><span>Neto</span><strong>{formatMoney(netTotal)}</strong></div>
+                  <div className="sales-summary-row"><span>Descuento</span><strong>{formatMoney(discountAmount)}</strong></div>
+                  <div className="sales-summary-row"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div>
+                  <div className="sales-summary-row"><span>IVA</span><strong>{formatMoney(ivaTotal)}</strong></div>
+                  <div className="sales-summary-total"><span>Total</span><strong>{formatMoney(total)}</strong></div>
                 </div>
-
-                <div className="sales-summary-inline">
-                  <div className="sales-summary-card sales-summary-card--full">
-                    {feedback ? <div className={`alert ${feedback.includes('No se pudo') || feedback.includes('Debes') || feedback.includes('Revisa') || feedback.includes('Solo ') ? 'alert-warning' : 'alert-info'}`}>{feedback}</div> : null}
-                    <div className="sales-summary-row"><span>Neto</span><strong>{formatMoney(netTotal)}</strong></div>
-                    <div className="sales-summary-row"><span>Descuento</span><strong>{formatMoney(discountAmount)}</strong></div>
-                    <div className="sales-summary-row"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div>
-                    <div className="sales-summary-row"><span>IVA</span><strong>{formatMoney(ivaTotal)}</strong></div>
-                    <div className="sales-summary-total"><span>Total</span><strong>{formatMoney(total)}</strong></div>
-                  </div>
-                </div>
-                <div className="sales-primary-action">
-                  <button className="btn btn-success" type="submit" disabled={!isAdmin}>{actionLabel}</button>
-                </div>
+              </div>
+              <div className="sales-primary-action">
+                <button className="btn btn-success" type="submit" disabled={!isAdmin}>{actionLabel}</button>
               </div>
             </div>
-          </form>
+          </div>
+        </form>
+      </div>
+
+      {paymentModalOpen ? (
+        <div className="modal-overlay" onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            setPaymentModalOpen(false);
+          }
+        }}>
+          <div className="modal sales-payment-modal">
+            <div className="modal-header sales-payment-modal-header">
+              <h3>Forma de Pago</h3>
+              <button className="modal-close" type="button" onClick={() => setPaymentModalOpen(false)}>&times;</button>
+            </div>
+            <div className="modal-body sales-payment-modal-body">
+              <div className="sales-payment-total">Total a Pagar: <strong>{formatMoney(total)}</strong></div>
+              <div className="sales-payment-methods">
+                {[
+                  { id: 'cash', label: 'Efectivo' },
+                  { id: 'digital', label: 'Pago Digital' },
+                  { id: 'check', label: 'Cheque' },
+                  { id: 'account', label: 'Cta. Cte.' },
+                  { id: 'transfer', label: 'Transferencia' }
+                ].map((method) => (
+                  <button
+                    key={method.id}
+                    className={`sales-payment-method${paymentMethod === method.id ? ' is-active' : ''}`}
+                    type="button"
+                    onClick={() => setPaymentMethod(method.id)}
+                  >
+                    {method.label}
+                  </button>
+                ))}
+              </div>
+              {paymentMethod === 'cash' ? (
+                <div className="sales-payment-cash-box">
+                  <label htmlFor="sales-cash-received">Importe recibido</label>
+                  <input id="sales-cash-received" type="text" inputMode="decimal" value={cashReceived} placeholder="0,00" onChange={(event) => setCashReceived(event.target.value)} />
+                  <small>Ingresa el efectivo entregado por el cliente para calcular el vuelto.</small>
+                </div>
+              ) : null}
+              <div className="sales-payment-summary">
+                <div className="sales-payment-summary-row"><span>Total Pagado</span><strong>{formatMoney(paymentMethod === 'cash' ? paymentTotalPaid : total)}</strong></div>
+                <div className="sales-payment-summary-row"><span>Vuelto</span><strong>{formatMoney(paymentChange)}</strong></div>
+              </div>
+            </div>
+            <div className="modal-footer sales-payment-modal-footer">
+              <button className="btn btn-secondary" type="button" onClick={() => setPaymentModalOpen(false)}>Cancelar</button>
+              <button className="btn btn-success" type="button" onClick={() => void confirmSale()}>Confirmar Venta</button>
+            </div>
+          </div>
         </div>
-      </section>
-    </div>
+      ) : null}
+    </section>
   );
 }
 

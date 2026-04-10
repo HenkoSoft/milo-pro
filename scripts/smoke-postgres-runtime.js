@@ -47,7 +47,7 @@ async function main() {
         ...process.env,
         DATABASE_DIALECT: 'postgres',
         PORT: String(port),
-        FRONTEND_MODE: process.env.FRONTEND_MODE || 'legacy'
+        FRONTEND_MODE: process.env.FRONTEND_MODE || 'react'
       },
       stdio: ['ignore', 'pipe', 'pipe']
     }

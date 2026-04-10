@@ -4,10 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { initializeRuntimeDatabase } = require('./db');
 
-type FrontendMode = 'legacy' | 'react' | 'auto';
+type FrontendMode = 'react';
 
 type FrontendStrategy = {
-  mode: 'legacy' | 'react';
+  mode: 'react';
   indexPath: string;
   reactActive: boolean;
   buildAvailable: boolean;
@@ -18,9 +18,8 @@ const PORT = Number(process.env.PORT || 3000);
 const rootDir = path.resolve(__dirname, '../..');
 const publicDir = path.join(rootDir, 'public');
 const reactDistDir = path.join(rootDir, 'frontend', 'dist');
-const legacyIndexPath = path.join(publicDir, 'index.html');
 const reactIndexPath = path.join(reactDistDir, 'index.html');
-const frontendMode = String(process.env.FRONTEND_MODE || 'legacy').trim().toLowerCase() as FrontendMode;
+const frontendMode = String(process.env.FRONTEND_MODE || 'react').trim().toLowerCase() as FrontendMode;
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -36,29 +35,10 @@ function hasReactBuild(): boolean {
 }
 
 function resolveFrontendStrategy(): FrontendStrategy {
-  if (frontendMode === 'react') {
-    return {
-      mode: 'react',
-      indexPath: reactIndexPath,
-      reactActive: true,
-      buildAvailable: hasReactBuild()
-    };
-  }
-
-  if (frontendMode === 'auto') {
-    const buildAvailable = hasReactBuild();
-    return {
-      mode: buildAvailable ? 'react' : 'legacy',
-      indexPath: buildAvailable ? reactIndexPath : legacyIndexPath,
-      reactActive: buildAvailable,
-      buildAvailable
-    };
-  }
-
   return {
-    mode: 'legacy',
-    indexPath: legacyIndexPath,
-    reactActive: false,
+    mode: 'react',
+    indexPath: reactIndexPath,
+    reactActive: true,
     buildAvailable: hasReactBuild()
   };
 }
@@ -107,8 +87,8 @@ export async function startServer(): Promise<void> {
 
     const frontendStrategy = resolveFrontendStrategy();
 
-    if (frontendMode === 'react' && !frontendStrategy.buildAvailable) {
-      throw new Error('FRONTEND_MODE=react requiere un build existente en frontend/dist');
+    if (!frontendStrategy.buildAvailable) {
+      throw new Error('React requiere un build existente en frontend/dist');
     }
 
     app.get('/api/health', (_req: any, res: any) => {
@@ -117,7 +97,6 @@ export async function startServer(): Promise<void> {
         frontend_mode: frontendStrategy.mode,
         requested_frontend_mode: frontendMode,
         react_build_available: frontendStrategy.buildAvailable,
-        legacy_entry: '/legacy-app',
         requested_db_dialect: databaseState.requestedDialect,
         active_db_dialect: databaseState.activeDialect,
         postgres_runtime_ready: databaseState.postgresRuntimeReady
@@ -150,15 +129,7 @@ export async function startServer(): Promise<void> {
     });
 
     app.use('/productos', express.static(path.join(publicDir, 'productos')));
-    app.use('/css', express.static(path.join(publicDir, 'css')));
-    app.use('/js', express.static(path.join(publicDir, 'js')));
-    app.get('/legacy-app', (_req: any, res: any) => {
-      sendIndexFile(res, legacyIndexPath);
-    });
-
-    if (frontendStrategy.reactActive) {
-      app.use(express.static(reactDistDir));
-    }
+    app.use(express.static(reactDistDir));
 
     app.get('*', frontendRequestHandler(frontendStrategy));
 
@@ -172,7 +143,7 @@ export async function startServer(): Promise<void> {
 
     app.listen(PORT, () => {
       console.log('milo-pro running on http://localhost:' + PORT);
-      console.log(`[FRONTEND] mode=${frontendStrategy.mode} requested=${frontendMode} react_build=${frontendStrategy.buildAvailable ? 'yes' : 'no'} legacy=/legacy-app`);
+      console.log(`[FRONTEND] mode=${frontendStrategy.mode} requested=${frontendMode} react_build=${frontendStrategy.buildAvailable ? 'yes' : 'no'}`);
       console.log(`[DB] requested=${databaseState.requestedDialect} active=${databaseState.activeDialect} postgres_ready=${databaseState.postgresRuntimeReady ? 'yes' : 'no'}`);
     });
   } catch (error) {
