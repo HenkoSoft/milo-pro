@@ -120,6 +120,9 @@ function sanitizeCustomerRelatedRepair(record: unknown) {
   return {
     id: Number(data.id || 0),
     ticket_number: toNullableString(data.ticket_number),
+    brand: toNullableString(data.brand),
+    model: toNullableString(data.model),
+    device_type: toNullableString(data.device_type),
     status: toNullableString(data.status),
     created_at: typeof data.created_at === 'string' ? data.created_at : undefined
   };

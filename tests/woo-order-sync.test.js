@@ -68,15 +68,15 @@ async function createHarness() {
   process.env.WOO_ORDER_PAID_STATUSES = JSON.stringify(['paid', 'completed']);
 
   const moduleIds = [
-    '../backend/src/config/database',
-    '../backend/src/services/woo-order-sync'
+    '../backend/dist/config/database.js',
+    '../backend/dist/services/woo-order-sync.js'
   ];
 
   moduleIds.forEach((moduleId) => {
     delete require.cache[require.resolve(moduleId)];
   });
 
-  const database = require('../backend/src/config/database');
+  const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
 
   database.run(
@@ -93,7 +93,7 @@ async function createHarness() {
   );
   database.saveDatabase();
 
-  const service = require('../backend/src/services/woo-order-sync');
+  const service = require('../backend/dist/services/woo-order-sync.js');
 
   return {
     database,

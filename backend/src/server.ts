@@ -69,9 +69,9 @@ export async function startServer(): Promise<void> {
     const woocommerceRoutes = require('./routes/woocommerce.js');
     const deviceOptionsRoutes = require('./routes/deviceOptions.js');
     const purchaseRoutes = require('./routes/purchases.js');
-    const catalogService = require('../src/services/catalog.js');
-    const woocommerceSyncService = require('../src/services/woocommerce-sync.js');
-    const wooOrderSyncService = require('../src/services/woo-order-sync.js');
+    const catalogService = require('./services/catalog.js');
+    const woocommerceSyncService = require('./services/woocommerce-sync.js');
+    const wooOrderSyncService = require('./services/woo-order-sync.js');
 
     app.locals.database = databaseState.adapter;
 

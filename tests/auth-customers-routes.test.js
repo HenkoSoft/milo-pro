@@ -11,10 +11,10 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../backend/src/config/database',
-    '../backend/src/config/auth',
-    '../backend/src/routes/auth',
-    '../backend/src/routes/customers'
+    '../backend/dist/config/database.js',
+    '../backend/dist/config/auth.js',
+    '../backend/dist/routes/auth.js',
+    '../backend/dist/routes/customers.js'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -25,7 +25,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../backend/src/config/database');
+  const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
@@ -49,9 +49,9 @@ async function createHarness() {
 
   database.saveDatabase();
 
-  const { JWT_SECRET } = require('../backend/src/config/auth');
-  const authRoutes = require('../backend/src/routes/auth');
-  const customerRoutes = require('../backend/src/routes/customers');
+  const { JWT_SECRET } = require('../backend/dist/config/auth.js');
+  const authRoutes = require('../backend/dist/routes/auth.js');
+  const customerRoutes = require('../backend/dist/routes/customers.js');
 
   const app = express();
   app.use(express.json());

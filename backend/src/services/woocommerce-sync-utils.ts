@@ -1,7 +1,17 @@
-import type {
-  WooProductImageDto,
-  WooSyncConfigLike
-} from '@shared/types/woocommerce';
+type WooProductImageDto = {
+  id?: number | null;
+  src?: string | null;
+  position?: number | null;
+  url_local?: string | null;
+  url_remote?: string | null;
+  woocommerce_media_id?: number | null;
+  orden?: number | null;
+  es_principal?: boolean | null;
+};
+
+type WooSyncConfigLike = {
+  api_version?: string | null;
+};
 
 export interface WooCategoryLike {
   id?: number | null;

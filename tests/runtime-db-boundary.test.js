@@ -4,7 +4,7 @@ const path = require('path');
 
 const repoRoot = process.cwd();
 const allowedDirectImports = new Set([
-  path.normalize('backend/src/services/runtime-db.js')
+  path.normalize('backend/src/services/runtime-db.ts')
 ]);
 
 function collectFiles(dirPath, collected = []) {
@@ -18,7 +18,7 @@ function collectFiles(dirPath, collected = []) {
       collectFiles(fullPath, collected);
       continue;
     }
-    if (entry.isFile() && entry.name.endsWith('.js')) {
+    if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.ts'))) {
       collected.push(fullPath);
     }
   }

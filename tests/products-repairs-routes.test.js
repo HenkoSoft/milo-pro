@@ -11,14 +11,14 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../backend/src/config/database',
-    '../backend/src/config/auth',
-    '../backend/src/routes/products',
-    '../backend/src/routes/repairs',
-    '../backend/src/services/woocommerce-sync',
-    '../backend/src/services/product-images',
-    '../backend/src/services/product-sku',
-    '../backend/src/services/catalog'
+    '../backend/dist/config/database.js',
+    '../backend/dist/config/auth.js',
+    '../backend/dist/routes/products.js',
+    '../backend/dist/routes/repairs.js',
+    '../backend/dist/services/woocommerce-sync.js',
+    '../backend/dist/services/product-images.js',
+    '../backend/dist/services/product-sku.js',
+    '../backend/dist/services/catalog.js'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -29,7 +29,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../backend/src/config/database');
+  const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
@@ -62,7 +62,7 @@ async function createHarness() {
 
   database.saveDatabase();
 
-  const woocommerceSyncPath = require.resolve('../backend/src/services/woocommerce-sync');
+  const woocommerceSyncPath = require.resolve('../backend/dist/services/woocommerce-sync.js');
   require.cache[woocommerceSyncPath] = {
     id: woocommerceSyncPath,
     filename: woocommerceSyncPath,
@@ -76,7 +76,7 @@ async function createHarness() {
     }
   };
 
-  const productImagesPath = require.resolve('../backend/src/services/product-images');
+  const productImagesPath = require.resolve('../backend/dist/services/product-images.js');
   require.cache[productImagesPath] = {
     id: productImagesPath,
     filename: productImagesPath,
@@ -95,9 +95,9 @@ async function createHarness() {
     }
   };
 
-  const { JWT_SECRET } = require('../backend/src/config/auth');
-  const productsRoutes = require('../backend/src/routes/products');
-  const repairsRoutes = require('../backend/src/routes/repairs');
+  const { JWT_SECRET } = require('../backend/dist/config/auth.js');
+  const productsRoutes = require('../backend/dist/routes/products.js');
+  const repairsRoutes = require('../backend/dist/routes/repairs.js');
 
   const app = express();
   app.use(express.json());

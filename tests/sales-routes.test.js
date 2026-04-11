@@ -11,11 +11,11 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../backend/src/config/database',
-    '../backend/src/config/auth',
-    '../backend/src/routes/sales',
-    '../backend/src/services/woocommerce-sync',
-    '../backend/src/services/woo-order-sync'
+    '../backend/dist/config/database.js',
+    '../backend/dist/config/auth.js',
+    '../backend/dist/routes/sales.js',
+    '../backend/dist/services/woocommerce-sync.js',
+    '../backend/dist/services/woo-order-sync.js'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -26,7 +26,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../backend/src/config/database');
+  const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
@@ -60,7 +60,7 @@ async function createHarness() {
   const testSyncCalls = [];
   const statusCalls = [];
 
-  const wooSyncPath = require.resolve('../backend/src/services/woocommerce-sync');
+  const wooSyncPath = require.resolve('../backend/dist/services/woocommerce-sync.js');
   require.cache[wooSyncPath] = {
     id: wooSyncPath,
     filename: wooSyncPath,
@@ -77,7 +77,7 @@ async function createHarness() {
     }
   };
 
-  const orderSyncPath = require.resolve('../backend/src/services/woo-order-sync');
+  const orderSyncPath = require.resolve('../backend/dist/services/woo-order-sync.js');
   require.cache[orderSyncPath] = {
     id: orderSyncPath,
     filename: orderSyncPath,
@@ -110,8 +110,8 @@ async function createHarness() {
     }
   };
 
-  const { JWT_SECRET } = require('../backend/src/config/auth');
-  const salesRoutes = require('../backend/src/routes/sales');
+  const { JWT_SECRET } = require('../backend/dist/config/auth.js');
+  const salesRoutes = require('../backend/dist/routes/sales.js');
 
   const app = express();
   app.use(express.json());

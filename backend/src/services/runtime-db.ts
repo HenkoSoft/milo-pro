@@ -15,7 +15,7 @@ type RuntimeDbLike = {
 };
 
 function getLegacyDatabase() {
-  return require('../../src/config/database.js');
+  return require('../config/database.js');
 }
 
 export function runLegacyTransaction<T>(fn: (db: DatabaseAccess) => Promise<T>, overrides: Record<string, unknown> = {}) {

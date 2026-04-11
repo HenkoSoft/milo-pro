@@ -11,9 +11,9 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../backend/src/config/database',
-    '../backend/src/config/auth',
-    '../backend/src/routes/purchases'
+    '../backend/dist/config/database.js',
+    '../backend/dist/config/auth.js',
+    '../backend/dist/routes/purchases.js'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -24,7 +24,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../backend/src/config/database');
+  const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
@@ -57,8 +57,8 @@ async function createHarness() {
 
   database.saveDatabase();
 
-  const { JWT_SECRET } = require('../backend/src/config/auth');
-  const purchasesRoutes = require('../backend/src/routes/purchases');
+  const { JWT_SECRET } = require('../backend/dist/config/auth.js');
+  const purchasesRoutes = require('../backend/dist/routes/purchases.js');
 
   const app = express();
   app.use(express.json());

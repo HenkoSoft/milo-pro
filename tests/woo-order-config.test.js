@@ -9,10 +9,10 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../backend/src/config/database',
-    '../backend/src/services/woo-order-sync',
-    '../backend/src/services/woo-order-client',
-    '../backend/src/services/woocommerce-sync'
+    '../backend/dist/config/database.js',
+    '../backend/dist/services/woo-order-sync.js',
+    '../backend/dist/services/woo-order-client.js',
+    '../backend/dist/services/woocommerce-sync.js'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -23,7 +23,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../backend/src/config/database');
+  const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
 
   return {
@@ -84,8 +84,8 @@ async function main() {
       process.env.WOO_ORDER_SALES_CHANNEL = 'env-channel';
       process.env.WOO_WEBHOOK_SIGNATURE_HEADER = 'x-env-signature';
 
-      delete require.cache[require.resolve('../backend/src/services/woo-order-sync')];
-      const service = require('../backend/src/services/woo-order-sync');
+      delete require.cache[require.resolve('../backend/dist/services/woo-order-sync.js')];
+      const service = require('../backend/dist/services/woo-order-sync.js');
       const config = await service.getWooOrderSyncConfigAsync();
 
       assert.equal(config.salesChannel, 'env-channel');
@@ -117,8 +117,8 @@ async function main() {
         ]
       );
 
-      delete require.cache[require.resolve('../backend/src/services/woo-order-sync')];
-      const service = require('../backend/src/services/woo-order-sync');
+      delete require.cache[require.resolve('../backend/dist/services/woo-order-sync.js')];
+      const service = require('../backend/dist/services/woo-order-sync.js');
       const config = await service.getWooOrderSyncConfigAsync();
       const rawBody = Buffer.from('{"id":123}');
       const signature = crypto.createHmac('sha256', 'super-secret').update(rawBody).digest('base64');
@@ -159,7 +159,7 @@ async function main() {
   });
 
   await runCase('normaliza filtros del cliente Woo y pagina hasta agotar resultados', async () => {
-    const originalPath = require.resolve('../backend/src/services/woocommerce-sync');
+    const originalPath = require.resolve('../backend/dist/services/woocommerce-sync.js');
     const originalModule = require.cache[originalPath];
     const calls = [];
 
@@ -179,10 +179,10 @@ async function main() {
       }
     };
 
-    delete require.cache[require.resolve('../backend/src/services/woo-order-client')];
+    delete require.cache[require.resolve('../backend/dist/services/woo-order-client.js')];
 
     try {
-      const client = require('../backend/src/services/woo-order-client');
+      const client = require('../backend/dist/services/woo-order-client.js');
       const query = client.sanitizeOrderFilters({
         status: ['processing', ' completed '],
         after: '2026-04-01T00:00:00',
@@ -212,7 +212,7 @@ async function main() {
       } else {
         delete require.cache[originalPath];
       }
-      delete require.cache[require.resolve('../backend/src/services/woo-order-client')];
+      delete require.cache[require.resolve('../backend/dist/services/woo-order-client.js')];
     }
   });
 }

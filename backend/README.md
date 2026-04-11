@@ -7,12 +7,12 @@ Estado actual:
 - `backend/src/server.ts` es la entrada real del backend
 - `npm run build:backend` compila el runtime TypeScript
 - `npm start` y `npm run dev:backend*` ya usan el backend compilado desde TypeScript
-- las rutas y servicios JS operativos ahora viven dentro de `backend/src`
+- las rutas y servicios operativos ahora viven en `backend/src` como archivos TypeScript
 - `backend/src/db` ahora define la base tipada para una capa de datos dual SQLite/PostgreSQL
 - `backend/src/db/runtime.ts` centraliza el arranque actual de base
 - el runtime usa PostgreSQL como base principal
 - PostgreSQL ya puede inicializar schema base propio desde `backend/src/db/postgres-schema.ts`
-- `backend/src/routes/settings.js` y `backend/src/routes/dashboard.js` consumen el adapter expuesto en `app.locals.database`
+- `backend/src/routes/settings.ts` y `backend/src/routes/dashboard.ts` consumen el adapter expuesto en `app.locals.database`
 
 Principios que se mantienen:
 
@@ -48,16 +48,16 @@ Cobertura tipada ya disponible:
 
 WooCommerce consolidado:
 
-- `backend/src/routes/woocommerce.js` como ensamblador principal
-- `backend/src/services/woocommerce-admin-routes.js`
-- `backend/src/services/woocommerce-product-routes.js`
-- `backend/src/services/woocommerce-order-routes.js`
-- `backend/src/services/woocommerce-polling-routes.js`
-- `backend/src/services/woocommerce-admin.js`
-- `backend/src/services/woocommerce-polling.js`
-- `backend/src/services/woo-order-utils.js`
-- `backend/src/services/woocommerce-sync-utils.js`
-- `backend/src/services/woocommerce-request.js`
+- `backend/src/routes/woocommerce.ts` como ensamblador principal
+- `backend/src/services/woocommerce-admin-routes.ts`
+- `backend/src/services/woocommerce-product-routes.ts`
+- `backend/src/services/woocommerce-order-routes.ts`
+- `backend/src/services/woocommerce-polling-routes.ts`
+- `backend/src/services/woocommerce-admin.ts`
+- `backend/src/services/woocommerce-polling.ts`
+- `backend/src/services/woo-order-utils.ts`
+- `backend/src/services/woocommerce-sync-utils.ts`
+- `backend/src/services/woocommerce-request.ts`
 
 Comandos de validacion:
 
@@ -92,7 +92,7 @@ Script de importacion de datos ya disponible:
 - si el destino ya tiene datos y no se define `PG_MIGRATE_TRUNCATE=1`, la importacion falla de forma explicita
 - `validate:postgres` valida el carril PG sin requerir una base real
 - `test:db-config` valida la resolucion `postgres|sqlite`
-- `preflight:postgres` detecta patrones SQLite-specific residuales en runtime JS
+- `preflight:postgres` detecta patrones SQLite-specific residuales en el runtime actual
 - `verify:postgres` compara conteos entre SQLite y PostgreSQL tabla por tabla
 - el smoke test valida arranque + `/api/health` + login base sobre PostgreSQL
 - `postgres:cutover-check` encadena validacion, importacion, verificacion y smoke sobre una instancia PG real
@@ -108,7 +108,7 @@ Limitacion actual importante:
 - importacion, verificacion y smoke ya fueron validados con una base PG real
 - PostgreSQL ya queda promovido operativamente como default
 - SQLite queda solo como herramienta tecnica puntual
-- el proximo paso real ya no es tecnico base, sino seguir eliminando dependencias residuales de `backend/src/config/database.js`
+- el proximo paso real ya no es tecnico base, sino limpieza fina y endurecimiento adicional del stack actual
 
 Interpretacion correcta desde este punto:
 

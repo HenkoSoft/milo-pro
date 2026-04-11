@@ -1,5 +1,13 @@
-import type { WooSyncConfigLike } from '@shared/types/woocommerce';
 import { buildApiPath, getPort } from './woocommerce-sync-utils';
+
+type WooSyncConfigLike = {
+  store_url?: string | null;
+  consumer_key?: string | null;
+  consumer_secret?: string | null;
+  wp_username?: string | null;
+  wp_app_password?: string | null;
+  api_version?: string | null;
+};
 
 interface TransportLike {
   request: (options: RequestOptions, callback: (response: ResponseLike) => void) => RequestHandle;

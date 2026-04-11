@@ -1,7 +1,68 @@
-import type {
-  NormalizedWooOrder,
-  WooOrderSyncConfig
-} from '@shared/types/woocommerce';
+const crypto = require('crypto');
+
+type WooOrderItem = {
+  externalLineId: string | null;
+  externalProductId: string | null;
+  wooProductId?: number | null;
+  sku: string | null;
+  name: string | null;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  taxTotal?: number;
+  metaData?: unknown[];
+};
+
+type NormalizedWooOrder = {
+  woocommerceOrderId: number;
+  woocommerceOrderKey: string | null;
+  externalReference: string;
+  channel: string;
+  wooStatus: string;
+  internalStatus: string;
+  paymentStatus: string;
+  currency: string;
+  subtotal: number;
+  total: number;
+  discountTotal: number;
+  taxTotal: number;
+  shippingTotal: number;
+  totalPaid: number;
+  paymentMethod: string;
+  paymentMethodCode: string;
+  notes: string | null;
+  customer: {
+    externalCustomerId: string | null;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    province: string | null;
+    country: string | null;
+    notes: string | null;
+  };
+  items: WooOrderItem[];
+  raw?: Record<string, unknown>;
+  createdAt: string | null;
+  updatedAt: string | null;
+  metaData?: Record<string, unknown>;
+  deliveryId?: unknown;
+};
+
+type WooOrderSyncConfig = {
+  statusMap: Record<string, string>;
+  stockStatuses: string[];
+  paidStatuses: string[];
+  salesChannel: string;
+  customerStrategy: string;
+  genericCustomerName: string;
+  webhookSecret: string;
+  webhookAuthToken: string;
+  signatureHeader: string;
+  deliveryHeader: string;
+  syncEnabled: boolean;
+};
 
 const DEFAULT_STATUS_MAP: Record<string, string> = {
   pending: 'pending_payment',
@@ -101,11 +162,10 @@ export function currentTimestamp(): string {
 }
 
 export function computeHmacBase64(secret: string, rawBody: string | ArrayBufferLike): string {
-  const body = typeof rawBody === 'string' ? rawBody : String(rawBody);
-  if (typeof globalThis.btoa === 'function') {
-    return globalThis.btoa(`${secret}:${body}`);
-  }
-  return `${secret}:${body}`;
+  const body = typeof rawBody === 'string'
+    ? Buffer.from(rawBody)
+    : Buffer.from(rawBody);
+  return crypto.createHmac('sha256', secret).update(body).digest('base64');
 }
 
 export function buildWooOrderSyncConfig(row: Record<string, unknown> | null | undefined, env: Record<string, string | undefined>): WooOrderSyncConfig {

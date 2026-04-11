@@ -12,14 +12,14 @@ async function createHarness() {
   process.env.MILO_DISABLE_SEED = '1';
 
   const moduleIds = [
-    '../backend/src/config/database',
-    '../backend/src/config/auth',
-    '../backend/src/routes/woocommerce',
-    '../backend/src/services/woocommerce-sync',
-    '../backend/src/services/woo-order-importer',
-    '../backend/src/services/woo-order-sync',
-    '../backend/src/services/catalog',
-    '../backend/src/services/product-sku'
+    '../backend/dist/config/database.js',
+    '../backend/dist/config/auth.js',
+    '../backend/dist/routes/woocommerce.js',
+    '../backend/dist/services/woocommerce-sync.js',
+    '../backend/dist/services/woo-order-importer.js',
+    '../backend/dist/services/woo-order-sync.js',
+    '../backend/dist/services/catalog.js',
+    '../backend/dist/services/product-sku.js'
   ];
 
   moduleIds.forEach((moduleId) => {
@@ -30,7 +30,7 @@ async function createHarness() {
     }
   });
 
-  const database = require('../backend/src/config/database');
+  const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
 
   const importedCalls = [];
@@ -48,7 +48,7 @@ async function createHarness() {
     }
   };
 
-  const woocommerceSyncPath = require.resolve('../backend/src/services/woocommerce-sync');
+  const woocommerceSyncPath = require.resolve('../backend/dist/services/woocommerce-sync.js');
   require.cache[woocommerceSyncPath] = {
     id: woocommerceSyncPath,
     filename: woocommerceSyncPath,
@@ -78,7 +78,7 @@ async function createHarness() {
     }
   };
 
-  const importerPath = require.resolve('../backend/src/services/woo-order-importer');
+  const importerPath = require.resolve('../backend/dist/services/woo-order-importer.js');
   require.cache[importerPath] = {
     id: importerPath,
     filename: importerPath,
@@ -92,7 +92,7 @@ async function createHarness() {
     }
   };
 
-  const orderSyncPath = require.resolve('../backend/src/services/woo-order-sync');
+  const orderSyncPath = require.resolve('../backend/dist/services/woo-order-sync.js');
   require.cache[orderSyncPath] = {
     id: orderSyncPath,
     filename: orderSyncPath,
@@ -158,7 +158,7 @@ async function createHarness() {
     }
   };
 
-  const catalogPath = require.resolve('../backend/src/services/catalog');
+  const catalogPath = require.resolve('../backend/dist/services/catalog.js');
   require.cache[catalogPath] = {
     id: catalogPath,
     filename: catalogPath,
@@ -171,7 +171,7 @@ async function createHarness() {
     }
   };
 
-  const skuPath = require.resolve('../backend/src/services/product-sku');
+  const skuPath = require.resolve('../backend/dist/services/product-sku.js');
   require.cache[skuPath] = {
     id: skuPath,
     filename: skuPath,
@@ -182,8 +182,8 @@ async function createHarness() {
     }
   };
 
-  const { JWT_SECRET } = require('../backend/src/config/auth');
-  const router = require('../backend/src/routes/woocommerce');
+  const { JWT_SECRET } = require('../backend/dist/config/auth.js');
+  const router = require('../backend/dist/routes/woocommerce.js');
 
   const app = express();
   app.use(express.json({

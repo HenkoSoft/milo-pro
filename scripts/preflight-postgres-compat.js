@@ -4,12 +4,12 @@ const path = require('path');
 const ROOT_DIR = path.resolve(__dirname, '..');
 
 const TARGETS = [
-  path.join(ROOT_DIR, 'routes'),
-  path.join(ROOT_DIR, 'services'),
-  path.join(ROOT_DIR, 'auth.js')
+  path.join(ROOT_DIR, 'backend', 'src', 'routes'),
+  path.join(ROOT_DIR, 'backend', 'src', 'services'),
+  path.join(ROOT_DIR, 'backend', 'src', 'config', 'auth.ts')
 ];
 
-const FILE_EXTENSIONS = new Set(['.js']);
+const FILE_EXTENSIONS = new Set(['.js', '.ts']);
 
 const CHECKS = [
   { pattern: /\bINSERT\s+OR\s+REPLACE\b/i, label: 'INSERT OR REPLACE' },
@@ -67,7 +67,7 @@ function main() {
   }
 
   if (!findings.length) {
-    console.log('[PG-PREFLIGHT] No se detectaron patrones SQLite especificos en routes/services/auth.js');
+    console.log('[PG-PREFLIGHT] No se detectaron patrones SQLite especificos en backend/src routes/services/auth.ts');
     return;
   }
 
