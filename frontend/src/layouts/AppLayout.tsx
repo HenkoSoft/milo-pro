@@ -47,6 +47,28 @@ const navEntries: NavEntry[] = [
   {
     type: 'group',
     group: {
+      id: 'ventas-group',
+      label: 'Ventas',
+      icon: '&#128176;',
+      items: [
+        { id: 'sales', label: 'Facturas', icon: '&#129534;', title: 'Facturas' },
+        { id: 'sales-delivery-notes', label: 'Remitos', icon: '&#128203;', title: 'Remitos' },
+        { id: 'sales-quotes', label: 'Presupuestos', icon: '&#128221;', title: 'Presupuestos' },
+        { id: 'sales-orders', label: 'Pedidos', icon: '&#129530;', title: 'Pedidos' },
+        { id: 'sales-web-orders', label: 'Pedidos Web', icon: '&#127760;', title: 'Pedidos Web' },
+        { id: 'sales-credit-notes', label: 'Notas de Credito', icon: '&#128179;', title: 'Notas de Credito' },
+        { id: 'sales-collections', label: 'Cobranzas', icon: '&#128181;', title: 'Cobranzas' },
+        { id: 'sales-query-invoices', label: 'Consultar Facturas', icon: '&#128269;', title: 'Consultar Facturas' },
+        { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', icon: '&#128269;', title: 'Consultar Remitos' },
+        { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', icon: '&#128269;', title: 'Consultar Notas de Credito' },
+        { id: 'sales-query-quotes', label: 'Consultar Presupuestos', icon: '&#128269;', title: 'Consultar Presupuestos' },
+        { id: 'sales-query-orders', label: 'Consultar Pedidos', icon: '&#128269;', title: 'Consultar Pedidos' }
+      ]
+    }
+  },
+  {
+    type: 'group',
+    group: {
       id: 'articulos-group',
       label: 'Articulos',
       icon: '&#128230;',
@@ -78,28 +100,6 @@ const navEntries: NavEntry[] = [
         { id: 'purchase-query', label: 'Consulta de Compras', icon: '&#128269;', title: 'Consulta de Compras' },
         { id: 'nc-query', label: 'Consulta de N/C', icon: '&#128269;', title: 'Consulta de N/C' },
         { id: 'supplier-payments', label: 'Pagos a Proveedores', icon: '&#128179;', title: 'Pagos a Proveedores' }
-      ]
-    }
-  },
-  {
-    type: 'group',
-    group: {
-      id: 'ventas-group',
-      label: 'Ventas',
-      icon: '&#128176;',
-      items: [
-        { id: 'sales', label: 'Facturas', icon: '&#129534;', title: 'Facturas' },
-        { id: 'sales-delivery-notes', label: 'Remitos', icon: '&#128203;', title: 'Remitos' },
-        { id: 'sales-quotes', label: 'Presupuestos', icon: '&#128221;', title: 'Presupuestos' },
-        { id: 'sales-orders', label: 'Pedidos', icon: '&#129530;', title: 'Pedidos' },
-        { id: 'sales-web-orders', label: 'Pedidos Web', icon: '&#127760;', title: 'Pedidos Web' },
-        { id: 'sales-credit-notes', label: 'Notas de Credito', icon: '&#128179;', title: 'Notas de Credito' },
-        { id: 'sales-collections', label: 'Cobranzas', icon: '&#128181;', title: 'Cobranzas' },
-        { id: 'sales-query-invoices', label: 'Consultar Facturas', icon: '&#128269;', title: 'Consultar Facturas' },
-        { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', icon: '&#128269;', title: 'Consultar Remitos' },
-        { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', icon: '&#128269;', title: 'Consultar Notas de Credito' },
-        { id: 'sales-query-quotes', label: 'Consultar Presupuestos', icon: '&#128269;', title: 'Consultar Presupuestos' },
-        { id: 'sales-query-orders', label: 'Consultar Pedidos', icon: '&#128269;', title: 'Consultar Pedidos' }
       ]
     }
   },
