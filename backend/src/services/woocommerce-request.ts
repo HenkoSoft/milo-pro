@@ -1,3 +1,6 @@
+const http = require('http');
+const https = require('https');
+
 import { buildApiPath, getPort } from './woocommerce-sync-utils';
 
 type WooSyncConfigLike = {
@@ -34,6 +37,10 @@ interface RequestHandle {
   destroy: (error?: Error) => void;
 }
 
+function defaultTransportResolver(url: URL): TransportLike {
+  return url.protocol === 'http:' ? http : https;
+}
+
 function encodeBasicAuth(username: string, password: string): string {
   if (typeof globalThis.btoa === 'function') {
     return globalThis.btoa(`${username}:${password}`);
@@ -48,7 +55,7 @@ export function woocommerceRequest(
   config: WooSyncConfigLike | null,
   requestOptions: { timeout_ms?: number } | null,
   getActiveWooConfig: () => WooSyncConfigLike | Promise<WooSyncConfigLike | null | undefined> | null | undefined,
-  transportResolver: (url: URL) => TransportLike
+  transportResolver: ((url: URL) => TransportLike) | null = null
 ): Promise<unknown> {
   return Promise.resolve(config || getActiveWooConfig()).then((activeConfig) => new Promise((resolve, reject) => {
     if (!activeConfig || !activeConfig.store_url) {
@@ -58,7 +65,7 @@ export function woocommerceRequest(
 
     const timeoutMs = Math.max(1000, Number(requestOptions?.timeout_ms || 15000));
     const url = new URL(String(activeConfig.store_url));
-    const transport = transportResolver(url);
+    const transport = (transportResolver || defaultTransportResolver)(url);
     const auth = encodeBasicAuth(String(activeConfig.consumer_key ?? ''), String(activeConfig.consumer_secret ?? ''));
     const options: RequestOptions = {
       hostname: url.hostname,
@@ -120,7 +127,7 @@ export function wordpressRequest(
   headers: Record<string, string | number>,
   config: WooSyncConfigLike | null,
   getActiveWooConfig: () => WooSyncConfigLike | Promise<WooSyncConfigLike | null | undefined> | null | undefined,
-  transportResolver: (url: URL) => TransportLike
+  transportResolver: ((url: URL) => TransportLike) | null = null
 ): Promise<unknown> {
   return Promise.resolve(config || getActiveWooConfig()).then((activeConfig) => new Promise((resolve, reject) => {
     if (!activeConfig || !activeConfig.store_url) {
@@ -133,7 +140,7 @@ export function wordpressRequest(
     }
 
     const url = new URL(String(activeConfig.store_url));
-    const transport = transportResolver(url);
+    const transport = (transportResolver || defaultTransportResolver)(url);
     const auth = encodeBasicAuth(String(activeConfig.wp_username), String(activeConfig.wp_app_password));
     const basePath = url.pathname && url.pathname !== '/' ? url.pathname.replace(/\/$/, '') : '';
     const normalizedApiPath = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
