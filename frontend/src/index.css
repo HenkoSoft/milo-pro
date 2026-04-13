@@ -40,7 +40,7 @@ button, input, select, textarea { font: inherit; }
 .login-container {
   background: var(--card-bg);
   padding: 40px;
-  border-radius: var(--radius);
+  border-radius: 12px;
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 400px;
@@ -51,7 +51,7 @@ button, input, select, textarea { font: inherit; }
   margin-bottom: 30px;
 }
 
-.login-header h1 { font-size: 28px; color: var(--primary); }
+.login-header h1 { font-size: 24px; line-height: 1.2; color: var(--primary); }
 
 .login-header p { color: var(--text-secondary); }
 
@@ -89,8 +89,8 @@ button, input, select, textarea { font: inherit; }
 .error-message {
   min-height: 20px;
   margin-top: 12px;
-  color: #dc2626;
-  font-size: 13px;
+  color: var(--danger);
+  font-size: 12px;
 }
 
 .btn { padding: 8px 16px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 600; cursor: pointer; }
@@ -122,7 +122,7 @@ button, input, select, textarea { font: inherit; }
 }
 
 .btn-info {
-  background: #06b6d4;
+  background: var(--info);
   color: white;
 }
 
@@ -155,18 +155,18 @@ button, input, select, textarea { font: inherit; }
   text-align: center;
 }
 
-.sidebar-header h2 { margin-bottom: 10px; text-align: center; }
+.sidebar-header h2 { margin-bottom: 8px; text-align: center; }
 
 .user-role {
-  font-size: 11px;
+  font-size: 12px;
   background: var(--primary);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 10px 0;
+  padding: 12px 0;
 }
 
 .nav-item {
@@ -176,6 +176,7 @@ button, input, select, textarea { font: inherit; }
   color: var(--sidebar-text);
   text-decoration: none;
   cursor: pointer;
+  font-size: 14px;
 }
 
 .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); }
@@ -183,8 +184,8 @@ button, input, select, textarea { font: inherit; }
 .nav-group-header:hover { background: rgba(255,255,255,0.1); }
 
 .nav-icon {
-  margin-right: 10px;
-  font-size: 18px;
+  margin-right: 8px;
+  font-size: 20px;
 }
 
 .nav-group-header {
@@ -197,7 +198,7 @@ button, input, select, textarea { font: inherit; }
 
 .nav-arrow {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 12px;
   transition: transform 0.2s;
 }
 
@@ -216,7 +217,7 @@ button, input, select, textarea { font: inherit; }
 
 .nav-group-item {
   padding: 10px 20px 10px 50px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .nav-group-item span:first-child {
@@ -225,16 +226,16 @@ button, input, select, textarea { font: inherit; }
 
 .nav-counter-badge {
   margin-left: auto;
-  min-width: 22px;
-  height: 22px;
+  min-width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0 6px;
-  border-radius: 999px;
-  background: #f97316;
+  border-radius: 12px;
+  background: var(--warning);
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -250,7 +251,7 @@ button, input, select, textarea { font: inherit; }
 
 .top-bar { background: var(--card-bg); padding: 12px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
 
-#page-title { font-size: 22px; font-weight: 600; }
+#page-title { font-size: 24px; line-height: 1.2; font-weight: 600; }
 
 .header-actions {
   margin-left: auto;
@@ -258,12 +259,13 @@ button, input, select, textarea { font: inherit; }
 }
 
 .page-content {
-  padding: 16px 24px 20px;
+  padding: 16px 24px 24px;
 }
 
 .card {
   background: var(--card-bg);
-  border-radius: var(--radius);
+  border-radius: 12px;
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
   padding: 20px;
 }
@@ -271,82 +273,84 @@ button, input, select, textarea { font: inherit; }
 .card-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .card-header h3,
 .card h2,
 .card h3 {
-  margin: 0 0 15px 0;
+  margin: 0 0 12px 0;
 }
 
 .badge {
   display: inline-block;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
+  font-weight: 600;
 }
 
 .badge-gray {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface);
+  color: var(--text-secondary);
 }
 
 .badge-blue {
   background: #dbeafe;
-  color: #2563eb;
+  color: var(--primary);
 }
 
 .badge-yellow {
   background: #fef3c7;
-  color: #d97706;
+  color: var(--warning);
 }
 
 .badge-purple {
   background: #ede9fe;
-  color: #7c3aed;
+  color: var(--primary);
 }
 
 .badge-green {
   background: #d1fae5;
-  color: #059669;
+  color: var(--accent);
 }
 
 .badge-red {
   background: #fee2e2;
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .alert {
   padding: 12px 16px;
   border-radius: var(--radius);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
 }
 
 .alert-warning {
   background: #fef3c7;
-  color: #92400e;
+  color: var(--warning);
 }
 
 .dashboard-shell {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
 }
 
 .dashboard-kicker {
   margin: 0 0 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #0f766e;
+  color: var(--primary);
 }
 
 .dashboard-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.9fr);
-  gap: 18px;
+  gap: 16px;
 }
 
 .dashboard-hero-main,
@@ -357,21 +361,21 @@ button, input, select, textarea { font: inherit; }
 .dashboard-feed-card,
 .dashboard-action-card {
   background: var(--card-bg);
-  border-radius: 18px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
 }
 
 .dashboard-hero-main {
   padding: 28px;
   background:
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 34%),
-    linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-  border: 1px solid #d1fae5;
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 34%),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--border);
 }
 
 .dashboard-hero-main h2 {
   margin: 0 0 10px;
-  font-size: 32px;
+  font-size: 24px;
   line-height: 1.05;
 }
 
@@ -379,19 +383,19 @@ button, input, select, textarea { font: inherit; }
   margin: 0;
   max-width: 760px;
   color: var(--text-secondary);
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .dashboard-hero-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
   margin-top: 22px;
 }
 
 .dashboard-hero-pill {
   padding: 16px 18px;
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(148, 163, 184, 0.22);
 }
@@ -409,7 +413,7 @@ button, input, select, textarea { font: inherit; }
 .dashboard-hero-panel strong {
   display: block;
   margin-top: 6px;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.1;
 }
 
@@ -447,7 +451,7 @@ button, input, select, textarea { font: inherit; }
   display: inline-flex;
   align-items: center;
   margin-top: 14px;
-  color: #0f766e;
+  color: var(--primary);
   font-weight: 700;
   text-decoration: none;
 }
@@ -459,7 +463,7 @@ button, input, select, textarea { font: inherit; }
 }
 
 .dashboard-pulse-card {
-  padding: 18px;
+  padding: 16px;
   border: 1px solid #e2e8f0;
 }
 
@@ -503,11 +507,11 @@ button, input, select, textarea { font: inherit; }
 .dashboard-action-meta {
   display: inline-block;
   margin-bottom: 12px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #0f766e;
+  color: var(--primary);
 }
 
 .dashboard-board-grid {
@@ -517,7 +521,7 @@ button, input, select, textarea { font: inherit; }
 }
 
 .dashboard-board-card {
-  padding: 18px;
+  padding: 16px;
   border: 1px solid #e2e8f0;
 }
 
@@ -531,11 +535,11 @@ button, input, select, textarea { font: inherit; }
 
 .dashboard-board-head h4 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .dashboard-board-head a {
-  color: #0f766e;
+  color: var(--primary);
   font-weight: 700;
   text-decoration: none;
 }
@@ -549,7 +553,7 @@ button, input, select, textarea { font: inherit; }
   margin-bottom: 10px;
   padding: 14px;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border-radius: 12px;
   background: #fff;
   text-decoration: none;
   color: inherit;
@@ -571,8 +575,8 @@ button, input, select, textarea { font: inherit; }
 }
 
 .dashboard-empty-state {
-  padding: 18px;
-  border-radius: 14px;
+  padding: 16px;
+  border-radius: 12px;
   background: #f8fafc;
   color: var(--text-secondary);
   text-align: center;
@@ -643,7 +647,7 @@ button, input, select, textarea { font: inherit; }
   }
 
   .dashboard-hero-main h2 {
-    font-size: 26px;
+    font-size: 24px;
   }
 
   .dashboard-feed-item,
@@ -672,13 +676,13 @@ button, input, select, textarea { font: inherit; }
 
 .customer-modal-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .customer-modal-subtitle {
   margin: 4px 0 0;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .customer-form {
@@ -771,7 +775,7 @@ button, input, select, textarea { font: inherit; }
 
 .customer-addon-button--wide {
   min-width: 84px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .customer-input-icon-wrap {
@@ -884,7 +888,7 @@ button, input, select, textarea { font: inherit; }
 
 .products-module-head h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
 }
 
 .products-module-head p:last-child {
@@ -895,7 +899,7 @@ button, input, select, textarea { font: inherit; }
 .products-module-kicker {
   margin: 0 0 8px;
   color: var(--primary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -913,10 +917,10 @@ button, input, select, textarea { font: inherit; }
 .products-sheet-toolbar,
 .products-config-card {
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 18px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  margin-bottom: 18px;
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--card-bg);
+  margin-bottom: 16px;
 }
 
 .products-inline-grid {
@@ -939,7 +943,7 @@ button, input, select, textarea { font: inherit; }
 
 .products-sheet-stats {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   flex-wrap: wrap;
   margin-top: 14px;
   color: var(--text-secondary);
@@ -951,7 +955,7 @@ button, input, select, textarea { font: inherit; }
 
 .products-sheet-table-wrap {
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   background: #ffffff;
 }
@@ -981,7 +985,7 @@ button, input, select, textarea { font: inherit; }
   justify-content: center;
   background: #f8fafc;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-align: center;
 }
@@ -1003,21 +1007,21 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border-color);
   background: #fff;
   color: var(--text-color);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .products-tab-button.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
 .products-price-card {
-  padding: 18px;
+  padding: 16px;
 }
 
 .products-price-search {
@@ -1039,14 +1043,14 @@ button, input, select, textarea { font: inherit; }
   text-align: left;
   border: 1px solid var(--border-color);
   background: #fff;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
 }
 
 .products-price-search-item.is-active {
-  border-color: var(--accent-color);
-  background: #f0fdfa;
+  border-color: var(--primary);
+  background: #dbeafe;
 }
 
 .products-price-search-item span,
@@ -1081,11 +1085,11 @@ button, input, select, textarea { font: inherit; }
 
 .products-price-summary-card span {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .products-price-summary-card strong {
-  font-size: 22px;
+  font-size: 24px;
 }
 
 .products-price-table-wrap {
@@ -1122,9 +1126,9 @@ button, input, select, textarea { font: inherit; }
 
 .products-split-panel {
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  padding: 18px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  padding: 16px;
 }
 
 .products-help-line {
@@ -1151,7 +1155,7 @@ button, input, select, textarea { font: inherit; }
 .products-modal-tab {
   border: 1px solid var(--border);
   border-bottom: none;
-  border-radius: 14px 14px 0 0;
+  border-radius: 12px 12px 0 0;
   background: #f8fafc;
   color: var(--text-secondary);
   padding: 12px 18px;
@@ -1176,7 +1180,7 @@ button, input, select, textarea { font: inherit; }
 .products-subtitle {
   margin: 0 0 12px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1224,13 +1228,13 @@ button, input, select, textarea { font: inherit; }
 
 .sellers-module-head h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
 }
 
 .sellers-module-kicker {
   margin: 0 0 8px;
   color: var(--primary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1246,10 +1250,10 @@ button, input, select, textarea { font: inherit; }
 .sellers-filter-card,
 .sellers-table-card {
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 18px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  margin-bottom: 18px;
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--card-bg);
+  margin-bottom: 16px;
 }
 
 .sellers-search-box {
@@ -1289,7 +1293,7 @@ button, input, select, textarea { font: inherit; }
 
 .sellers-help-text {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .seller-modal {
@@ -1329,13 +1333,13 @@ button, input, select, textarea { font: inherit; }
 
 .cash-module-head h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
 }
 
 .cash-module-kicker {
   margin: 0 0 8px;
   color: var(--primary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1351,10 +1355,10 @@ button, input, select, textarea { font: inherit; }
 .cash-filter-card,
 .cash-table-card {
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 18px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  margin-bottom: 18px;
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--card-bg);
+  margin-bottom: 16px;
 }
 
 .cash-search-box {
@@ -1393,8 +1397,8 @@ button, input, select, textarea { font: inherit; }
 
 .cash-summary-card {
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 18px;
+  border-radius: 12px;
+  padding: 16px;
   display: grid;
   gap: 8px;
 }
@@ -1431,8 +1435,8 @@ button, input, select, textarea { font: inherit; }
 
 .cash-dashboard-panel {
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 18px;
+  border-radius: 12px;
+  padding: 16px;
   background: #fff;
 }
 
@@ -1477,23 +1481,23 @@ button, input, select, textarea { font: inherit; }
 .sales-mini-tab {
   border: 1px solid var(--border-color);
   background: #fff;
-  border-radius: 999px;
-  padding: 10px 16px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .sales-mini-tab.is-active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
 .sales-stat-card {
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 12px;
   background: #fff;
-  padding: 18px;
+  padding: 16px;
   display: grid;
   gap: 8px;
 }
@@ -1504,12 +1508,12 @@ button, input, select, textarea { font: inherit; }
 }
 
 .sales-stat-card strong {
-  font-size: 26px;
+  font-size: 24px;
 }
 
 .sales-empty-block {
   border: 1px dashed var(--border-color);
-  border-radius: 16px;
+  border-radius: 12px;
   background: #fff;
   padding: 24px;
   color: var(--text-secondary);
@@ -1528,7 +1532,7 @@ button, input, select, textarea { font: inherit; }
 
 .sales-web-summary-card {
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 12px;
   background: #fff;
   padding: 16px;
   display: grid;
@@ -1571,10 +1575,10 @@ button, input, select, textarea { font: inherit; }
 }
 
 .sales-web-priority-pill {
-  border-radius: 999px;
+  border-radius: 12px;
   padding: 4px 10px;
-  background: #eef2ff;
-  color: #4338ca;
+  background: #dbeafe;
+  color: var(--primary);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1595,14 +1599,14 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
   align-items: center;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 12px;
   background: #f8fafc;
   padding: 12px 14px;
 }
 
 .sales-web-status-form {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .sales-web-sync-check {
@@ -1663,7 +1667,7 @@ button, input, select, textarea { font: inherit; }
 
 @media (max-width: 768px) {
   .products-admin-panel {
-    padding: 18px;
+    padding: 16px;
   }
 
   .products-module-head {
@@ -1676,10 +1680,10 @@ button, input, select, textarea { font: inherit; }
     grid-template-columns: 1fr;
   }
 }
-.repair-status-flow { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 20px; }
-.status-step { padding: 6px 12px; border-radius: 15px; font-size: 12px; background: var(--bg); cursor: pointer; }
+.repair-status-flow { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.status-step { padding: 6px 12px; border-radius: 12px; font-size: 12px; background: var(--bg); cursor: pointer; }
 .status-step.active { background: var(--primary); color: white; }
-.detail-section { background: var(--bg); padding: 15px; border-radius: var(--radius); margin-bottom: 20px; }
+.detail-section { background: var(--bg); padding: 16px; border-radius: var(--radius); margin-bottom: 20px; }
 .detail-row { display: flex; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .detail-row:last-child { border-bottom: none; }
 .detail-label { font-weight: 500; width: 120px; color: var(--text-secondary); }
@@ -1704,7 +1708,7 @@ button, input, select, textarea { font: inherit; }
 
 .sales-module-kicker {
   margin: 0 0 4px;
-  color: var(--accent-color);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1713,7 +1717,7 @@ button, input, select, textarea { font: inherit; }
 
 .sales-module-head h2 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
 }
 
 .sales-module-head p {
@@ -1731,16 +1735,16 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border-color);
   background: #fff;
   color: var(--text-color);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .sales-tab-button.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -1762,7 +1766,7 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border-color);
   border-radius: 12px;
   background: #fff;
-  padding: 18px;
+  padding: 16px;
 }
 
 .sales-invoice-sections {
@@ -1799,10 +1803,10 @@ button, input, select, textarea { font: inherit; }
 .sales-customer-summary {
   margin-top: 16px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #f4f7fb;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1824,7 +1828,7 @@ button, input, select, textarea { font: inherit; }
 
 .sales-addon-button {
   border: 0;
-  background: var(--accent-color);
+  background: var(--primary);
   color: #fff;
   border-radius: 8px;
   padding: 10px 14px;
@@ -1852,7 +1856,7 @@ button, input, select, textarea { font: inherit; }
   text-align: left;
   border: 1px solid var(--border-color);
   background: #fff;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
 }
@@ -1874,7 +1878,7 @@ button, input, select, textarea { font: inherit; }
 .sales-lines-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .sales-lines-table th,
@@ -1930,7 +1934,7 @@ button, input, select, textarea { font: inherit; }
   margin-top: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--border-color);
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .sales-primary-action {
@@ -1960,7 +1964,7 @@ button, input, select, textarea { font: inherit; }
 
 .purchases-module-kicker {
   margin: 0 0 4px;
-  color: var(--accent-color);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1970,7 +1974,7 @@ button, input, select, textarea { font: inherit; }
 .purchases-module-head h2,
 .purchases-title {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
 }
 
 .purchases-module-head p {
@@ -1988,16 +1992,16 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border-color);
   background: #fff;
   color: var(--text-color);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .purchases-tab-button.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -2015,7 +2019,7 @@ button, input, select, textarea { font: inherit; }
 .purchase-inline-grid {
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr);
-  gap: 5px;
+  gap: 8px;
 }
 
 .purchase-inline-grid--supplier {
@@ -2026,9 +2030,9 @@ button, input, select, textarea { font: inherit; }
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  font-size: 13px;
+  font-size: 12px;
   background: #f8fafc;
-  padding: 15px;
+  padding: 16px;
   border-radius: 8px;
   margin-bottom: 20px;
 }
@@ -2066,7 +2070,7 @@ button, input, select, textarea { font: inherit; }
   text-align: left;
   border: 1px solid var(--border-color);
   background: #fff;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
 }
@@ -2092,8 +2096,8 @@ button, input, select, textarea { font: inherit; }
 }
 
 .purchase-totals-grand {
-  font-size: 20px;
-  color: #2563eb;
+  font-size: 24px;
+  color: var(--primary);
 }
 
 .purchase-notes-group {
@@ -2173,7 +2177,7 @@ button, input, select, textarea { font: inherit; }
 .reports-module-kicker,
 .reports-panel-kicker {
   margin: 0 0 4px;
-  color: var(--accent-color);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -2200,16 +2204,16 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border-color);
   background: #fff;
   color: var(--text-color);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .reports-tab-button.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -2231,7 +2235,7 @@ button, input, select, textarea { font: inherit; }
 
 .reports-summary-card span {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .reports-summary-card strong {
@@ -2239,7 +2243,7 @@ button, input, select, textarea { font: inherit; }
 }
 
 .reports-panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .reports-panel-head {
@@ -2289,7 +2293,7 @@ button, input, select, textarea { font: inherit; }
 .admin-module-kicker,
 .admin-panel-kicker {
   margin: 0 0 4px;
-  color: var(--accent-color);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -2316,16 +2320,16 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border-color);
   background: #fff;
   color: var(--text-color);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .admin-tab-button.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -2336,7 +2340,7 @@ button, input, select, textarea { font: inherit; }
 }
 
 .admin-panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .admin-panel-full {
@@ -2373,14 +2377,14 @@ button, input, select, textarea { font: inherit; }
 
 .admin-status-card span {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-tree-card {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
-  padding: 14px;
+  padding: 16px;
   margin-bottom: 14px;
 }
 
@@ -2396,7 +2400,7 @@ button, input, select, textarea { font: inherit; }
 
 .admin-tree-item {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-actions-row {
@@ -2431,7 +2435,7 @@ button, input, select, textarea { font: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-help-inline {
@@ -2449,15 +2453,15 @@ button, input, select, textarea { font: inherit; }
 
 .admin-table-card {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
-  padding: 14px;
+  padding: 16px;
 }
 
 .admin-table-header-note {
   margin-bottom: 10px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-warning-card h3 {
@@ -2486,8 +2490,8 @@ button, input, select, textarea { font: inherit; }
 .admin-tool-card {
   border: 1px solid var(--border-color);
   background: #fff;
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 16px;
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -2497,15 +2501,15 @@ button, input, select, textarea { font: inherit; }
 
 .admin-tool-card span {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .admin-process-card {
   margin-top: 16px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
-  padding: 14px;
+  padding: 16px;
 }
 
 .admin-process-card h4 {
@@ -2549,7 +2553,7 @@ button, input, select, textarea { font: inherit; }
 .tools-panel-kicker,
 .help-module-kicker {
   margin: 0 0 4px;
-  color: var(--accent-color);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -2572,8 +2576,8 @@ button, input, select, textarea { font: inherit; }
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-radius: 999px;
-  font-size: 13px;
+  border-radius: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -2590,7 +2594,7 @@ button, input, select, textarea { font: inherit; }
 .tools-connection-dot {
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: 12px;
   background: currentColor;
 }
 
@@ -2606,17 +2610,17 @@ button, input, select, textarea { font: inherit; }
   border: 1px solid var(--border-color);
   background: #fff;
   color: var(--text-color);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .tools-tab-button.active,
 .help-tab-button.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -2629,7 +2633,7 @@ button, input, select, textarea { font: inherit; }
 .tools-panel,
 .help-filter-card,
 .help-contact-card {
-  padding: 18px;
+  padding: 16px;
 }
 
 .tools-panel-head,
@@ -2663,12 +2667,12 @@ button, input, select, textarea { font: inherit; }
 .tools-summary-card span,
 .help-info-card span {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .tools-summary-card strong,
 .help-info-card strong {
-  font-size: 22px;
+  font-size: 24px;
 }
 
 .tools-empty-row {
@@ -2705,7 +2709,7 @@ button, input, select, textarea { font: inherit; }
   border: 0;
   background: transparent;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -2888,7 +2892,7 @@ button, input, select, textarea { font: inherit; }
 .sellers-module-head h2,
 .cash-module-head h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
 }
 
 .products-module-head p:last-child,
@@ -2915,7 +2919,7 @@ button, input, select, textarea { font: inherit; }
 .cash-module-kicker {
   margin: 0 0 8px;
   color: var(--primary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2946,7 +2950,7 @@ button, input, select, textarea { font: inherit; }
   color: var(--text-primary);
   border-radius: var(--radius);
   padding: 10px 16px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -3089,14 +3093,14 @@ button, input, select, textarea { font: inherit; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 0;
+  padding: 16px 0;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .btn-group {
   display: flex;
-  gap: 5px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -3116,14 +3120,14 @@ button, input, select, textarea { font: inherit; }
   gap: 12px;
   padding-top: 14px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .btn-action {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
   display: flex;
@@ -3169,7 +3173,7 @@ button, input, select, textarea { font: inherit; }
 .search-box input {
   padding: 10px 15px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   min-width: 250px;
   transition: border-color 0.2s;
@@ -3196,7 +3200,7 @@ button, input, select, textarea { font: inherit; }
 
 .customer-tabs {
   gap: 8px;
-  padding: 0 0 12px;
+  padding: 0 0 16px;
   background: transparent;
   border-bottom: none;
 }
@@ -3206,7 +3210,7 @@ button, input, select, textarea { font: inherit; }
   border-bottom: 1px solid var(--border);
   background: #ffffff;
   color: var(--text-primary);
-  padding: 10px 16px;
+  padding: 8px 16px;
   border-radius: var(--radius);
   font-weight: 600;
 }
@@ -3301,7 +3305,7 @@ button, input, select, textarea { font: inherit; }
 .help-module-head h2,
 .sellers-module-head h2,
 .cash-module-head h2 {
-  font-size: 22px;
+  font-size: 24px;
 }
 
 .products-module-head p:last-child,
@@ -3314,7 +3318,7 @@ button, input, select, textarea { font: inherit; }
 .sellers-module-head p,
 .cash-module-head p {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .products-price-config-grid input,
@@ -3353,7 +3357,7 @@ button, input, select, textarea { font: inherit; }
 .products-config-card,
 .sales-form-card,
 .sales-summary-card {
-  padding: 20px !important;
+  padding: 16px !important;
 }
 
 .products-sheet-table th,
@@ -3378,16 +3382,16 @@ td {
 .tools-tab-button,
 .help-tab-button,
 .customer-tab {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .customer-radio-card {
-  padding: 10px 12px;
+  padding: 12px;
   border: 1px solid var(--border) !important;
 }
 
 .customer-fieldset {
-  padding: 14px;
+  padding: 16px;
 }
 
 .customer-modal-body,
@@ -3456,7 +3460,7 @@ td {
 }
 
 .dashboard-hero-main {
-  padding: 20px !important;
+  padding: 24px !important;
 }
 
 .dashboard-hero-main h2,
@@ -3478,11 +3482,11 @@ td {
 .dashboard-action-meta {
   display: inline-block;
   margin-bottom: 8px;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: var(--radius);
-  background: #eff6ff;
-  color: #1d4ed8 !important;
-  font-size: 11px;
+  background: #dbeafe;
+  color: var(--primary) !important;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -3496,6 +3500,32 @@ td {
 .dashboard-feed-item,
 .dashboard-list-item {
   border-radius: var(--radius) !important;
+  padding: 12px 0 !important;
+}
+
+.dashboard-hero-pill,
+.dashboard-pulse-card,
+.dashboard-action-card,
+.dashboard-board-card,
+.dashboard-feed-card {
+  border-radius: 12px !important;
+}
+
+.dashboard-hero-main h2 {
+  font-size: 24px !important;
+  line-height: 1.2 !important;
+}
+
+.dashboard-hero-pill,
+.dashboard-list-item,
+.dashboard-feed-item {
+  padding: 12px !important;
+}
+
+.dashboard-pulse-card strong,
+.dashboard-hero-pill strong,
+.dashboard-hero-panel strong {
+  font-size: 24px !important;
 }
 
 .products-sheet-toolbar,
@@ -3531,9 +3561,15 @@ td {
 .cash-table-card,
 .cash-dashboard-panel,
 .sales-form-card,
+.purchases-card,
+.supplier-info-card,
 .reports-panel,
-.admin-panel {
-  padding: 18px !important;
+.admin-panel,
+.tools-panel,
+.tools-summary-card,
+.admin-status-card,
+.help-info-card {
+  padding: 16px !important;
 }
 
 .products-sheet-table-wrap,
@@ -3554,6 +3590,17 @@ td {
   border-radius: var(--radius) !important;
 }
 
+.purchase-search-result,
+.sales-search-result {
+  padding: 12px !important;
+}
+
+.products-sheet-thumb,
+.products-sheet-thumb--empty {
+  width: 48px !important;
+  height: 48px !important;
+}
+
 .products-tab-button,
 .sales-tab-button,
 .purchases-tab-button,
@@ -3561,10 +3608,11 @@ td {
 .admin-tab-button,
 .tools-tab-button,
 .help-tab-button,
-.sales-mini-tab {
-  border-radius: 6px !important;
-  padding: 9px 14px !important;
-  font-weight: 500 !important;
+.sales-mini-tab,
+.customer-tab {
+  border-radius: var(--radius) !important;
+  padding: 8px 16px !important;
+  font-weight: 600 !important;
 }
 
 .products-tab-button.active,
@@ -3574,10 +3622,27 @@ td {
 .admin-tab-button.active,
 .tools-tab-button.active,
 .help-tab-button.active,
-.sales-mini-tab.is-active {
+.sales-mini-tab.is-active,
+.customer-tab.is-active {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
   color: #ffffff !important;
+}
+
+.products-modal-tabs {
+  gap: 8px !important;
+  padding: 16px 16px 0 !important;
+  background: var(--card-bg) !important;
+}
+
+.products-modal-tab {
+  border-radius: 12px 12px 0 0 !important;
+  padding: 12px 16px !important;
+}
+
+.products-modal-tab.is-active {
+  background: var(--card-bg) !important;
+  color: var(--primary) !important;
 }
 
 .sales-module-head h2,
@@ -3590,7 +3655,7 @@ td {
 .products-module-head h2,
 .help-module-head h2,
 .tools-module-head h2 {
-  font-size: 22px !important;
+  font-size: 24px !important;
 }
 
 .sales-module-kicker,
@@ -3612,8 +3677,9 @@ td {
 .sales-web-summary-card strong,
 .reports-summary-card strong,
 .cash-summary-card strong,
-.products-price-summary-card strong {
-  font-size: 22px !important;
+.products-price-summary-card strong,
+.purchase-totals-grand {
+  font-size: 24px !important;
 }
 
 .products-summary-strip,
@@ -3623,6 +3689,83 @@ td {
   background: #f8fafc !important;
 }
 
+.purchase-header-grid,
+.purchase-item-grid,
+.purchase-modal-grid,
+.customer-form-grid {
+  gap: 16px !important;
+}
+
+.purchase-inline-grid {
+  gap: 8px !important;
+}
+
+.customer-input-combo,
+.sales-inline-combo {
+  gap: 8px !important;
+}
+
+.products-price-summary-card {
+  padding: 16px !important;
+}
+
+.products-price-summary-card span,
+.products-subtitle {
+  font-size: 14px !important;
+}
+
+.admin-panel-kicker,
+.tools-panel-kicker,
+.help-module-kicker,
+.admin-module-kicker,
+.tools-module-kicker {
+  color: var(--primary) !important;
+  font-size: 12px !important;
+}
+
+.admin-status-card span,
+.tools-summary-card span,
+.help-info-card span {
+  font-size: 14px !important;
+}
+
+.admin-status-card strong,
+.tools-summary-card strong,
+.help-info-card strong {
+  font-size: 24px !important;
+}
+
+.admin-tool-card,
+.tools-switcher-button {
+  padding: 16px !important;
+  border-radius: var(--radius) !important;
+}
+
+.tools-switcher-button.is-active,
+.admin-tool-card.is-active {
+  border-color: var(--primary) !important;
+  background: #dbeafe !important;
+  color: var(--primary) !important;
+}
+
+.sales-admin-content .sales-payment-modal {
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.sales-admin-content .sales-payment-method {
+  border-radius: var(--radius) !important;
+  padding: 8px 16px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+.sales-admin-content .sales-payment-method.is-active {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
 .sales-addon-button {
   background: var(--primary) !important;
   border-radius: var(--radius) !important;
@@ -3630,8 +3773,8 @@ td {
 
 .products-price-search-item.is-active,
 .sales-web-priority-pill {
-  background: #eff6ff !important;
-  color: #1d4ed8 !important;
+  background: #dbeafe !important;
+  color: var(--primary) !important;
   border-color: #bfdbfe !important;
 }
 
@@ -3646,14 +3789,14 @@ td {
 .status-step,
 .badge,
 .user-role {
-  border-radius: 10px !important;
+  border-radius: var(--radius) !important;
 }
 
 .nav-counter-badge {
-  min-width: 20px !important;
-  height: 20px !important;
+  min-width: 24px !important;
+  height: 24px !important;
   padding: 0 6px !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
 }
 
 .status-step {
@@ -3738,7 +3881,7 @@ td {
 .dashboard-pulse-card strong,
 .dashboard-hero-pill strong,
 .dashboard-hero-panel strong {
-  font-size: 22px !important;
+  font-size: 24px !important;
 }
 
 .products-admin-panel,
@@ -3763,8 +3906,8 @@ td {
 .help-module-head,
 .sellers-module-head,
 .cash-module-head {
-  margin-bottom: 18px !important;
-  gap: 14px !important;
+  margin-bottom: 16px !important;
+  gap: 16px !important;
 }
 
 .products-module-head p:last-child,
@@ -3901,7 +4044,7 @@ td {
 .products-price-summary-card strong,
 .tools-summary-card strong,
 .help-info-card strong {
-  font-size: 20px !important;
+  font-size: 24px !important;
 }
 
 /* Shell parity with legacy */
@@ -3929,7 +4072,7 @@ td {
 
 #login-screen .login-header h1 {
   margin: 0 0 10px 0 !important;
-  font-size: 28px !important;
+  font-size: 24px !important;
   color: var(--primary) !important;
 }
 
@@ -4008,8 +4151,8 @@ td {
 #app .user-role {
   display: inline-block !important;
   padding: 2px 8px !important;
-  font-size: 11px !important;
-  border-radius: 10px !important;
+  font-size: 12px !important;
+  border-radius: 12px !important;
   background: var(--primary) !important;
   color: #fff !important;
 }
@@ -4036,12 +4179,12 @@ td {
 
 #app .nav-icon {
   margin-right: 10px !important;
-  font-size: 18px !important;
+  font-size: 20px !important;
 }
 
 #app .nav-arrow {
   margin-left: auto !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
 }
 
 #app .nav-group-items {
@@ -4050,7 +4193,7 @@ td {
 
 #app .nav-group-item {
   padding: 10px 20px 10px 50px !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
 }
 
 #app .sidebar-footer {
@@ -4074,7 +4217,7 @@ td {
 
 #app #page-title {
   margin: 0 !important;
-  font-size: 22px !important;
+  font-size: 24px !important;
   font-weight: 600 !important;
   color: var(--text-primary) !important;
 }
@@ -4119,16 +4262,16 @@ td {
 .reports-table-card,
 .reports-excel-card {
   border: 1px solid var(--border);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  padding: 18px;
-  margin-bottom: 18px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
 .reports-filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .reports-toolbar-actions,
@@ -4144,7 +4287,7 @@ td {
 .reports-table-toolbar {
   justify-content: space-between;
   margin-top: 0;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .reports-search-box {
@@ -4154,8 +4297,8 @@ td {
 .reports-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 @media (max-width: 1100px) {
@@ -4167,7 +4310,7 @@ td {
 
 @media (max-width: 768px) {
   .reports-admin-panel {
-    padding: 18px;
+    padding: 16px;
   }
 
   .reports-module-head,
@@ -4192,7 +4335,7 @@ td {
 .help-admin-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
+  gap: 24px;
 }
 
 .help-admin-sidebar {
@@ -4201,17 +4344,17 @@ td {
 }
 
 .help-admin-sidebar-head {
-  padding: 24px 22px 18px;
+  padding: 24px 24px 16px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background: var(--card-bg);
 }
 
 .help-admin-kicker {
   margin: 0 0 8px;
   color: var(--primary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -4239,7 +4382,7 @@ td {
   border-radius: 12px;
   background: #ffffff;
   color: var(--text-primary);
-  padding: 12px 14px;
+  padding: 12px 16px;
   text-align: left;
   cursor: pointer;
   font-weight: 600;
@@ -4249,8 +4392,8 @@ td {
 .help-admin-nav-item.is-active,
 .help-admin-nav-item:hover {
   border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #dbeafe;
+  color: var(--primary);
 }
 
 .help-admin-content {
@@ -4264,23 +4407,23 @@ td {
 .help-rich-card,
 .help-form-card {
   border: 1px solid var(--border);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  padding: 18px;
-  margin-bottom: 18px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
 .help-step-list {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .help-step-item {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
-  gap: 14px;
+  gap: 16px;
   align-items: start;
-  padding: 14px 0;
+  padding: 16px 0;
   border-top: 1px solid var(--border);
 }
 
@@ -4295,8 +4438,8 @@ td {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: #eff6ff;
+  border-radius: 12px;
+  background: #dbeafe;
   color: var(--primary);
 }
 
@@ -4335,7 +4478,7 @@ td {
 
 @media (max-width: 768px) {
   .help-admin-panel {
-    padding: 18px;
+    padding: 16px;
   }
 
   .help-form-grid {
@@ -4378,9 +4521,9 @@ td {
 
 .sales-admin-content .sales-invoice-block {
   border: 1px solid var(--border) !important;
-  border-radius: 14px !important;
+  border-radius: 12px !important;
   background: var(--card-bg) !important;
-  padding: 8px 10px !important;
+  padding: 8px 12px !important;
 }
 
 .sales-admin-content .sales-invoice-block-head {
@@ -4392,7 +4535,7 @@ td {
 
 .sales-admin-content .sales-invoice-block-head h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -4417,7 +4560,7 @@ td {
 
 .sales-admin-content .sales-invoice-layout .form-group label {
   margin-bottom: 3px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
 }
@@ -4425,8 +4568,8 @@ td {
 .sales-admin-content .sales-invoice-layout input,
 .sales-admin-content .sales-invoice-layout select {
   min-height: 34px;
-  padding: 6px 10px;
-  font-size: 13px;
+  padding: 8px 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -4443,18 +4586,18 @@ td {
   height: 34px !important;
   padding: 0 12px !important;
   border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
+  border-radius: var(--radius) !important;
   background: var(--bg) !important;
   color: var(--text-primary) !important;
   cursor: pointer !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 700 !important;
 }
 
 .sales-admin-content .sales-customer-summary {
   margin-top: 6px;
-  padding: 6px 10px;
-  border-radius: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--text-secondary);
   border: 1px solid var(--border);
@@ -4476,7 +4619,7 @@ td {
 
 .sales-admin-content .sales-article-search-group {
   margin-bottom: 0 !important;
-  padding: 8px 10px !important;
+  padding: 8px 12px !important;
   border: 1px solid var(--border) !important;
   border-radius: 12px !important;
   background: var(--card-bg) !important;
@@ -4486,14 +4629,14 @@ td {
 .sales-admin-content .sales-article-search-group label {
   display: block !important;
   margin-bottom: 3px !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
   color: var(--text-primary) !important;
 }
 
 .sales-admin-content .sales-search-callout {
   margin-bottom: 6px !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   color: var(--primary) !important;
   letter-spacing: 0.04em !important;
@@ -4507,11 +4650,11 @@ td {
 
 .sales-admin-content .sales-article-search-group input {
   min-height: 36px !important;
-  padding: 0 10px !important;
+  padding: 0 12px !important;
   border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
+  border-radius: var(--radius) !important;
   background: var(--card-bg) !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   box-shadow: none !important;
 }
@@ -4529,18 +4672,18 @@ td {
 
 .sales-admin-content .sales-article-search-group .sales-addon-button {
   height: 36px !important;
-  border-radius: 10px !important;
+  border-radius: var(--radius) !important;
   border-color: var(--primary) !important;
   background: var(--primary) !important;
   color: #ffffff !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   letter-spacing: 0.02em !important;
 }
 
 .sales-admin-content .sales-search-meta {
   margin: 3px 0 6px !important;
   color: var(--text-secondary) !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
 }
 
@@ -4562,7 +4705,7 @@ td {
 
 .sales-admin-content .sales-summary-card {
   width: min(100%, 332px);
-  padding: 6px 10px !important;
+  padding: 8px 12px !important;
 }
 
 .sales-admin-content .sales-summary-row,
@@ -4576,8 +4719,8 @@ td {
 
 .sales-admin-content .sales-summary-total {
   margin-top: 0;
-  padding-top: 5px;
-  font-size: 17px;
+  padding-top: 4px;
+  font-size: 20px;
   font-weight: 700;
   border-bottom: none;
   color: var(--primary);
@@ -4592,7 +4735,7 @@ td {
 .sales-admin-content .sales-primary-action .btn {
   min-width: 180px;
   min-height: 36px;
-  padding: 7px 18px;
+  padding: 8px 16px;
 }
 
 .sales-admin-content .sales-search-results {
@@ -4612,7 +4755,7 @@ td {
   width: 100% !important;
   padding: 8px 10px !important;
   border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   background: var(--card-bg) !important;
   color: var(--text-primary) !important;
   text-align: left !important;
@@ -4650,7 +4793,7 @@ td {
 
 .sales-admin-content .sales-search-result-thumb-placeholder {
   padding: 4px !important;
-  font-size: 9px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   color: var(--text-secondary) !important;
   text-align: center !important;
@@ -4661,7 +4804,7 @@ td {
 .sales-admin-content .sales-search-result-side {
   display: flex !important;
   flex-direction: column !important;
-  gap: 2px !important;
+  gap: 4px !important;
 }
 
 .sales-admin-content .sales-search-result-main {
@@ -4670,14 +4813,14 @@ td {
 }
 
 .sales-admin-content .sales-search-result-name {
-  font-size: 13px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   line-height: 1.25 !important;
 }
 
 .sales-admin-content .sales-search-result-code {
   font-family: 'Segoe UI', system-ui, sans-serif !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
   color: var(--primary) !important;
   letter-spacing: 0 !important;
@@ -4712,10 +4855,10 @@ td {
   min-width: 0 !important;
   min-height: 0 !important;
   padding: 2px 8px !important;
-  border-radius: 999px !important;
+  border-radius: 12px !important;
   background: #dcfce7 !important;
   color: #166534 !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
 }
 
@@ -4750,7 +4893,7 @@ td {
   height: 24px;
   border: 1px solid var(--border);
   background: var(--bg);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -4765,7 +4908,7 @@ td {
 
 .sales-admin-content .sales-line-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .sales-admin-content .sales-payment-modal {
@@ -4774,7 +4917,7 @@ td {
 
 .sales-admin-content .sales-payment-total {
   margin-bottom: 16px;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .sales-admin-content .sales-payment-methods {
@@ -4787,8 +4930,8 @@ td {
 .sales-admin-content .sales-payment-method {
   border: 1px solid var(--border);
   background: #fff;
-  border-radius: 999px;
-  padding: 8px 12px;
+  border-radius: var(--radius);
+  padding: 8px 16px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -4837,10 +4980,10 @@ td {
   gap: 12px !important;
   width: 100% !important;
   min-height: 46px !important;
-  padding: 10px 12px !important;
-  border: 1px solid #dbe5f2 !important;
-  border-radius: 10px !important;
-  background: #ffffff !important;
+  padding: 8px 12px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  background: var(--card-bg) !important;
   box-shadow: none !important;
   transform: none !important;
 }
@@ -4863,7 +5006,7 @@ td {
 
 .sales-admin-content .sales-search-result-thumb-placeholder {
   padding: 4px !important;
-  font-size: 9px !important;
+  font-size: 12px !important;
   color: #64748b !important;
   font-weight: 600 !important;
 }
@@ -4872,13 +5015,13 @@ td {
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-start !important;
-  gap: 3px !important;
+  gap: 4px !important;
   min-width: 0 !important;
   flex: initial !important;
 }
 
 .sales-admin-content .sales-search-result-name {
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 700 !important;
   line-height: 1.2 !important;
   color: var(--text-primary) !important;
@@ -4889,7 +5032,7 @@ td {
 
 .sales-admin-content .sales-search-result-code {
   font-family: 'Segoe UI', system-ui, sans-serif !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   letter-spacing: 0 !important;
   text-transform: none !important;
   color: var(--primary) !important;
@@ -4900,7 +5043,7 @@ td {
   flex-direction: column !important;
   align-items: flex-end !important;
   min-width: 104px !important;
-  gap: 5px !important;
+  gap: 4px !important;
 }
 
 .sales-admin-content .sales-search-result-price {
@@ -4910,7 +5053,7 @@ td {
   border-radius: 0 !important;
   background: transparent !important;
   color: var(--text-primary) !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   font-weight: 700 !important;
 }
 
@@ -4918,10 +5061,10 @@ td {
   min-width: 0 !important;
   min-height: 0 !important;
   padding: 2px 8px !important;
-  border-radius: 999px !important;
+  border-radius: 12px !important;
   background: #dcfce7 !important;
   color: #166534 !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 700 !important;
 }
 
