@@ -19,6 +19,7 @@ import {
 } from '../../services/purchases';
 import { getProducts } from '../../services/products';
 import type { Product } from '../../types/product';
+import { formatLocaleMoneyInput, parseLocaleNumber } from '../../utils/localeNumber';
 import type {
   Purchase,
   PurchaseItemPayload,
@@ -94,8 +95,7 @@ function formatMoney(value: number) {
 }
 
 function toNumber(value: string | number) {
-  const parsed = Number.parseFloat(String(value || '0').replace(',', '.'));
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseLocaleNumber(value);
 }
 
 function getPurchaseIvaRate(invoiceType: string) {
@@ -423,11 +423,11 @@ function SupplierCreditsPanel({
               </div>
               <div className="form-group">
                 <label>Precio Unit.</label>
-                <input type="number" min="0" step="0.01" value={itemPrice} onChange={(event) => setItemPrice(event.target.value)} />
+                <input type="text" inputMode="decimal" data-money="true" value={itemPrice} onChange={(event) => setItemPrice(event.target.value)} />
               </div>
               <div className="form-group">
                 <label>Subtotal</label>
-                <input readOnly value={(toNumber(itemQuantity) * toNumber(itemPrice)).toFixed(2)} />
+                <input readOnly value={formatLocaleMoneyInput(toNumber(itemQuantity) * toNumber(itemPrice))} />
               </div>
               <button type="button" className="btn btn-success purchase-add-button" onClick={() => addItem(null)}>+ Agregar</button>
             </div>
@@ -1140,11 +1140,11 @@ export function PurchasesPage({ pageId }: { pageId: string }) {
               </div>
               <div className="form-group">
                 <label>Costo Unit.</label>
-                <input type="number" value={itemCost} onChange={(event: ChangeEvent<HTMLInputElement>) => setItemCost(event.target.value)} step="0.01" min="0" />
+                <input type="text" inputMode="decimal" data-money="true" value={itemCost} onChange={(event: ChangeEvent<HTMLInputElement>) => setItemCost(event.target.value)} />
               </div>
               <div className="form-group">
                 <label>Subtotal</label>
-                <input readOnly value={(toNumber(itemQuantity) * toNumber(itemCost)).toFixed(2)} />
+                <input readOnly value={formatLocaleMoneyInput(toNumber(itemQuantity) * toNumber(itemCost))} />
               </div>
               <button type="button" className="btn btn-success purchase-add-button" onClick={() => handleAddItem(null)}>+ Agregar</button>
             </div>
@@ -1189,7 +1189,7 @@ export function PurchasesPage({ pageId }: { pageId: string }) {
                       <td>{item.product_code || '-'}</td>
                       <td>{item.product_name}</td>
                       <td><input value={item.quantity} onChange={(event: ChangeEvent<HTMLInputElement>) => handleItemChange(item.product_id, 'quantity', event.target.value)} /></td>
-                      <td><input value={item.unit_cost} onChange={(event: ChangeEvent<HTMLInputElement>) => handleItemChange(item.product_id, 'unit_cost', event.target.value)} /></td>
+                      <td><input data-money="true" inputMode="decimal" value={item.unit_cost} onChange={(event: ChangeEvent<HTMLInputElement>) => handleItemChange(item.product_id, 'unit_cost', event.target.value)} /></td>
                       <td>{formatMoney(rowSubtotal)}</td>
                       <td><button type="button" className="btn btn-secondary btn-small" onClick={() => handleRemoveItem(item.product_id)}>Quitar</button></td>
                     </tr>

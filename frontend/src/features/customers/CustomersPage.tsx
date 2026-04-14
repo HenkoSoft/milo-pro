@@ -2,6 +2,7 @@ import { startTransition, useMemo, useState, type ChangeEvent, type FormEvent } 
 import { CUSTOMER_COUNTRIES, CUSTOMER_IVA_CONDITIONS, CUSTOMER_PROVINCES, CUSTOMER_SELLERS, CUSTOMER_TRANSPORTS, CUSTOMER_ZONES } from './constants';
 import { useCustomerMutations, useCustomers } from './useCustomers';
 import type { Customer, CustomerPayload } from '../../types/customer';
+import { parseLocaleNumber } from '../../utils/localeNumber';
 
 const EMPTY_FORM: CustomerPayload = {
   name: '',
@@ -122,10 +123,15 @@ export function CustomersPage() {
     }
 
     try {
+      const normalizedPayload = {
+        ...formValues,
+        credit_limit: formValues.credit_limit ? String(parseLocaleNumber(formValues.credit_limit)) : '',
+        discount_percent: formValues.discount_percent ? String(parseLocaleNumber(formValues.discount_percent)) : ''
+      };
       if (selectedCustomer) {
-        await updateMutation.mutateAsync({ id: selectedCustomer.id, payload: formValues });
+        await updateMutation.mutateAsync({ id: selectedCustomer.id, payload: normalizedPayload });
       } else {
-        await createMutation.mutateAsync(formValues);
+        await createMutation.mutateAsync(normalizedPayload);
       }
       closeModal();
     } catch (error) {
@@ -344,7 +350,7 @@ export function CustomersPage() {
                     </div>
                     <div className="form-group">
                       <label htmlFor="customer-credit-limit">Limite Cta Cte</label>
-                      <input id="customer-credit-limit" name="credit_limit" type="number" min="0" step="0.01" value={formValues.credit_limit} onChange={handleChange} placeholder="0.00" />
+                      <input id="customer-credit-limit" name="credit_limit" type="text" inputMode="decimal" data-money="true" value={formValues.credit_limit} onChange={handleChange} placeholder="0,00" />
                     </div>
                     <div className="form-group">
                       <label htmlFor="customer-zone">Zona</label>
@@ -357,7 +363,7 @@ export function CustomersPage() {
                     </div>
                     <div className="form-group">
                       <label htmlFor="customer-discount">% Descuento</label>
-                      <input id="customer-discount" name="discount_percent" type="number" min="0" max="100" step="0.01" value={formValues.discount_percent} onChange={handleChange} placeholder="0.00" />
+                      <input id="customer-discount" name="discount_percent" type="text" inputMode="decimal" data-discount="true" value={formValues.discount_percent} onChange={handleChange} placeholder="0,00" />
                     </div>
                     <div className="form-group">
                       <label htmlFor="customer-seller">Vendedor</label>
