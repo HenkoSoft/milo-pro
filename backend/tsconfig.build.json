@@ -25,6 +25,7 @@
     "src/routes/settings.ts",
     "src/routes/woocommerce.ts",
     "src/services/catalog.ts",
+    "src/services/fiscal-vouchers.ts",
     "src/services/product-images.ts",
     "src/services/product-sku.ts",
     "src/services/runtime-db.ts",

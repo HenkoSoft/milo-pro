@@ -33,6 +33,7 @@ export function normalizeSalePayload(body: unknown): SalePayload {
   const data = isRecord(body) ? body : {};
   return {
     customer_id: toStringNumberOrNull(data.customer_id),
+    customer_tax_condition: toNullableString(data.customer_tax_condition),
     payment_method: String(data.payment_method || 'cash').trim() || 'cash',
     notes: String(data.notes || ''),
     receipt_type: String(data.receipt_type || 'C').trim() || 'C',

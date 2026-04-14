@@ -28,6 +28,7 @@ async function createHarness() {
 
   const database = require('../backend/dist/config/database.js');
   await database.initializeDatabase();
+  database.run('UPDATE settings SET emitter_tax_condition = ? WHERE id = 1', ['MONOTRIBUTO']);
 
   let adminUser = database.get('SELECT id, username, role, name FROM users WHERE username = ?', ['admin']);
   if (!adminUser) {
@@ -317,6 +318,65 @@ async function main() {
 
       const productAfterDelete = harness.database.get('SELECT stock FROM products WHERE id = ?', [harness.productId]);
       assert.equal(Number(productAfterDelete.stock), 10);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('sales valida comprobantes segun condicion fiscal', async () => {
+    const harness = await createHarness();
+    try {
+      harness.database.run('UPDATE settings SET emitter_tax_condition = ? WHERE id = 1', ['RESPONSABLE_INSCRIPTO']);
+      const riCustomer = harness.database.run(
+        'INSERT INTO customers (name, iva_condition, email) VALUES (?, ?, ?)',
+        ['Cliente RI', 'Responsable Inscripto', 'ri@test.local']
+      );
+      harness.database.saveDatabase();
+
+      const validVoucher = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: riCustomer.lastInsertRowid,
+          payment_method: 'cash',
+          receipt_type: 'A',
+          point_of_sale: '1',
+          items: [{ product_id: harness.productId, quantity: 1, unit_price: 1500 }]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(validVoucher.statusCode, 201);
+      assert.equal(validVoucher.body.sale.receipt_type, 'A');
+
+      const validVoucherB = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: riCustomer.lastInsertRowid,
+          payment_method: 'cash',
+          receipt_type: 'B',
+          point_of_sale: '1',
+          items: [{ product_id: harness.productId, quantity: 1, unit_price: 1500 }]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(validVoucherB.statusCode, 201);
+      assert.equal(validVoucherB.body.sale.receipt_type, 'B');
+
+      const validWithoutCustomer = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_tax_condition: 'Responsable Inscripto',
+          payment_method: 'cash',
+          receipt_type: 'A',
+          point_of_sale: '1',
+          items: [{ product_id: harness.productId, quantity: 1, unit_price: 1500 }]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(validWithoutCustomer.statusCode, 201);
+      assert.equal(validWithoutCustomer.body.sale.receipt_type, 'A');
     } finally {
       await harness.cleanup();
     }

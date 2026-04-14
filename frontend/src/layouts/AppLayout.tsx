@@ -12,6 +12,11 @@ import { SellersPage } from '../features/sellers/SellersPage';
 import { ToolsPage } from '../features/tools/ToolsPage';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
+import { useSettings } from '../features/settings/useSettings';
+
+type SidebarBranding = {
+  logoDataUrl: string;
+};
 
 type MenuItem = {
   id: string;
@@ -51,18 +56,39 @@ const navEntries: NavEntry[] = [
       label: 'Ventas',
       icon: '&#128176;',
       items: [
-        { id: 'sales', label: 'Facturas', icon: '&#129534;', title: 'Facturas' },
-        { id: 'sales-delivery-notes', label: 'Remitos', icon: '&#128203;', title: 'Remitos' },
-        { id: 'sales-quotes', label: 'Presupuestos', icon: '&#128221;', title: 'Presupuestos' },
-        { id: 'sales-orders', label: 'Pedidos', icon: '&#129530;', title: 'Pedidos' },
-        { id: 'sales-web-orders', label: 'Pedidos Web', icon: '&#127760;', title: 'Pedidos Web' },
-        { id: 'sales-credit-notes', label: 'Notas de Credito', icon: '&#128179;', title: 'Notas de Credito' },
-        { id: 'sales-collections', label: 'Cobranzas', icon: '&#128181;', title: 'Cobranzas' },
-        { id: 'sales-query-invoices', label: 'Consultar Facturas', icon: '&#128269;', title: 'Consultar Facturas' },
-        { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', icon: '&#128269;', title: 'Consultar Remitos' },
-        { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', icon: '&#128269;', title: 'Consultar Notas de Credito' },
-        { id: 'sales-query-quotes', label: 'Consultar Presupuestos', icon: '&#128269;', title: 'Consultar Presupuestos' },
-        { id: 'sales-query-orders', label: 'Consultar Pedidos', icon: '&#128269;', title: 'Consultar Pedidos' }
+        {
+          id: 'sales-operations-group',
+          label: 'Operacion',
+          icon: '&#128221;',
+          items: [
+            { id: 'sales', label: 'Facturas', icon: '&#129534;', title: 'Facturas' },
+            { id: 'sales-delivery-notes', label: 'Remitos', icon: '&#128203;', title: 'Remitos' },
+            { id: 'sales-quotes', label: 'Presupuestos', icon: '&#128221;', title: 'Presupuestos' },
+            { id: 'sales-orders', label: 'Pedidos', icon: '&#129530;', title: 'Pedidos' },
+            { id: 'sales-credit-notes', label: 'Notas de Credito', icon: '&#128179;', title: 'Notas de Credito' },
+            { id: 'sales-collections', label: 'Cobranzas', icon: '&#128181;', title: 'Cobranzas' }
+          ]
+        },
+        {
+          id: 'sales-channels-group',
+          label: 'Canales',
+          icon: '&#127760;',
+          items: [
+            { id: 'sales-web-orders', label: 'Pedidos Web', icon: '&#127760;', title: 'Pedidos Web' }
+          ]
+        },
+        {
+          id: 'sales-query-group',
+          label: 'Consultas',
+          icon: '&#128269;',
+          items: [
+            { id: 'sales-query-invoices', label: 'Consultar Facturas', icon: '&#128269;', title: 'Consultar Facturas' },
+            { id: 'sales-query-delivery-notes', label: 'Consultar Remitos', icon: '&#128269;', title: 'Consultar Remitos' },
+            { id: 'sales-query-credit-notes', label: 'Consultar Notas de Credito', icon: '&#128269;', title: 'Consultar Notas de Credito' },
+            { id: 'sales-query-quotes', label: 'Consultar Presupuestos', icon: '&#128269;', title: 'Consultar Presupuestos' },
+            { id: 'sales-query-orders', label: 'Consultar Pedidos', icon: '&#128269;', title: 'Consultar Pedidos' }
+          ]
+        }
       ]
     }
   },
@@ -73,14 +99,28 @@ const navEntries: NavEntry[] = [
       label: 'Articulos',
       icon: '&#128230;',
       items: [
-        { id: 'products', label: 'Planilla', icon: '&#128203;', title: 'Planilla' },
-        { id: 'products-price-update', label: 'Actualizacion de Precios', icon: '&#128178;', title: 'Actualizacion de Precios' },
-        { id: 'products-stock-adjustment', label: 'Ajuste de Stock', icon: '&#128230;', title: 'Ajuste de Stock' },
-        { id: 'products-stock-output', label: 'Salida de Mercaderia', icon: '&#128228;', title: 'Salida de Mercaderia' },
-        { id: 'products-stock-query', label: 'Consulta de Salidas', icon: '&#128269;', title: 'Consulta de Salidas' },
-        { id: 'products-labels', label: 'Imprimir Etiquetas', icon: '&#127991;', title: 'Imprimir Etiquetas' },
-        { id: 'products-barcodes', label: 'Impresion de Codigos de Barra', icon: '&#128202;', title: 'Impresion de Codigos de Barra' },
-        { id: 'products-qr', label: 'Impresion de Codigos QR', icon: '&#128306;', title: 'Impresion de Codigos QR' }
+        {
+          id: 'products-management-group',
+          label: 'Gestion',
+          icon: '&#128230;',
+          items: [
+            { id: 'products', label: 'Planilla', icon: '&#128203;', title: 'Planilla' },
+            { id: 'products-price-update', label: 'Actualizacion de Precios', icon: '&#128178;', title: 'Actualizacion de Precios' },
+            { id: 'products-stock-adjustment', label: 'Ajuste de Stock', icon: '&#128230;', title: 'Ajuste de Stock' },
+            { id: 'products-stock-output', label: 'Salida de Mercaderia', icon: '&#128228;', title: 'Salida de Mercaderia' },
+            { id: 'products-stock-query', label: 'Consulta de Salidas', icon: '&#128269;', title: 'Consulta de Salidas' }
+          ]
+        },
+        {
+          id: 'products-print-group',
+          label: 'Impresion',
+          icon: '&#128424;',
+          items: [
+            { id: 'products-labels', label: 'Imprimir Etiquetas', icon: '&#127991;', title: 'Imprimir Etiquetas' },
+            { id: 'products-barcodes', label: 'Impresion de Codigos de Barra', icon: '&#128202;', title: 'Impresion de Codigos de Barra' },
+            { id: 'products-qr', label: 'Impresion de Codigos QR', icon: '&#128306;', title: 'Impresion de Codigos QR' }
+          ]
+        }
       ]
     }
   },
@@ -166,12 +206,27 @@ const navEntries: NavEntry[] = [
       icon: '&#9881;',
       adminOnly: true,
       items: [
-        { id: 'admin-users', label: 'Modificar Usuarios', icon: '&#128100;', title: 'Modificar Usuarios', adminOnly: true },
-        { id: 'admin-users-connected', label: 'Usuarios Conectados', icon: '&#128274;', title: 'Usuarios Conectados', adminOnly: true },
-        { id: 'admin-aux-tables', label: 'Tablas Auxiliares', icon: '&#128218;', title: 'Tablas Auxiliares', adminOnly: true },
-        { id: 'admin-config-general', label: 'Datos Generales', icon: '&#127970;', title: 'Datos Generales', adminOnly: true },
-        { id: 'admin-config-documents', label: 'Configuracion de Comprobantes', icon: '&#129534;', title: 'Configuracion de Comprobantes', adminOnly: true },
-        { id: 'admin-config-mail', label: 'Mail', icon: '&#9993;', title: 'Mail', adminOnly: true },
+        {
+          id: 'admin-company-group',
+          label: 'Empresa',
+          icon: '&#127970;',
+          adminOnly: true,
+          items: [
+            { id: 'admin-config-general', label: 'Datos Generales', icon: '&#127970;', title: 'Datos Generales', adminOnly: true },
+            { id: 'admin-config-documents', label: 'Configuracion de Comprobantes', icon: '&#129534;', title: 'Configuracion de Comprobantes', adminOnly: true },
+            { id: 'admin-config-mail', label: 'Mail', icon: '&#9993;', title: 'Mail', adminOnly: true }
+          ]
+        },
+        {
+          id: 'admin-users-group',
+          label: 'Usuarios',
+          icon: '&#128100;',
+          adminOnly: true,
+          items: [
+            { id: 'admin-users', label: 'Modificar Usuarios', icon: '&#128100;', title: 'Modificar Usuarios', adminOnly: true },
+            { id: 'admin-users-connected', label: 'Usuarios Conectados', icon: '&#128274;', title: 'Usuarios Conectados', adminOnly: true }
+          ]
+        },
         {
           id: 'admin-integrations-group',
           label: 'Integraciones',
@@ -181,8 +236,17 @@ const navEntries: NavEntry[] = [
             { id: 'admin-integrations-woocommerce', label: 'WooCommerce', icon: '&#128722;', title: 'WooCommerce', adminOnly: true }
           ]
         },
-        { id: 'admin-reset-data', label: 'Borrar datos iniciales', icon: '&#128465;', title: 'Borrar datos iniciales', adminOnly: true },
-        { id: 'admin-troubleshoot', label: 'Solucionar Problemas', icon: '&#128736;', title: 'Solucionar Problemas', adminOnly: true }
+        {
+          id: 'admin-system-group',
+          label: 'Sistema',
+          icon: '&#128421;',
+          adminOnly: true,
+          items: [
+            { id: 'admin-aux-tables', label: 'Tablas Auxiliares', icon: '&#128218;', title: 'Tablas Auxiliares', adminOnly: true },
+            { id: 'admin-troubleshoot', label: 'Solucionar Problemas', icon: '&#128736;', title: 'Solucionar Problemas', adminOnly: true },
+            { id: 'admin-reset-data', label: 'Borrar datos iniciales', icon: '&#128465;', title: 'Borrar datos iniciales', adminOnly: true }
+          ]
+        }
       ]
     }
   },
@@ -250,6 +314,17 @@ function formatCurrentDate() {
     month: 'long',
     day: 'numeric'
   });
+}
+
+function readSidebarBranding(): SidebarBranding {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_config_store') || 'null');
+    return {
+      logoDataUrl: typeof parsed?.general?.logo_data_url === 'string' ? parsed.general.logo_data_url : ''
+    };
+  } catch {
+    return { logoDataUrl: '' };
+  }
 }
 
 function PagePlaceholder({ pageId, title }: { pageId: string; title: string }) {
@@ -417,13 +492,11 @@ function renderGroupItem(
 
 export function AppLayout() {
   const { currentUser, logout } = useAuth();
+  const settingsQuery = useSettings();
   const [currentPage, setCurrentPage] = useState<string>(() => getCurrentHashPage());
   const [currentDate, setCurrentDate] = useState<string>(() => formatCurrentDate());
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const initialPage = getCurrentHashPage();
-    const groupId = pageGroupMap.get(initialPage);
-    return groupId ? { [groupId]: true } : {};
-  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [sidebarBranding, setSidebarBranding] = useState<SidebarBranding>(() => readSidebarBranding());
 
   useEffect(() => {
     if (!window.location.hash) {
@@ -437,21 +510,25 @@ export function AppLayout() {
         return;
       }
       setCurrentPage(nextPage);
-      const groupId = pageGroupMap.get(nextPage);
-      if (groupId) {
-        setOpenGroups((previous) => ({ ...previous, [groupId]: true }));
-      }
     };
 
     const handleDateRefresh = () => {
       setCurrentDate(formatCurrentDate());
     };
 
+    const handleBrandingRefresh = () => {
+      setSidebarBranding(readSidebarBranding());
+    };
+
     window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('storage', handleBrandingRefresh);
+    window.addEventListener('milo-admin-config-updated', handleBrandingRefresh as EventListener);
     const timerId = window.setInterval(handleDateRefresh, 60000);
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('storage', handleBrandingRefresh);
+      window.removeEventListener('milo-admin-config-updated', handleBrandingRefresh as EventListener);
       window.clearInterval(timerId);
     };
   }, []);
@@ -474,7 +551,12 @@ export function AppLayout() {
     <div id="app" className="app-container">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h2 id="sidebar-business-name">Milo Pro</h2>
+          <div className="sidebar-app-name">MILO PRO</div>
+          {sidebarBranding.logoDataUrl ? (
+            <img className="sidebar-logo" src={sidebarBranding.logoDataUrl} alt="Logo empresa" />
+          ) : (
+            <h2 id="sidebar-business-name">{settingsQuery.data?.business_name || 'Milo Pro'}</h2>
+          )}
           <span id="user-role" className="user-role">{currentUser?.role || ''}</span>
         </div>
         <nav className="sidebar-nav">

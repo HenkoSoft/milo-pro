@@ -19,7 +19,7 @@ import { getSettings, updateSettings } from '../../services/settings';
 import { disconnectWoo, getWooPollingStatus, getWooStatus, startWooPolling, stopWooPolling, testWooConnection, updateWooConfig } from '../../services/woocommerce';
 import type { CreateAuthUserPayload } from '../../types/auth';
 import type { Brand, Category, DeviceModel, DeviceType } from '../../types/catalog';
-import type { BusinessSettings } from '../../types/settings';
+import type { BusinessSettings, EmitterTaxCondition } from '../../types/settings';
 import type { WooConfigPayload } from '../../types/woocommerce';
 
 const ADMIN_MODULES = [
@@ -89,6 +89,7 @@ type AdminConfigStore = {
     date_format?: string;
     timezone?: string;
     logo_name?: string;
+    logo_data_url?: string;
   };
   documents?: {
     numbering_format?: string;
@@ -135,7 +136,8 @@ const EMPTY_SETTINGS: BusinessSettings = {
   business_name: '',
   business_address: '',
   business_phone: '',
-  business_email: ''
+  business_email: '',
+  emitter_tax_condition: null
 };
 
 const DEFAULT_ADMIN_CONFIG: AdminConfigStore = {
@@ -197,6 +199,13 @@ function AdminModuleHeader({ title, subtitle }: { title: string; subtitle: strin
   );
 }
 
+function toEmitterTaxCondition(value: string): EmitterTaxCondition | null {
+  if (value === 'MONOTRIBUTO' || value === 'RESPONSABLE_INSCRIPTO' || value === 'IVA_EXENTO') {
+    return value;
+  }
+  return null;
+}
+
 function getAdminRoleLabel(role: string) {
   return (
     {
@@ -238,6 +247,7 @@ function readAdminConfigStore() {
 
 function writeAdminConfigStore(config: AdminConfigStore) {
   window.localStorage.setItem('milo_admin_config_store', JSON.stringify(config));
+  window.dispatchEvent(new CustomEvent('milo-admin-config-updated'));
 }
 
 function readAdminAuxStore() {
@@ -890,13 +900,40 @@ function GeneralConfigPanel({
       business_name: settingsQuery.data.business_name || '',
       business_address: settingsQuery.data.business_address || '',
       business_phone: settingsQuery.data.business_phone || '',
-      business_email: settingsQuery.data.business_email || ''
+      business_email: settingsQuery.data.business_email || '',
+      emitter_tax_condition: settingsQuery.data.emitter_tax_condition || null
     });
   }, [settingsQuery.data]);
 
   function handleExtraChange(event: ChangeEvent<HTMLInputElement>) {
     const { name, value } = event.target;
     setGeneralValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setGeneralValues((current) => ({ ...current, logo_name: '', logo_data_url: '' }));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setGeneralValues((current) => ({
+        ...current,
+        logo_name: file.name,
+        logo_data_url: typeof reader.result === 'string' ? reader.result : ''
+      }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemoveLogo() {
+    setGeneralValues((current) => ({
+      ...current,
+      logo_name: '',
+      logo_data_url: ''
+    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -922,14 +959,34 @@ function GeneralConfigPanel({
             <div className="form-group"><label>Telefono</label><input value={settingsValues.business_phone || ''} onChange={(event) => setSettingsValues((current) => ({ ...current, business_phone: event.target.value }))} /></div>
             <div className="form-group admin-field-span-2"><label>Direccion</label><input value={settingsValues.business_address || ''} onChange={(event) => setSettingsValues((current) => ({ ...current, business_address: event.target.value }))} /></div>
             <div className="form-group"><label>Email</label><input type="email" value={settingsValues.business_email || ''} onChange={(event) => setSettingsValues((current) => ({ ...current, business_email: event.target.value }))} /></div>
+            <div className="form-group">
+              <label>Condicion fiscal</label>
+              <select
+                value={settingsValues.emitter_tax_condition || ''}
+                onChange={(event) => setSettingsValues((current) => ({ ...current, emitter_tax_condition: toEmitterTaxCondition(event.target.value) }))}
+              >
+                <option value="">Seleccionar</option>
+                <option value="MONOTRIBUTO">MONOTRIBUTO</option>
+                <option value="RESPONSABLE_INSCRIPTO">RESPONSABLE_INSCRIPTO</option>
+                <option value="IVA_EXENTO">IVA_EXENTO</option>
+              </select>
+            </div>
             <div className="form-group"><label>Moneda</label><input name="currency" value={generalValues.currency || ''} onChange={handleExtraChange} /></div>
             <div className="form-group"><label>Formato fecha</label><input name="date_format" value={generalValues.date_format || ''} onChange={handleExtraChange} /></div>
             <div className="form-group"><label>Zona horaria</label><input name="timezone" value={generalValues.timezone || ''} onChange={handleExtraChange} /></div>
             <div className="form-group admin-field-span-2">
               <label>Logo empresa</label>
-              <input type="file" accept="image/*" onChange={(event) => setGeneralValues((current) => ({ ...current, logo_name: event.target.files?.[0]?.name || '' }))} />
+              <input type="file" accept="image/*" onChange={handleLogoChange} />
+              {generalValues.logo_data_url ? (
+                <div className="admin-logo-row">
+                  <div className="admin-logo-preview">
+                    <img src={generalValues.logo_data_url} alt="Preview logo empresa" />
+                  </div>
+                  <button className="btn btn-secondary" type="button" onClick={handleRemoveLogo}>Quitar logo</button>
+                </div>
+              ) : null}
               <small className="admin-help-inline">
-                {generalValues.logo_name ? `Archivo seleccionado: ${generalValues.logo_name}` : 'Puede seleccionar un archivo para registrar el logo en la configuracion local.'}
+                {generalValues.logo_name ? `Archivo seleccionado: ${generalValues.logo_name}. Se mostrara en el menu lateral. Admite JPG, PNG, WebP o SVG. Medida sugerida: 240x80 px o proporcion similar, horizontal y hasta 2 MB.` : 'Puede seleccionar un archivo para registrar el logo en la configuracion local. Se mostrara en el menu lateral. Admite JPG, PNG, WebP o SVG. Medida sugerida: 240x80 px o proporcion similar, horizontal y hasta 2 MB.'}
               </small>
             </div>
           </div>
@@ -1446,36 +1503,38 @@ export function AdminPage({ pageId }: { pageId: string }) {
       {pageId === 'admin-troubleshoot' ? <TroubleshootPanel feedback={feedback} setFeedback={setFeedback} /> : null}
 
       {pageId === 'admin-integrations-woocommerce' ? (
-        <div className="admin-grid">
-          <div className="card admin-panel">
+        <div className="admin-grid woo-admin-grid">
+          <div className="card admin-panel woo-admin-panel woo-admin-panel--status">
             <div className="admin-panel-head">
               <div>
-                <p className="admin-panel-kicker">Conexion</p>
+                <p className="admin-panel-kicker">WooCommerce</p>
                 <h3>Estado actual</h3>
+                <p className="woo-admin-copy">Resumen rapido de conexion, sincronizacion y tienda vinculada.</p>
               </div>
             </div>
-            <div className="admin-status-grid">
+            <div className="admin-status-grid woo-admin-status-grid">
               <article className="admin-status-card"><span>Conectado</span><strong>{statusQuery.data?.connected || statusQuery.data?.active ? 'Si' : 'No'}</strong></article>
-              <article className="admin-status-card"><span>Polling</span><strong>{pollingActive ? 'Activo' : 'Detenido'}</strong></article>
+              <article className="admin-status-card"><span>Sincronización</span><strong>{pollingActive ? 'Activo' : 'Detenido'}</strong></article>
               <article className="admin-status-card"><span>Store</span><strong>{statusQuery.data?.store_url || '-'}</strong></article>
               <article className="admin-status-card"><span>Intervalo</span><strong>{statusQuery.data?.sync_interval_minutes || '-'} min</strong></article>
             </div>
-            <div className="admin-actions-row">
+            <div className="admin-actions-row woo-admin-actions-row">
               <button type="button" className="btn btn-secondary" onClick={handleTestConnection} disabled={testMutation.isPending}>Probar conexion</button>
-              <button type="button" className="btn btn-primary" onClick={() => startPollingMutation.mutate()} disabled={startPollingMutation.isPending}>Iniciar polling</button>
-              <button type="button" className="btn btn-secondary" onClick={() => stopPollingMutation.mutate()} disabled={stopPollingMutation.isPending}>Detener polling</button>
+              <button type="button" className="btn btn-primary" onClick={() => startPollingMutation.mutate()} disabled={startPollingMutation.isPending}>Iniciar Sincronización</button>
+              <button type="button" className="btn btn-secondary" onClick={() => stopPollingMutation.mutate()} disabled={stopPollingMutation.isPending}>Detener Sincronización</button>
               <button type="button" className="btn btn-danger" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}>Desconectar</button>
             </div>
           </div>
 
-          <div className="card admin-panel">
+          <div className="card admin-panel woo-admin-panel woo-admin-panel--config">
             <div className="admin-panel-head">
               <div>
                 <p className="admin-panel-kicker">Configuracion</p>
                 <h3>Parametros WooCommerce</h3>
+                <p className="woo-admin-copy">Credenciales, sincronizacion y comportamiento de pedidos.</p>
               </div>
             </div>
-            <form className="admin-form-grid" onSubmit={handleSubmit}>
+            <form className="admin-form-grid woo-admin-form-grid" onSubmit={handleSubmit}>
               <div className="form-group"><label>URL tienda</label><input name="store_url" value={formValues.store_url} onChange={handleChange} /></div>
               <div className="form-group"><label>Consumer Key</label><input name="consumer_key" value={formValues.consumer_key} onChange={handleChange} /></div>
               <div className="form-group"><label>Consumer Secret</label><input name="consumer_secret" value={formValues.consumer_secret} onChange={handleChange} /></div>
@@ -1492,28 +1551,32 @@ export function AdminPage({ pageId }: { pageId: string }) {
               <div className="form-group"><label>Webhook token</label><input name="webhook_auth_token" value={formValues.webhook_auth_token} onChange={handleChange} /></div>
               <div className="form-group"><label>Header firma</label><input name="webhook_signature_header" value={formValues.webhook_signature_header} onChange={handleChange} /></div>
               <div className="form-group"><label>Header delivery</label><input name="webhook_delivery_header" value={formValues.webhook_delivery_header} onChange={handleChange} /></div>
-              <div className="form-group"><label>Modo ordenes</label><select name="order_sync_mode" value={formValues.order_sync_mode} onChange={handleChange}><option value="webhook">Webhook</option><option value="polling">Polling</option></select></div>
+              <div className="form-group"><label>Modo ordenes</label><select name="order_sync_mode" value={formValues.order_sync_mode} onChange={handleChange}><option value="webhook">Webhook</option><option value="polling">Sincronización</option></select></div>
               <div className="form-group"><label>Canal ventas</label><input name="order_sales_channel" value={formValues.order_sales_channel} onChange={handleChange} /></div>
               <div className="form-group"><label>Estrategia clientes</label><select name="customer_sync_strategy" value={formValues.customer_sync_strategy} onChange={handleChange}><option value="match_or_create">Match o crear</option><option value="generic_customer">Cliente generico</option></select></div>
               <div className="form-group"><label>Cliente generico</label><input name="generic_customer_name" value={formValues.generic_customer_name} onChange={handleChange} /></div>
-              <label className="admin-checkbox"><input type="checkbox" name="auto_sync" checked={formValues.auto_sync} onChange={handleChange} /> Auto sync</label>
-              <label className="admin-checkbox"><input type="checkbox" name="sync_products" checked={formValues.sync_products} onChange={handleChange} /> Sync productos</label>
-              <label className="admin-checkbox"><input type="checkbox" name="sync_customers" checked={formValues.sync_customers} onChange={handleChange} /> Sync clientes</label>
-              <label className="admin-checkbox"><input type="checkbox" name="sync_orders" checked={formValues.sync_orders} onChange={handleChange} /> Sync ordenes</label>
-              <label className="admin-checkbox"><input type="checkbox" name="sync_stock" checked={formValues.sync_stock} onChange={handleChange} /> Sync stock</label>
-              <label className="admin-checkbox"><input type="checkbox" name="sync_prices" checked={formValues.sync_prices} onChange={handleChange} /> Sync precios</label>
-              <div className="admin-form-actions"><button type="submit" className="btn btn-primary" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Guardar configuracion'}</button></div>
+              <div className="woo-admin-checks">
+                <label className="admin-checkbox"><input type="checkbox" name="auto_sync" checked={formValues.auto_sync} onChange={handleChange} /> Auto sync</label>
+                <label className="admin-checkbox"><input type="checkbox" name="sync_products" checked={formValues.sync_products} onChange={handleChange} /> Sync productos</label>
+                <label className="admin-checkbox"><input type="checkbox" name="sync_customers" checked={formValues.sync_customers} onChange={handleChange} /> Sync clientes</label>
+                <label className="admin-checkbox"><input type="checkbox" name="sync_orders" checked={formValues.sync_orders} onChange={handleChange} /> Sync ordenes</label>
+                <label className="admin-checkbox"><input type="checkbox" name="sync_stock" checked={formValues.sync_stock} onChange={handleChange} /> Sync stock</label>
+                <label className="admin-checkbox"><input type="checkbox" name="sync_prices" checked={formValues.sync_prices} onChange={handleChange} /> Sync precios</label>
+              </div>
+              <div className="admin-form-actions woo-admin-form-actions"><button type="submit" className="btn btn-primary" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Guardar configuracion'}</button></div>
             </form>
           </div>
 
-          <div className="card admin-panel admin-panel-full">
+          <div className="card admin-panel admin-panel-full woo-admin-panel woo-admin-panel--logs">
             <div className="admin-panel-head">
               <div>
-                <p className="admin-panel-kicker">Sync</p>
+                <p className="admin-panel-kicker">Actividad</p>
                 <h3>Logs recientes</h3>
+                <p className="woo-admin-copy">Ultimos eventos de sincronizacion para diagnostico rapido.</p>
               </div>
             </div>
-            <table className="products-table">
+            <div className="woo-admin-logs-wrap">
+            <table className="products-table woo-admin-logs-table">
               <thead>
                 <tr>
                   <th>Fecha</th>
@@ -1539,6 +1602,7 @@ export function AdminPage({ pageId }: { pageId: string }) {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       ) : null}

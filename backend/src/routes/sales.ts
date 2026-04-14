@@ -11,6 +11,10 @@ const {
   normalizeInternalSaleStatus,
   updateSaleStatus
 } = require('../services/woo-order-sync.js');
+const {
+  getAvailableVoucherTypes,
+  getFiscalValidationMessage
+} = require('../services/fiscal-vouchers.js');
 
 type JsonResponse = {
   status: (code: number) => JsonResponse;
@@ -79,6 +83,7 @@ function normalizeSalePayload(body: unknown) {
   const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
   return {
     customer_id: data.customer_id ?? null,
+    customer_tax_condition: toNullableString(data.customer_tax_condition),
     payment_method: String(data.payment_method || 'cash').trim() || 'cash',
     notes: String(data.notes || ''),
     receipt_type: normalizeReceiptType(data.receipt_type),
@@ -343,7 +348,7 @@ router.get('/:id', authenticate, async (req: RouteRequest, res: JsonResponse) =>
 router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const db = getDatabaseAccess(req);
   const payload = normalizeSalePayload(req.body);
-  const { customer_id, items, payment_method, notes, receipt_type, point_of_sale } = payload;
+  const { customer_id, customer_tax_condition, items, payment_method, notes, receipt_type, point_of_sale } = payload;
 
   if (!items || items.length === 0) {
     res.status(400).json({ error: 'No items in sale' });
@@ -356,6 +361,21 @@ router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const notesVal = notes === undefined || notes === '' ? null : notes;
   const receiptType = normalizeReceiptType(receipt_type);
   const pointOfSale = normalizePointOfSale(point_of_sale);
+  const settings = await db.get('SELECT emitter_tax_condition FROM settings WHERE id = 1');
+  const customer = customerVal ? await db.get('SELECT iva_condition FROM customers WHERE id = ?', [customerVal]) : null;
+  const customerTaxCondition = customer_tax_condition || (customer ? customer.iva_condition : 'Consumidor Final');
+  const fiscalValidationMessage = getFiscalValidationMessage(settings?.emitter_tax_condition, customerTaxCondition);
+  const allowedVoucherTypes = getAvailableVoucherTypes(settings?.emitter_tax_condition, customerTaxCondition);
+
+  if (fiscalValidationMessage) {
+    res.status(400).json({ error: fiscalValidationMessage });
+    return;
+  }
+
+  if (!allowedVoucherTypes.includes(receiptType)) {
+    res.status(400).json({ error: 'El tipo de comprobante no es valido para la condicion fiscal actual.' });
+    return;
+  }
 
   try {
     const productSnapshotsBeforeSale = new Map<number, Record<string, unknown>>();

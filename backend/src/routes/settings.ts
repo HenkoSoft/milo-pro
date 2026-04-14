@@ -19,6 +19,14 @@ type DatabaseAccess = {
 
 const router = express.Router();
 
+function normalizeEmitterTaxCondition(value: unknown) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (normalized === 'MONOTRIBUTO' || normalized === 'RESPONSABLE_INSCRIPTO' || normalized === 'IVA_EXENTO') {
+    return normalized;
+  }
+  return null;
+}
+
 function getDatabaseAccess(req: RouteRequest): DatabaseAccess {
   return getDatabaseAccessForRequest(req);
 }
@@ -29,7 +37,8 @@ function normalizeSettingsPayload(body: unknown) {
     business_name: String(data.business_name || 'Milo Pro').trim() || 'Milo Pro',
     business_address: data.business_address ? String(data.business_address).trim() : null,
     business_phone: data.business_phone ? String(data.business_phone).trim() : null,
-    business_email: data.business_email ? String(data.business_email).trim() : null
+    business_email: data.business_email ? String(data.business_email).trim() : null,
+    emitter_tax_condition: normalizeEmitterTaxCondition(data.emitter_tax_condition)
   };
 }
 
@@ -40,7 +49,8 @@ function withDefaultSettings(settings: Record<string, unknown> | null) {
 
   return {
     ...settings,
-    business_name: settings.business_name || 'Milo Pro'
+    business_name: settings.business_name || 'Milo Pro',
+    emitter_tax_condition: normalizeEmitterTaxCondition(settings.emitter_tax_condition)
   };
 }
 
@@ -62,10 +72,10 @@ router.put('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   await db.run(
     `
     UPDATE settings
-    SET business_name = ?, business_address = ?, business_phone = ?, business_email = ?, updated_at = CURRENT_TIMESTAMP
+    SET business_name = ?, business_address = ?, business_phone = ?, business_email = ?, emitter_tax_condition = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = 1
   `,
-    [payload.business_name, payload.business_address, payload.business_phone, payload.business_email]
+    [payload.business_name, payload.business_address, payload.business_phone, payload.business_email, payload.emitter_tax_condition]
   );
 
   await db.save();

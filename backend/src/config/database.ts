@@ -304,10 +304,12 @@ async function initializeDatabase() {
       business_address TEXT,
       business_phone TEXT,
       business_email TEXT,
+      emitter_tax_condition TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       sku_sequence_migrated INTEGER DEFAULT 0
     )
   `);
+  try { db.run('ALTER TABLE settings ADD COLUMN emitter_tax_condition TEXT'); } catch (e) {}
   
   db.run(`
     CREATE TABLE IF NOT EXISTS woocommerce_sync (

@@ -37,6 +37,7 @@ export interface SalePayloadItem {
 
 export interface SalePayload {
   customer_id?: string | number | null;
+  customer_tax_condition?: string | null;
   payment_method?: string;
   notes?: string;
   receipt_type?: string;

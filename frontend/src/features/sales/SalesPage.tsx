@@ -1,11 +1,15 @@
 ﻿import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { useSettings } from '../settings/useSettings';
 import { useOnlineFeed, useSaleComposerData, useSaleDetail, useSaleMutations, useSalesHistory } from './useSales';
+import { CUSTOMER_SELLERS } from '../customers/constants';
 import type { Customer } from '../../types/customer';
 import type { Product } from '../../types/product';
 import type { Category } from '../../types/catalog';
 import { createSale } from '../../services/sales';
 import type { Sale, SalePayloadItem } from '../../types/sale';
+import { getAvailableVoucherTypes, getDefaultVoucherType, getFiscalVoucherValidationMessage } from '../../utils/fiscalVouchers';
+import { formatLocaleMoneyInput, parseLocaleNumber } from '../../utils/localeNumber';
 
 const SALES_MODULES = [
   { id: 'sales', label: 'Facturas', title: 'Facturas', subtitle: '' },
@@ -22,7 +26,6 @@ const SALES_MODULES = [
   { id: 'sales-web-orders', label: 'Pedidos Web', title: 'Pedidos Web', subtitle: '' }
 ] as const;
 
-const RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'] as const;
 const PRICE_LISTS = ['Lista 1', 'Lista 2', 'Lista 3', 'Lista 4', 'Lista 5', 'Lista 6'] as const;
 const IVA_CONDITIONS = ['Consumidor Final', 'Responsable Inscripto', 'Monotributista', 'Exento'] as const;
 
@@ -104,6 +107,20 @@ interface DocumentStubConfig {
   extraFieldButton?: string;
 }
 
+interface SalePrintData {
+  id: number;
+  created_at?: string;
+  receipt_type?: string | null;
+  point_of_sale?: string | null;
+  receipt_number?: number | null;
+  business_name: string;
+  customer_name: string;
+  payment_method: string;
+  seller: string;
+  total: number;
+  items: CartItem[];
+}
+
 function formatMoney(value: number) {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -118,11 +135,106 @@ function formatReceiptNumber(value: number | null | undefined) {
 
 function normalizePointOfSale(value: string) {
   const digits = String(value || '').replace(/\D/g, '');
-  return (digits || '001').padStart(3, '0').slice(-3);
+  return (digits || '0001').padStart(4, '0').slice(-4);
 }
 
-function buildReceiptNumber(sale: Sale) {
+function buildReceiptNumber(sale: Pick<Sale, 'id' | 'point_of_sale' | 'receipt_number'>) {
   return `${String(sale.point_of_sale || '001')}-${String(sale.receipt_number || sale.id).padStart(8, '0')}`;
+}
+
+function parseUtcDateString(value?: string | null) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const normalized = raw.includes('T') || /Z$|[+-]\d{2}:\d{2}$/.test(raw) ? raw : raw.replace(' ', 'T') + 'Z';
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatSaleDate(value?: string | null) {
+  const date = parseUtcDateString(value);
+  return date ? date.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '-';
+}
+
+function formatSaleTime(value?: string | null) {
+  const date = parseUtcDateString(value);
+  return date
+    ? date.toLocaleTimeString('es-AR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Argentina/Buenos_Aires'
+    })
+    : '-';
+}
+
+function printSalesTicket80mm(sale: SalePrintData) {
+  const popup = window.open('', '_blank', 'width=420,height=720');
+  if (!popup) return;
+
+  const rows = sale.items.map((item) => {
+    const qty = Number(item.quantity || 0);
+    const price = parseLocaleNumber(item.unit_price);
+    const lineTotal = getLineTotal(item, '0,00');
+    return `
+      <tr>
+        <td>${qty}</td>
+        <td>${item.name}</td>
+        <td>${formatMoney(price)}</td>
+        <td>${formatMoney(lineTotal)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  popup.document.write(`
+    <!doctype html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <title>Ticket ${sale.id}</title>
+        <style>
+          body { font-family: Arial, sans-serif; width: 80mm; margin: 0 auto; padding: 8px; color: #111; }
+          .ticket-head, .ticket-total, .ticket-meta { text-align: center; }
+          .ticket-head h1 { margin: 0 0 4px; font-size: 16px; }
+          .ticket-head p, .ticket-meta p { margin: 2px 0; font-size: 11px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+          th, td { padding: 4px 0; vertical-align: top; }
+          th { border-bottom: 1px dashed #222; text-align: left; }
+          td:last-child, th:last-child { text-align: right; }
+          .ticket-total { margin-top: 10px; border-top: 1px dashed #222; padding-top: 8px; }
+          .ticket-total strong { font-size: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="ticket-head">
+          <h1>${sale.business_name}</h1>
+          <p>${sale.receipt_type || 'C'} ${buildReceiptNumber(sale)}</p>
+          <p>${formatSaleDate(sale.created_at)} ${formatSaleTime(sale.created_at)}</p>
+        </div>
+        <div class="ticket-meta">
+          <p>Cliente: ${sale.customer_name}</p>
+          <p>Vendedor: ${sale.seller || '-'}</p>
+          <p>Pago: ${sale.payment_method || '-'}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Cant</th>
+              <th>Descripcion</th>
+              <th>Precio</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="ticket-total">
+          <div>Total</div>
+          <strong>${formatMoney(sale.total)}</strong>
+        </div>
+      </body>
+    </html>
+  `);
+  popup.document.close();
+  popup.focus();
+  popup.print();
 }
 
 function buildSaleItem(product: Product): CartItem {
@@ -131,9 +243,9 @@ function buildSaleItem(product: Product): CartItem {
     name: product.name,
     sku: product.sku || `#${product.id}`,
     quantity: '1',
-    unit_price: String(Number(product.sale_price || 0)),
+    unit_price: formatLocaleMoneyInput(product.sale_price || 0),
     stock: Number(product.stock || 0),
-    discount: '0.00',
+    discount: '0,00',
     manual_price: false
   };
 }
@@ -153,9 +265,9 @@ function getProductPriceByList(product: Product, priceList: string) {
 
 function getLineTotal(item: CartItem, globalDiscount: string) {
   const quantity = Math.max(0, Number(item.quantity || 0));
-  const price = Math.max(0, Number(item.unit_price || 0));
-  const lineDiscount = Math.min(100, Math.max(0, Number(item.discount || 0)));
-  const globalDiscountValue = Math.min(100, Math.max(0, Number(globalDiscount || 0)));
+  const price = Math.max(0, parseLocaleNumber(item.unit_price));
+  const lineDiscount = Math.min(100, Math.max(0, parseLocaleNumber(item.discount)));
+  const globalDiscountValue = Math.min(100, Math.max(0, parseLocaleNumber(globalDiscount)));
   return price * quantity * (1 - lineDiscount / 100) * (1 - globalDiscountValue / 100);
 }
 
@@ -175,7 +287,7 @@ function normalizeSaleItems(cart: CartItem[]): SalePayloadItem[] {
   return cart.map((item) => ({
     product_id: item.product_id,
     quantity: item.quantity,
-    unit_price: item.unit_price
+    unit_price: String(parseLocaleNumber(item.unit_price))
   }));
 }
 
@@ -201,6 +313,10 @@ function getSalesActionLabel(pageId: string) {
 function buildCustomerAddress(customer: Customer | null) {
   if (!customer) return '';
   return [customer.address, customer.city, customer.province].filter(Boolean).join(' - ');
+}
+
+function buildCustomerLookupCode(customer: Customer) {
+  return `CL-${String(customer.id || '').padStart(4, '0')}`;
 }
 
 function getCategoryLabel(product: Product) {
@@ -339,8 +455,8 @@ function SalesCollectionsPanel({ customers }: { customers: Customer[] }) {
                       <tr><td colSpan={5} className="sales-empty-row">No hay movimientos registrados para este cliente.</td></tr>
                     ) : activeCustomerSales.map((sale) => (
                       <tr key={sale.id}>
-                        <td>{sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-AR') : '-'}</td>
-                        <td>{sale.created_at ? new Date(sale.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                        <td>{formatSaleDate(sale.created_at)}</td>
+                        <td>{formatSaleTime(sale.created_at)}</td>
                         <td>{buildReceiptNumber(sale)}</td>
                         <td>{sale.notes || '-'}</td>
                         <td>{formatMoney(Number(sale.total || 0))}</td>
@@ -535,7 +651,7 @@ function SalesWebOrdersPanel() {
                   ) : (
                     visibleRows.map((sale) => (
                       <tr key={sale.id} className="sales-online-row">
-                        <td>{sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-AR') : '-'}</td>
+                        <td>{formatSaleDate(sale.created_at)}</td>
                         <td><div>{buildReceiptNumber(sale)}</div><small>{sale.id}</small></td>
                         <td>{sale.customer_name || 'Cliente web'}</td>
                         <td>
@@ -630,8 +746,8 @@ function SalesWebOrdersPanel() {
 }
 
 function getSalesQueryColumns(pageId: string, sellerName: string) {
-  const dateCell = (sale: Sale) => sale.created_at ? new Date(sale.created_at).toLocaleDateString('es-AR') : '-';
-  const timeCell = (sale: Sale) => sale.created_at ? new Date(sale.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-';
+  const dateCell = (sale: Sale) => formatSaleDate(sale.created_at);
+  const timeCell = (sale: Sale) => formatSaleTime(sale.created_at);
   const totalCell = (sale: Sale) => formatMoney(Number(sale.total || 0));
   const statusCell = (sale: Sale) => sale.status || '-';
 
@@ -890,12 +1006,18 @@ function SalesDocumentStub({ config, customers, sellerName }: { config: Document
 
 export function SalesPage({ pageId }: SalesPageProps) {
   const { currentUser } = useAuth();
+  const settingsQuery = useSettings();
   const [customerId, setCustomerId] = useState('');
   const [customerCodeInput, setCustomerCodeInput] = useState('');
+  const [customerSearchModalOpen, setCustomerSearchModalOpen] = useState(false);
+  const [customerModalSearch, setCustomerModalSearch] = useState('');
+  const [customerModalPage, setCustomerModalPage] = useState(1);
+  const [customerModalPageSize, setCustomerModalPageSize] = useState(10);
   const [receiptType, setReceiptType] = useState<string>('C');
-  const [pointOfSale, setPointOfSale] = useState('001');
+  const [receiptSlot, setReceiptSlot] = useState('1');
+  const [pointOfSale, setPointOfSale] = useState('0001');
   const [priceList, setPriceList] = useState<string>('Lista 1');
-  const [globalDiscount, setGlobalDiscount] = useState('0.00');
+  const [globalDiscount, setGlobalDiscount] = useState('0,00');
   const [seller, setSeller] = useState('');
   const [taxId, setTaxId] = useState('');
   const [ivaCondition, setIvaCondition] = useState<string>('Consumidor Final');
@@ -907,6 +1029,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [feedback, setFeedback] = useState('');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [ticketPromptSale, setTicketPromptSale] = useState<SalePrintData | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cashReceived, setCashReceived] = useState('0.00');
   const normalizedPointOfSale = normalizePointOfSale(pointOfSale);
@@ -919,6 +1042,22 @@ export function SalesPage({ pageId }: SalesPageProps) {
   );
   const customers = customersQuery.data || [];
   const selectedCustomer = customers.find((customer) => String(customer.id) === customerId) || null;
+  const emitterTaxCondition = settingsQuery.data?.emitter_tax_condition || null;
+  const customerTaxCondition = ivaCondition || 'Consumidor Final';
+  const availableReceiptTypes = useMemo(
+    () => getAvailableVoucherTypes(emitterTaxCondition, customerTaxCondition),
+    [customerTaxCondition, emitterTaxCondition]
+  );
+  const defaultReceiptType = useMemo(
+    () => getDefaultVoucherType(emitterTaxCondition, customerTaxCondition),
+    [customerTaxCondition, emitterTaxCondition]
+  );
+  const fiscalValidationMessage = useMemo(
+    () => getFiscalVoucherValidationMessage(emitterTaxCondition, customerTaxCondition),
+    [customerTaxCondition, emitterTaxCondition]
+  );
+  const receiptTypeSelectValue = availableReceiptTypes.length > 0 ? receiptType : '';
+  const isReceiptTypeLocked = availableReceiptTypes.length <= 1;
   const filteredProducts = useMemo(() => {
     const normalized = itemSearch.trim().toLowerCase();
     if (!normalized) {
@@ -933,12 +1072,43 @@ export function SalesPage({ pageId }: SalesPageProps) {
       })
       .slice(0, 8);
   }, [itemSearch, products]);
+  const filteredCustomers = useMemo(() => {
+    const normalized = customerModalSearch.trim().toLowerCase();
+    if (!normalized) return customers;
+    const digits = normalized.replace(/\D/g, '');
+    return customers.filter((customer) => {
+      const code = buildCustomerLookupCode(customer).toLowerCase();
+      const id = String(customer.id || '');
+      const taxIdValue = String(customer.tax_id || '').replace(/\D/g, '');
+      const name = String(customer.name || '').toLowerCase();
+      return code.includes(normalized)
+        || id.includes(digits || normalized)
+        || taxIdValue.includes(digits)
+        || name.includes(normalized);
+    });
+  }, [customerModalSearch, customers]);
+  const customerModalTotalPages = Math.max(1, Math.ceil(filteredCustomers.length / customerModalPageSize));
+  const safeCustomerModalPage = Math.min(customerModalPage, customerModalTotalPages);
+  const customerModalRows = filteredCustomers.slice((safeCustomerModalPage - 1) * customerModalPageSize, safeCustomerModalPage * customerModalPageSize);
+  const sellerOptions = useMemo(
+    () => Array.from(new Set([
+      currentUser?.name || '',
+      seller,
+      ...CUSTOMER_SELLERS,
+      ...customers.map((customer) => String(customer.seller || '').trim())
+    ].filter(Boolean))),
+    [currentUser?.name, customers, seller]
+  );
 
   useEffect(() => {
     if (!seller && currentUser?.name) {
       setSeller(currentUser.name);
     }
   }, [currentUser?.name, seller]);
+
+  useEffect(() => {
+    setPointOfSale(receiptSlot.padStart(4, '0'));
+  }, [receiptSlot]);
 
   useEffect(() => {
     if (!selectedCustomer) {
@@ -956,22 +1126,35 @@ export function SalesPage({ pageId }: SalesPageProps) {
   }, [selectedCustomer]);
 
   useEffect(() => {
+    if (availableReceiptTypes.length === 0) {
+      if (receiptType !== '') {
+        setReceiptType('');
+      }
+      return;
+    }
+    if (availableReceiptTypes.includes(receiptType as 'A' | 'B' | 'C')) return;
+    if (defaultReceiptType) {
+      setReceiptType(defaultReceiptType);
+    }
+  }, [availableReceiptTypes, defaultReceiptType, receiptType]);
+
+  useEffect(() => {
     setCart((current) => current.map((item) => {
       if (item.manual_price) return item;
       const product = products.find((entry) => String(entry.id) === item.product_id);
       if (!product) return item;
       return {
         ...item,
-        unit_price: String(getProductPriceByList(product, priceList))
+        unit_price: formatLocaleMoneyInput(getProductPriceByList(product, priceList))
       };
     }));
   }, [priceList, products]);
 
-  const netTotal = cart.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0);
-  const discountPercent = Math.min(100, Math.max(0, Number.parseFloat(globalDiscount || '0') || 0));
+  const netTotal = cart.reduce((sum, item) => sum + Number(item.quantity || 0) * parseLocaleNumber(item.unit_price), 0);
+  const discountPercent = Math.min(100, Math.max(0, parseLocaleNumber(globalDiscount)));
   const lineDiscountAmount = cart.reduce((sum, item) => {
-    const base = Math.max(0, Number(item.quantity || 0)) * Math.max(0, Number(item.unit_price || 0));
-    return sum + (base * (Math.min(100, Math.max(0, Number(item.discount || 0))) / 100));
+    const base = Math.max(0, Number(item.quantity || 0)) * Math.max(0, parseLocaleNumber(item.unit_price));
+    return sum + (base * (Math.min(100, Math.max(0, parseLocaleNumber(item.discount))) / 100));
   }, 0);
   const subtotalBeforeGlobal = netTotal - lineDiscountAmount;
   const globalDiscountAmount = subtotalBeforeGlobal * discountPercent / 100;
@@ -997,7 +1180,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
       .slice(0, 8);
   }, [itemSearch, products]);
   const paymentTotalPaid = paymentMethod === 'cash'
-    ? Math.max(0, Number.parseFloat(cashReceived || '0') || 0)
+    ? Math.max(0, parseLocaleNumber(cashReceived))
     : total;
   const paymentChange = paymentMethod === 'cash'
     ? Math.max(0, paymentTotalPaid - total)
@@ -1018,7 +1201,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
             : item
         ));
       }
-      return [...current, { ...buildSaleItem(product), unit_price: String(getProductPriceByList(product, priceList)) }];
+      return [...current, { ...buildSaleItem(product), unit_price: formatLocaleMoneyInput(getProductPriceByList(product, priceList)) }];
     });
     setItemSearch('');
   }
@@ -1029,13 +1212,44 @@ export function SalesPage({ pageId }: SalesPageProps) {
       setCustomerId('');
       return;
     }
-    const found = customers.find((customer) => String(customer.id) === normalized);
+    const normalizedDigits = normalized.replace(/\D/g, '');
+    const normalizedText = normalized.toLowerCase();
+    const found = customers.find((customer) => {
+      const customerId = String(customer.id || '');
+      const customerCode = buildCustomerLookupCode(customer).toLowerCase();
+      const customerTaxId = String(customer.tax_id || '').replace(/\D/g, '');
+      const customerName = String(customer.name || '').toLowerCase();
+
+      return customerId === normalized
+        || customerId === normalizedDigits
+        || customerCode === normalizedText
+        || customerTaxId === normalizedDigits
+        || customerName.includes(normalizedText);
+    });
     if (found) {
       setCustomerId(String(found.id));
+      setCustomerCodeInput(buildCustomerLookupCode(found));
+      setCustomerSearchModalOpen(false);
       setFeedback('');
       return;
     }
     setFeedback('No se encontro el cliente indicado.');
+  }
+
+  function selectCustomer(customer: Customer) {
+    setCustomerId(String(customer.id));
+    setCustomerCodeInput(buildCustomerLookupCode(customer));
+    setCustomerSearchModalOpen(false);
+    setFeedback('');
+  }
+
+  function clearSelectedCustomer() {
+    setCustomerId('');
+    setCustomerCodeInput('');
+    setTaxId('');
+    setIvaCondition('Consumidor Final');
+    setAddress('');
+    setFeedback('');
   }
 
   function handleCartChange(productId: string, field: 'quantity' | 'unit_price' | 'discount', value: string) {
@@ -1045,15 +1259,9 @@ export function SalesPage({ pageId }: SalesPageProps) {
   }
 
   function updateCartQuantity(productId: string, nextQuantity: number) {
-    if (nextQuantity <= 0) {
-      handleRemoveItem(productId);
-      return;
-    }
-
     setCart((current) => current.map((item) => {
       if (item.product_id !== productId) return item;
-      const safeQuantity = Math.min(nextQuantity, Math.max(1, item.stock));
-      return { ...item, quantity: String(safeQuantity) };
+      return { ...item, quantity: String(Math.max(1, nextQuantity)) };
     }));
   }
 
@@ -1063,6 +1271,14 @@ export function SalesPage({ pageId }: SalesPageProps) {
 
   function openPaymentModal() {
     setFeedback('');
+    if (fiscalValidationMessage) {
+      setFeedback(fiscalValidationMessage);
+      return;
+    }
+    if (availableReceiptTypes.length === 0 || !availableReceiptTypes.includes(receiptType as 'A' | 'B' | 'C')) {
+      setFeedback('No hay un tipo de comprobante valido para la condicion fiscal actual.');
+      return;
+    }
     if (!isAdmin) {
       setFeedback('Solo un usuario administrador puede facturar desde esta pantalla.');
       return;
@@ -1078,7 +1294,11 @@ export function SalesPage({ pageId }: SalesPageProps) {
 
   async function confirmSale() {
     setFeedback('');
-    const invalidItem = cart.find((item) => Number(item.quantity || 0) <= 0 || Number(item.unit_price || 0) <= 0);
+    if (fiscalValidationMessage) {
+      setFeedback(fiscalValidationMessage);
+      return;
+    }
+    const invalidItem = cart.find((item) => Number(item.quantity || 0) <= 0 || parseLocaleNumber(item.unit_price) <= 0);
     if (invalidItem) {
       setFeedback('Revisa cantidades y precios antes de facturar.');
       return;
@@ -1087,6 +1307,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
     try {
       const response = await createSale({
         customer_id: customerId,
+        customer_tax_condition: ivaCondition,
         payment_method: paymentMethod,
         notes: [observations, oc ? `O.C: ${oc}` : '', remito ? `Rem: ${remito}` : ''].filter(Boolean).join(' | '),
         receipt_type: receiptType,
@@ -1095,17 +1316,31 @@ export function SalesPage({ pageId }: SalesPageProps) {
       });
 
       const warningCount = (response.syncResults || []).filter((item) => item.success === false).length;
+      const saleForPrint: SalePrintData = {
+        id: response.sale.id,
+        created_at: response.sale.created_at,
+        receipt_type: response.sale.receipt_type,
+        point_of_sale: response.sale.point_of_sale,
+        receipt_number: response.sale.receipt_number,
+        business_name: settingsQuery.data?.business_name || 'Milo Pro',
+        customer_name: selectedCustomer?.name || 'Consumidor final',
+        payment_method: paymentMethod,
+        seller,
+        total,
+        items: cart.map((item) => ({ ...item }))
+      };
       setFeedback(
         warningCount > 0
           ? `Factura ${response.sale.id} guardada con advertencias de sync Woo en ${warningCount} articulo(s).`
           : `Factura ${response.sale.id} guardada correctamente.`
       );
       setPaymentModalOpen(false);
+      setTicketPromptSale(saleForPrint);
       setCart([]);
       setObservations('');
       setOc('');
       setRemito('');
-      setGlobalDiscount('0.00');
+      setGlobalDiscount('0,00');
       setItemSearch('');
       setPaymentMethod('cash');
       setCashReceived('0.00');
@@ -1159,13 +1394,13 @@ export function SalesPage({ pageId }: SalesPageProps) {
                     <h3>Datos de la factura</h3>
                   </div>
                   <div className="sales-compact-grid sales-compact-grid--invoice">
-                    <div className="form-group"><label>Nro.</label><select value="1" onChange={() => undefined}><option value="1">1</option><option value="2">2</option></select></div>
-                    <div className="form-group"><label>P.Venta</label><input value={pointOfSale} onChange={(event: ChangeEvent<HTMLInputElement>) => setPointOfSale(event.target.value.replace(/\D/g, '').slice(0, 3))} /></div>
+                    <div className="form-group"><label>Nro.</label><select value={receiptSlot} onChange={(event) => setReceiptSlot(event.target.value)}><option value="1">1</option><option value="2">2</option></select></div>
+                    <div className="form-group"><label>P.Venta</label><input value={pointOfSale} readOnly /></div>
                     <div className="form-group"><label>Numero</label><input value={nextNumber} readOnly /></div>
-                    <div className="form-group"><label>Tipo</label><select value={receiptType} onChange={(event) => setReceiptType(event.target.value)}>{RECEIPT_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+                    <div className="form-group"><label>Tipo</label><select className={isReceiptTypeLocked && availableReceiptTypes.length === 1 ? 'sales-receipt-type-select is-fixed' : 'sales-receipt-type-select'} value={receiptTypeSelectValue} onChange={(event) => setReceiptType(event.target.value)} disabled={isReceiptTypeLocked}>{availableReceiptTypes.length === 0 ? <option value=""></option> : null}{availableReceiptTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
                     <div className="form-group"><label>Lista</label><select value={priceList} onChange={(event) => setPriceList(event.target.value)}>{PRICE_LISTS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
-                    <div className="form-group"><label>Desc.</label><input value={globalDiscount} onChange={(event: ChangeEvent<HTMLInputElement>) => setGlobalDiscount(event.target.value)} /></div>
-                    <div className="form-group"><label>Vendedor</label><input value={seller} onChange={(event: ChangeEvent<HTMLInputElement>) => setSeller(event.target.value)} /></div>
+                    <div className="form-group"><label>Desc.</label><input type="text" inputMode="decimal" data-discount="true" value={globalDiscount} onChange={(event: ChangeEvent<HTMLInputElement>) => setGlobalDiscount(event.target.value)} placeholder="0,00" /></div>
+                    <div className="form-group"><label>Vendedor</label><select value={seller} onChange={(event) => setSeller(event.target.value)}>{sellerOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
                   </div>
                 </section>
 
@@ -1177,18 +1412,30 @@ export function SalesPage({ pageId }: SalesPageProps) {
                     <div className="form-group">
                       <label>Codigo Cliente</label>
                       <div className="sales-inline-combo">
-                        <input
-                          value={customerCodeInput}
-                          placeholder="Codigo cliente"
-                          onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomerCodeInput(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              searchCustomerByCode();
-                            }
-                          }}
-                        />
-                        <button className="sales-addon-button sales-addon-button--wide" type="button" onClick={searchCustomerByCode}>Buscar</button>
+                        <div className="sales-customer-code-field">
+                          <input
+                            value={customerCodeInput}
+                            placeholder="Codigo cliente"
+                            onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomerCodeInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                searchCustomerByCode();
+                              }
+                            }}
+                          />
+                          {customerId ? (
+                            <button className="sales-customer-clear-button" type="button" onClick={clearSelectedCustomer} aria-label="Quitar cliente seleccionado">
+                              ×
+                            </button>
+                          ) : null}
+                        </div>
+                        <button className="sales-addon-button sales-addon-button--wide" type="button" onClick={() => {
+                          setCustomerModalSearch(customerCodeInput);
+                          setCustomerModalPage(1);
+                          setCustomerModalPageSize(10);
+                          setCustomerSearchModalOpen(true);
+                        }}>Buscar</button>
                       </div>
                     </div>
                     <div className="form-group"><label>Nombre</label><select value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Consumidor final</option>{customers.map((item) => <option key={item.id} value={String(item.id)}>{item.name}</option>)}</select></div>
@@ -1298,8 +1545,8 @@ export function SalesPage({ pageId }: SalesPageProps) {
                             </td>
                             <td>{item.sku}</td>
                             <td><div className="sales-line-name">{item.name}</div></td>
-                            <td><input className="sales-line-input sales-line-input--price" value={item.unit_price} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'unit_price', event.target.value)} /></td>
-                            <td><input className="sales-line-input sales-line-input--discount" value={item.discount} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'discount', event.target.value)} /></td>
+                            <td><input className="sales-line-input sales-line-input--price" data-money="true" inputMode="decimal" value={item.unit_price} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'unit_price', event.target.value)} /></td>
+                            <td><input className="sales-line-input sales-line-input--discount" type="text" inputMode="decimal" data-discount="true" value={item.discount} onChange={(event: ChangeEvent<HTMLInputElement>) => handleCartChange(item.product_id, 'discount', event.target.value)} placeholder="0,00" /></td>
                             <td>{formatMoney(lineTotal)}</td>
                             <td><button type="button" className="btn btn-danger btn-small" onClick={() => handleRemoveItem(item.product_id)}>Quitar</button></td>
                           </tr>
@@ -1362,7 +1609,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
               {paymentMethod === 'cash' ? (
                 <div className="sales-payment-cash-box">
                   <label htmlFor="sales-cash-received">Importe recibido</label>
-                  <input id="sales-cash-received" type="text" inputMode="decimal" value={cashReceived} placeholder="0,00" onChange={(event) => setCashReceived(event.target.value)} />
+                  <input id="sales-cash-received" type="text" inputMode="decimal" data-money="true" value={cashReceived} placeholder="0,00" onChange={(event) => setCashReceived(event.target.value)} />
                   <small>Ingresa el efectivo entregado por el cliente para calcular el vuelto.</small>
                 </div>
               ) : null}
@@ -1374,6 +1621,127 @@ export function SalesPage({ pageId }: SalesPageProps) {
             <div className="modal-footer sales-payment-modal-footer">
               <button className="btn btn-secondary" type="button" onClick={() => setPaymentModalOpen(false)}>Cancelar</button>
               <button className="btn btn-success" type="button" onClick={() => void confirmSale()}>Confirmar Venta</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {ticketPromptSale ? (
+        <div className="modal-overlay" onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            setTicketPromptSale(null);
+          }
+        }}>
+          <div className="modal sales-payment-modal">
+            <div className="modal-header sales-payment-modal-header">
+              <h3>Ticket 80mm</h3>
+              <button className="modal-close" type="button" onClick={() => setTicketPromptSale(null)}>&times;</button>
+            </div>
+            <div className="modal-body sales-payment-modal-body">
+              <div className="sales-payment-total">Factura {buildReceiptNumber(ticketPromptSale)}</div>
+              <div className="sales-payment-summary">
+                <div className="sales-payment-summary-row"><span>Cliente</span><strong>{ticketPromptSale.customer_name}</strong></div>
+                <div className="sales-payment-summary-row"><span>Total</span><strong>{formatMoney(ticketPromptSale.total)}</strong></div>
+              </div>
+              <p>Desea imprimir el ticket de 80mm?</p>
+            </div>
+            <div className="modal-footer sales-payment-modal-footer">
+              <button className="btn btn-secondary" type="button" onClick={() => setTicketPromptSale(null)}>No imprimir</button>
+              <button className="btn btn-success" type="button" onClick={() => {
+                printSalesTicket80mm(ticketPromptSale);
+                setTicketPromptSale(null);
+              }}>Imprimir</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {customerSearchModalOpen ? (
+        <div className="modal-overlay" onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            setCustomerSearchModalOpen(false);
+          }
+        }}>
+          <div className="modal sales-customer-modal">
+            <div className="modal-header">
+              <h3>Buscar Cliente</h3>
+              <button className="modal-close" type="button" onClick={() => setCustomerSearchModalOpen(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="sales-customer-modal-toolbar">
+                <div className="sales-customer-modal-toolbar-group">
+                  <label className="sales-customer-modal-count">
+                    Mostrar
+                    <select value={String(customerModalPageSize)} onChange={(event) => {
+                      setCustomerModalPageSize(Number(event.target.value) || 10);
+                      setCustomerModalPage(1);
+                    }}>
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="30">30</option>
+                    </select>
+                    registros
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label>Buscar:</label>
+                  <input
+                    value={customerModalSearch}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                      setCustomerModalSearch(event.target.value);
+                      setCustomerModalPage(1);
+                    }}
+                    placeholder="Ejemplo búsqueda..."
+                  />
+                </div>
+              </div>
+              <div className="sales-customer-modal-table-wrap">
+                <table className="sales-customer-modal-table">
+                  <thead>
+                    <tr>
+                      <th><span className="sales-customer-modal-sorthead">Codigo <span aria-hidden="true">↕</span></span></th>
+                      <th><span className="sales-customer-modal-sorthead">Nombre <span aria-hidden="true">↕</span></span></th>
+                      <th><span className="sales-customer-modal-sorthead">Direccion <span aria-hidden="true">↕</span></span></th>
+                      <th><span className="sales-customer-modal-sorthead">CUIT <span aria-hidden="true">↕</span></span></th>
+                      <th>Accion</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerModalRows.length === 0 ? (
+                      <tr><td colSpan={5} className="sales-empty-row">No hay clientes para mostrar.</td></tr>
+                    ) : customerModalRows.map((customer) => (
+                      <tr key={customer.id} className={selectedCustomer?.id === customer.id ? 'is-selected' : ''} onClick={() => selectCustomer(customer)}>
+                        <td>{String(customer.id || '').padStart(4, '0')}</td>
+                        <td>{customer.name || '-'}</td>
+                        <td>{customer.address || '-'}</td>
+                        <td>{customer.tax_id || '-'}</td>
+                        <td><button type="button" className="btn btn-success btn-sm" onClick={(event) => { event.stopPropagation(); selectCustomer(customer); }}>Seleccionar</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="modal-footer sales-customer-modal-footer">
+              <div className="sales-customer-modal-pagination-text">
+                Mostrando {filteredCustomers.length === 0 ? 0 : ((safeCustomerModalPage - 1) * customerModalPageSize) + 1} a {Math.min(safeCustomerModalPage * customerModalPageSize, filteredCustomers.length)} de {filteredCustomers.length} registros
+              </div>
+              <div className="sales-pagination">
+                <button className="btn btn-secondary" type="button" onClick={() => setCustomerModalPage((page) => Math.max(1, page - 1))} disabled={safeCustomerModalPage === 1}>Anterior</button>
+                {Array.from({ length: customerModalTotalPages }, (_, index) => index + 1)
+                  .slice(Math.max(0, safeCustomerModalPage - 2), Math.max(0, safeCustomerModalPage - 2) + 3)
+                  .map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      className={`sales-pagination-page${pageNumber === safeCustomerModalPage ? ' is-active' : ''}`}
+                      type="button"
+                      onClick={() => setCustomerModalPage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                <button className="btn btn-secondary" type="button" onClick={() => setCustomerModalPage((page) => Math.min(customerModalTotalPages, page + 1))} disabled={safeCustomerModalPage >= customerModalTotalPages}>Siguiente</button>
+              </div>
             </div>
           </div>
         </div>
