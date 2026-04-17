@@ -25,7 +25,7 @@
     "test:runtime-db-boundary": "node tests/runtime-db-boundary.test.js",
     "validate:postgres": "npm run build:backend && npm run typecheck:backend && npm run preflight:postgres && npm run test:postgres-adapter && npm run test:postgres-bootstrap && npm run test:db-config && npm run test:runtime-db-boundary",
     "check:syntax": "node --check scripts/woo-sync-orders.js && node --check scripts/preflight-postgres-compat.js && node --check scripts/migrate-sqlite-to-postgres.js && node --check scripts/postgres-cutover-check.js && node --check scripts/postgres-migration-helpers.js && node --check scripts/smoke-postgres-runtime.js && node --check scripts/verify-postgres-migration.js",
-    "test": "node tests/auth-customers-routes.test.js && node tests/products-repairs-routes.test.js && node tests/sales-routes.test.js && node tests/purchases-routes.test.js && node tests/woo-order-sync.test.js && node tests/woo-order-config.test.js && node tests/woocommerce-routes.test.js",
+    "test": "node tests/auth-customers-routes.test.js && node tests/products-repairs-routes.test.js && node tests/sales-routes.test.js && node tests/cash-routes.test.js && node tests/sellers-routes.test.js && node tests/admin-routes.test.js && node tests/purchases-routes.test.js && node tests/woo-order-sync.test.js && node tests/woo-order-config.test.js && node tests/woocommerce-routes.test.js",
     "validate": "npm run build:backend && npm run typecheck:backend && npm run typecheck:frontend && npm run check:syntax && npm test",
     "sync:woo-orders": "node scripts/woo-sync-orders.js",
     "migrate:postgres": "npm run build:backend && node scripts/migrate-sqlite-to-postgres.js",

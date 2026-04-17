@@ -281,6 +281,34 @@ async function main() {
       await harness.cleanup();
     }
   });
+
+  await runCase('customers permite buscar por DNI/CUIT exacto', async () => {
+    const harness = await createHarness();
+    try {
+      const create = await harness.request(
+        'POST',
+        '/api/customers',
+        {
+          name: 'Cliente Fiscal',
+          tax_id: '20-12345678-9',
+          email: 'fiscal@test.local'
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(create.statusCode, 201);
+
+      const lookup = await harness.request('GET', '/api/customers/lookup/tax-id?taxId=20-12345678-9', undefined, { token: harness.adminToken });
+      assert.equal(lookup.statusCode, 200);
+      assert.equal(lookup.body.name, 'Cliente Fiscal');
+      assert.equal(lookup.body.tax_id, '20-12345678-9');
+
+      const missing = await harness.request('GET', '/api/customers/lookup/tax-id?taxId=99-00000000-0', undefined, { token: harness.adminToken });
+      assert.equal(missing.statusCode, 404);
+      assert.equal(missing.body.error, 'No se encontro un cliente con ese DNI/CUIT.');
+    } finally {
+      await harness.cleanup();
+    }
+  });
 }
 
 main().catch((error) => {

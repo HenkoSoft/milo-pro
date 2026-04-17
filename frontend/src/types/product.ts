@@ -71,6 +71,8 @@ export interface ProductPayload {
   stock: string;
   min_stock: string;
   image_url: string;
+  image_upload_data: string;
+  image_upload_name: string;
 }
 
 export interface ProductListParams {

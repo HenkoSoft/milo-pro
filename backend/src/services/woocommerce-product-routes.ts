@@ -18,6 +18,7 @@ type ProductRouteDeps = {
   authenticate: unknown;
   getActiveWooConfig?: () => Promise<unknown> | unknown;
   getActiveWooConfigAsync?: () => Promise<unknown>;
+  fetchAllWooProducts?: (config?: unknown) => Promise<any[]>;
   getProductById: (id: string | number) => any;
   findWooProductBySku: (config: unknown, sku: string) => Promise<any>;
   hydrateWooProductForImport: (product: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -32,6 +33,7 @@ type ProductRouteDeps = {
 export function registerWooProductRoutes(router: any, deps: ProductRouteDeps) {
   const {
     authenticate,
+    fetchAllWooProducts,
     getActiveWooConfig,
     getActiveWooConfigAsync,
     getProductById,
@@ -129,7 +131,9 @@ export function registerWooProductRoutes(router: any, deps: ProductRouteDeps) {
 
       if (isImport) {
         sendProgress({ status: 'Importando cambios desde WooCommerce...', progress: isExport ? 40 : 0 });
-        const wooProducts = await woocommerceRequest('GET', '/products?per_page=100');
+        const wooProducts = typeof fetchAllWooProducts === 'function'
+          ? await fetchAllWooProducts(config)
+          : await woocommerceRequest('GET', '/products?per_page=100&page=1');
 
         if (!Array.isArray(wooProducts)) {
           sendProgress({ error: 'No se pudieron obtener productos de WooCommerce', done: true });
@@ -171,7 +175,7 @@ export function registerWooProductRoutes(router: any, deps: ProductRouteDeps) {
 
   router.post('/sync-product/:id', authenticate, async (req: RouteRequest, res: JsonResponse) => {
     try {
-      const product = getProductById(String(req.params?.id || ''));
+      const product = await getProductById(String(req.params?.id || ''));
       if (!product) {
         res.status(404).json({ error: 'Product not found' });
         return;
@@ -196,7 +200,7 @@ export function registerWooProductRoutes(router: any, deps: ProductRouteDeps) {
   router.post('/reconcile-product/:id', authenticate, async (req: RouteRequest, res: JsonResponse) => {
     const db = getDatabaseAccessForRequest(req);
     try {
-      const product = getProductById(String(req.params?.id || ''));
+      const product = await getProductById(String(req.params?.id || ''));
       if (!product) {
         res.status(404).json({ error: 'Product not found' });
         return;
@@ -231,7 +235,7 @@ export function registerWooProductRoutes(router: any, deps: ProductRouteDeps) {
         await db.save();
       }
 
-      const refreshed = getProductById(product.id);
+      const refreshed = await getProductById(product.id);
       const result = await syncProductSnapshotToWooCommerce(refreshed, {
         action: 'manual_product_reconcile'
       });
@@ -255,7 +259,7 @@ export function registerWooProductRoutes(router: any, deps: ProductRouteDeps) {
   router.post('/retry-product-images/:id', authenticate, async (req: RouteRequest, res: JsonResponse) => {
     const db = getDatabaseAccessForRequest(req);
     try {
-      const product = getProductById(String(req.params?.id || ''));
+      const product = await getProductById(String(req.params?.id || ''));
       if (!product) {
         res.status(404).json({ error: 'Product not found' });
         return;
@@ -275,7 +279,7 @@ export function registerWooProductRoutes(router: any, deps: ProductRouteDeps) {
       );
       await db.save();
 
-      const refreshed = getProductById(product.id);
+      const refreshed = await getProductById(product.id);
       const result = await syncProductSnapshotToWooCommerce(refreshed, {
         action: 'manual_product_image_retry'
       });

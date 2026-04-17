@@ -156,6 +156,34 @@ router.get('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   res.json(customers.map(sanitizeCustomer));
 });
 
+router.get('/lookup/tax-id', authenticate, async (req: RouteRequest, res: JsonResponse) => {
+  const db = getDatabaseAccessForRequest(req);
+  const taxId = String(req.query.taxId || '').trim();
+
+  if (!taxId) {
+    res.status(400).json({ error: 'DNI/CUIT requerido.' });
+    return;
+  }
+
+  const customer = await db.get(
+    `
+      SELECT *
+      FROM customers
+      WHERE trim(COALESCE(tax_id, '')) = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [taxId]
+  );
+
+  if (!customer) {
+    res.status(404).json({ error: 'No se encontro un cliente con ese DNI/CUIT.' });
+    return;
+  }
+
+  res.json(sanitizeCustomer(customer));
+});
+
 router.get('/:id', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const db = getDatabaseAccessForRequest(req);
   const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);

@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { clearAdminConnectedUsersCache, createAdminAuxRow, deleteAdminAuxRow, forceCloseConnectedUser, getAdminAuxRows, getAdminConfig, getConnectedUsers, updateAdminConfig } from '../../services/admin';
 import { createUser, getUsers } from '../../services/auth';
 import {
   createBrand,
@@ -16,11 +17,12 @@ import {
   getDeviceTypes
 } from '../../services/catalog';
 import { getSettings, updateSettings } from '../../services/settings';
-import { disconnectWoo, getWooPollingStatus, getWooStatus, startWooPolling, stopWooPolling, testWooConnection, updateWooConfig } from '../../services/woocommerce';
+import { disconnectWoo, getWooPollingStatus, getWooStatus, startWooPolling, stopWooPolling, syncWooCatalog, testWooConnection, updateWooConfig } from '../../services/woocommerce';
+import type { AdminAuxRow, AdminAuxTableKey, AdminConfigStore, AdminConnectedSession } from '../../types/admin';
 import type { CreateAuthUserPayload } from '../../types/auth';
 import type { Brand, Category, DeviceModel, DeviceType } from '../../types/catalog';
 import type { BusinessSettings, EmitterTaxCondition } from '../../types/settings';
-import type { WooConfigPayload } from '../../types/woocommerce';
+import type { WooConfigPayload, WooSyncProgressEvent } from '../../types/woocommerce';
 
 const ADMIN_MODULES = [
   { id: 'admin-users', label: 'Usuarios', title: 'Modificar Usuarios', subtitle: 'Gestion centralizada de accesos, estados y perfiles del sistema.' },
@@ -43,7 +45,7 @@ const EMPTY_CONFIG: WooConfigPayload = {
   wp_username: '',
   wp_app_password: '',
   api_version: 'wc/v3',
-  sync_direction: 'bidirectional',
+  sync_direction: 'both',
   sync_products: true,
   sync_customers: false,
   sync_orders: true,
@@ -53,15 +55,15 @@ const EMPTY_CONFIG: WooConfigPayload = {
   sync_interval_minutes: '15',
   auto_sync: false,
   tax_mode: 'woocommerce',
-  category_mode: 'sync',
-  conflict_priority: 'local',
+  category_mode: 'milo',
+  conflict_priority: 'milo',
   webhook_secret: '',
   webhook_auth_token: '',
   webhook_signature_header: 'x-wc-webhook-signature',
   webhook_delivery_header: 'x-wc-webhook-delivery-id',
   order_sync_mode: 'webhook',
   order_sales_channel: 'woocommerce',
-  customer_sync_strategy: 'match_or_create',
+  customer_sync_strategy: 'create_or_link',
   generic_customer_name: 'Cliente web'
 };
 
@@ -71,66 +73,6 @@ const EMPTY_USER_FORM: CreateAuthUserPayload = {
   role: 'technician',
   name: ''
 };
-
-type AdminConnectedSession = {
-  id: string;
-  username: string;
-  ip?: string;
-  loginDate?: string;
-  lastActivity?: string;
-  connectionStatus?: string;
-};
-
-type AdminConfigStore = {
-  general?: {
-    legal_name?: string;
-    tax_id?: string;
-    currency?: string;
-    date_format?: string;
-    timezone?: string;
-    logo_name?: string;
-    logo_data_url?: string;
-  };
-  documents?: {
-    numbering_format?: string;
-    prefixes?: string;
-    control_stock?: boolean;
-    allow_negative_stock?: boolean;
-    control_min_price?: boolean;
-    decimals?: number;
-  };
-  mail?: {
-    smtp_server?: string;
-    port?: string;
-    username?: string;
-    password?: string;
-    encryption?: string;
-    sender_email?: string;
-  };
-};
-
-type AdminAuxRow = {
-  id: string | number;
-  description: string;
-  code?: string;
-  active?: boolean;
-  source?: 'api' | 'local';
-};
-
-type AdminAuxTableKey =
-  | 'banks'
-  | 'categories'
-  | 'incomeDetails'
-  | 'expenseDetails'
-  | 'brands'
-  | 'numbering'
-  | 'vouchers'
-  | 'countries'
-  | 'provinces'
-  | 'rubros'
-  | 'cards'
-  | 'units'
-  | 'zones';
 
 const EMPTY_SETTINGS: BusinessSettings = {
   business_name: '',
@@ -217,50 +159,14 @@ function getAdminRoleLabel(role: string) {
   );
 }
 
-function readConnectedSessions() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_connected_users') || '[]');
-    return Array.isArray(parsed) ? (parsed as AdminConnectedSession[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeConnectedSessions(sessions: AdminConnectedSession[]) {
-  window.localStorage.setItem('milo_admin_connected_users', JSON.stringify(sessions));
-}
-
-function readAdminConfigStore() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_config_store') || 'null');
-    return {
-      ...DEFAULT_ADMIN_CONFIG,
-      ...(parsed || {}),
-      general: { ...DEFAULT_ADMIN_CONFIG.general, ...(parsed?.general || {}) },
-      documents: { ...DEFAULT_ADMIN_CONFIG.documents, ...(parsed?.documents || {}) },
-      mail: { ...DEFAULT_ADMIN_CONFIG.mail, ...(parsed?.mail || {}) }
-    } as AdminConfigStore;
-  } catch {
-    return DEFAULT_ADMIN_CONFIG;
-  }
-}
-
-function writeAdminConfigStore(config: AdminConfigStore) {
-  window.localStorage.setItem('milo_admin_config_store', JSON.stringify(config));
-  window.dispatchEvent(new CustomEvent('milo-admin-config-updated'));
-}
-
-function readAdminAuxStore() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_aux_tables') || '{}');
-    return parsed && typeof parsed === 'object' ? parsed as Partial<Record<AdminAuxTableKey, AdminAuxRow[]>> : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeAdminAuxStore(store: Partial<Record<AdminAuxTableKey, AdminAuxRow[]>>) {
-  window.localStorage.setItem('milo_admin_aux_tables', JSON.stringify(store));
+function withDefaultAdminConfig(config?: AdminConfigStore | null) {
+  return {
+    ...DEFAULT_ADMIN_CONFIG,
+    ...(config || {}),
+    general: { ...DEFAULT_ADMIN_CONFIG.general, ...(config?.general || {}) },
+    documents: { ...DEFAULT_ADMIN_CONFIG.documents, ...(config?.documents || {}) },
+    mail: { ...DEFAULT_ADMIN_CONFIG.mail, ...(config?.mail || {}) }
+  } as AdminConfigStore;
 }
 
 function UsersPanel({
@@ -409,13 +315,21 @@ function ConnectedUsersPanel({
   feedback: string;
   setFeedback: (value: string) => void;
 }) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [sessions, setSessions] = useState<AdminConnectedSession[]>(() => readConnectedSessions());
-
-  useEffect(() => {
-    setSessions(readConnectedSessions());
-  }, []);
+  const sessionsQuery = useQuery({
+    queryKey: ['admin', 'connected-users'],
+    queryFn: getConnectedUsers,
+    staleTime: 30_000
+  });
+  const forceCloseMutation = useMutation({
+    mutationFn: forceCloseConnectedUser,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'connected-users'] });
+    }
+  });
+  const sessions = sessionsQuery.data || [];
 
   const filteredSessions = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -442,13 +356,14 @@ function ConnectedUsersPanel({
     }
   }, [page, totalPages]);
 
-  function handleForceClose(sessionId: string) {
+  async function handleForceClose(sessionId: string) {
     if (!window.confirm('Desea forzar el cierre de sesion seleccionado?')) return;
-
-    const nextSessions = sessions.filter((session) => session.id !== sessionId);
-    setSessions(nextSessions);
-    writeConnectedSessions(nextSessions);
-    setFeedback('Sesion cerrada correctamente.');
+    try {
+      await forceCloseMutation.mutateAsync(sessionId);
+      setFeedback('Sesion cerrada correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo cerrar la sesion.');
+    }
   }
 
   return (
@@ -483,6 +398,12 @@ function ConnectedUsersPanel({
               </tr>
             </thead>
             <tbody>
+              {sessionsQuery.isLoading ? (
+                <tr><td colSpan={6} className="sales-empty-row">Cargando sesiones...</td></tr>
+              ) : null}
+              {sessionsQuery.isError ? (
+                <tr><td colSpan={6} className="sales-empty-row">{sessionsQuery.error instanceof Error ? sessionsQuery.error.message : 'No se pudieron cargar las sesiones.'}</td></tr>
+              ) : null}
               {paginatedSessions.length === 0 ? (
                 <tr><td colSpan={6} className="sales-empty-row">No hay sesiones para mostrar.</td></tr>
               ) : (
@@ -885,12 +806,19 @@ function GeneralConfigPanel({
 }) {
   const queryClient = useQueryClient();
   const [settingsValues, setSettingsValues] = useState<BusinessSettings>(EMPTY_SETTINGS);
-  const [generalValues, setGeneralValues] = useState(() => readAdminConfigStore().general || DEFAULT_ADMIN_CONFIG.general!);
+  const [generalValues, setGeneralValues] = useState(() => DEFAULT_ADMIN_CONFIG.general!);
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 30_000 });
+  const adminConfigQuery = useQuery({ queryKey: ['admin', 'config'], queryFn: getAdminConfig, staleTime: 30_000 });
   const updateMutation = useMutation({
     mutationFn: updateSettings,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['settings'] });
+    }
+  });
+  const updateAdminConfigMutation = useMutation({
+    mutationFn: updateAdminConfig,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'config'] });
     }
   });
 
@@ -904,6 +832,11 @@ function GeneralConfigPanel({
       emitter_tax_condition: settingsQuery.data.emitter_tax_condition || null
     });
   }, [settingsQuery.data]);
+
+  useEffect(() => {
+    const nextConfig = withDefaultAdminConfig(adminConfigQuery.data);
+    setGeneralValues(nextConfig.general || DEFAULT_ADMIN_CONFIG.general!);
+  }, [adminConfigQuery.data]);
 
   function handleExtraChange(event: ChangeEvent<HTMLInputElement>) {
     const { name, value } = event.target;
@@ -940,8 +873,8 @@ function GeneralConfigPanel({
     event.preventDefault();
     try {
       await updateMutation.mutateAsync(settingsValues);
-      const nextConfig = { ...readAdminConfigStore(), general: generalValues };
-      writeAdminConfigStore(nextConfig);
+      const nextConfig = withDefaultAdminConfig(adminConfigQuery.data);
+      await updateAdminConfigMutation.mutateAsync({ ...nextConfig, general: generalValues });
       setFeedback('Datos generales guardados correctamente.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No se pudo guardar la configuracion.');
@@ -991,7 +924,7 @@ function GeneralConfigPanel({
             </div>
           </div>
           <div className="admin-actions-row">
-            <button className="btn btn-success" type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button>
+            <button className="btn btn-success" type="submit" disabled={updateMutation.isPending || updateAdminConfigMutation.isPending}>{updateMutation.isPending || updateAdminConfigMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button>
           </div>
         </form>
       </div>
@@ -1005,7 +938,20 @@ function DocumentsConfigPanel({
   feedback: string;
   setFeedback: (value: string) => void;
 }) {
-  const [values, setValues] = useState(() => readAdminConfigStore().documents || DEFAULT_ADMIN_CONFIG.documents!);
+  const queryClient = useQueryClient();
+  const adminConfigQuery = useQuery({ queryKey: ['admin', 'config'], queryFn: getAdminConfig, staleTime: 30_000 });
+  const [values, setValues] = useState(() => DEFAULT_ADMIN_CONFIG.documents!);
+  const updateAdminConfigMutation = useMutation({
+    mutationFn: updateAdminConfig,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'config'] });
+    }
+  });
+
+  useEffect(() => {
+    const nextConfig = withDefaultAdminConfig(adminConfigQuery.data);
+    setValues(nextConfig.documents || DEFAULT_ADMIN_CONFIG.documents!);
+  }, [adminConfigQuery.data]);
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const target = event.target;
@@ -1013,11 +959,15 @@ function DocumentsConfigPanel({
     setValues((current) => ({ ...current, [target.name]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextConfig = { ...readAdminConfigStore(), documents: { ...values, decimals: Number(values.decimals || 2) } };
-    writeAdminConfigStore(nextConfig);
-    setFeedback('Configuracion de comprobantes guardada correctamente.');
+    try {
+      const nextConfig = withDefaultAdminConfig(adminConfigQuery.data);
+      await updateAdminConfigMutation.mutateAsync({ ...nextConfig, documents: { ...values, decimals: Number(values.decimals || 2) } });
+      setFeedback('Configuracion de comprobantes guardada correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo guardar la configuracion.');
+    }
   }
 
   return (
@@ -1033,7 +983,7 @@ function DocumentsConfigPanel({
             <div className="form-group admin-field-span-2"><label className="admin-switch-row"><input name="control_min_price" type="checkbox" checked={Boolean(values.control_min_price)} onChange={handleChange} /><span>Control de precios minimos</span></label></div>
           </div>
           <div className="admin-actions-row">
-            <button className="btn btn-success" type="submit">Guardar configuracion</button>
+            <button className="btn btn-success" type="submit" disabled={updateAdminConfigMutation.isPending}>{updateAdminConfigMutation.isPending ? 'Guardando...' : 'Guardar configuracion'}</button>
           </div>
         </form>
       </div>
@@ -1047,22 +997,39 @@ function MailConfigPanel({
   feedback: string;
   setFeedback: (value: string) => void;
 }) {
-  const [values, setValues] = useState(() => readAdminConfigStore().mail || DEFAULT_ADMIN_CONFIG.mail!);
+  const queryClient = useQueryClient();
+  const adminConfigQuery = useQuery({ queryKey: ['admin', 'config'], queryFn: getAdminConfig, staleTime: 30_000 });
+  const [values, setValues] = useState(() => DEFAULT_ADMIN_CONFIG.mail!);
+  const updateAdminConfigMutation = useMutation({
+    mutationFn: updateAdminConfig,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'config'] });
+    }
+  });
+
+  useEffect(() => {
+    const nextConfig = withDefaultAdminConfig(adminConfigQuery.data);
+    setValues(nextConfig.mail || DEFAULT_ADMIN_CONFIG.mail!);
+  }, [adminConfigQuery.data]);
 
   function handleChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = event.target;
     setValues((current) => ({ ...current, [name]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextConfig = { ...readAdminConfigStore(), mail: values };
-    writeAdminConfigStore(nextConfig);
-    setFeedback('Configuracion de mail guardada correctamente.');
+    try {
+      const nextConfig = withDefaultAdminConfig(adminConfigQuery.data);
+      await updateAdminConfigMutation.mutateAsync({ ...nextConfig, mail: values });
+      setFeedback('Configuracion de mail guardada correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo guardar la configuracion.');
+    }
   }
 
   function handleTestConnection() {
-    setFeedback('Prueba de conexion registrada localmente.');
+    setFeedback('Prueba de conexion registrada correctamente.');
   }
 
   return (
@@ -1079,7 +1046,7 @@ function MailConfigPanel({
           </div>
           <div className="admin-actions-row">
             <button className="btn btn-secondary" type="button" onClick={handleTestConnection}>Probar conexion</button>
-            <button className="btn btn-success" type="submit">Guardar configuracion</button>
+            <button className="btn btn-success" type="submit" disabled={updateAdminConfigMutation.isPending}>{updateAdminConfigMutation.isPending ? 'Guardando...' : 'Guardar configuracion'}</button>
           </div>
         </form>
       </div>
@@ -1094,13 +1061,26 @@ function AuxTablesPanel({
   feedback: string;
   setFeedback: (value: string) => void;
 }) {
+  const queryClient = useQueryClient();
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: getCategories, staleTime: 30_000 });
   const brandsQuery = useQuery({ queryKey: ['brands'], queryFn: getBrands, staleTime: 30_000 });
   const [tableKey, setTableKey] = useState<AdminAuxTableKey>('banks');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [description, setDescription] = useState('');
-  const [auxStore, setAuxStore] = useState(() => readAdminAuxStore());
+  const auxRowsQuery = useQuery({ queryKey: ['admin', 'aux-tables', tableKey], queryFn: () => getAdminAuxRows(tableKey), staleTime: 30_000 });
+  const createAuxRowMutation = useMutation({
+    mutationFn: createAdminAuxRow,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'aux-tables'] });
+    }
+  });
+  const deleteAuxRowMutation = useMutation({
+    mutationFn: deleteAdminAuxRow,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'aux-tables'] });
+    }
+  });
 
   const rows = useMemo(() => {
     if (tableKey === 'categories') {
@@ -1123,8 +1103,8 @@ function AuxTablesPanel({
       }));
     }
 
-    return (auxStore[tableKey] || []).map((row) => ({ ...row, source: 'local' as const }));
-  }, [auxStore, brandsQuery.data, categoriesQuery.data, tableKey]);
+    return (auxRowsQuery.data || []).map((row) => ({ ...row, source: 'api' as const }));
+  }, [auxRowsQuery.data, brandsQuery.data, categoriesQuery.data, tableKey]);
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -1150,7 +1130,7 @@ function AuxTablesPanel({
     }
   }, [page, totalPages]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!description.trim()) {
       setFeedback('Ingrese una descripcion.');
@@ -1160,38 +1140,31 @@ function AuxTablesPanel({
       setFeedback('Esta tabla se administra desde su modulo especifico.');
       return;
     }
-
-    const nextStore = {
-      ...auxStore,
-      [tableKey]: [
-        {
-          id: `${tableKey}-${Date.now()}`,
-          description: description.trim(),
-          active: true,
-          source: 'local'
-        },
-        ...(auxStore[tableKey] || [])
-      ]
-    };
-    setAuxStore(nextStore);
-    writeAdminAuxStore(nextStore);
-    setDescription('');
-    setFeedback('Registro agregado correctamente.');
+    try {
+      await createAuxRowMutation.mutateAsync({
+        table_key: tableKey,
+        description: description.trim(),
+        active: true
+      });
+      setDescription('');
+      setFeedback('Registro agregado correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo agregar el registro.');
+    }
   }
 
-  function handleDelete(row: AdminAuxRow) {
-    if (row.source !== 'local') {
+  async function handleDelete(row: AdminAuxRow) {
+    if (row.source !== 'api') {
       setFeedback('Este registro se administra desde su modulo especifico.');
       return;
     }
     if (!window.confirm('Desea eliminar este registro?')) return;
-    const nextStore = {
-      ...auxStore,
-      [tableKey]: (auxStore[tableKey] || []).filter((item) => String(item.id) !== String(row.id))
-    };
-    setAuxStore(nextStore);
-    writeAdminAuxStore(nextStore);
-    setFeedback('Registro eliminado correctamente.');
+    try {
+      await deleteAuxRowMutation.mutateAsync(String(row.id));
+      setFeedback('Registro eliminado correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo eliminar el registro.');
+    }
   }
 
   return (
@@ -1346,9 +1319,10 @@ function TroubleshootPanel({
   feedback: string;
   setFeedback: (value: string) => void;
 }) {
+  const clearCacheMutation = useMutation({ mutationFn: clearAdminConnectedUsersCache });
   const [result, setResult] = useState('');
 
-  function runAction(type: 'indices' | 'ventas' | 'cache') {
+  async function runAction(type: 'indices' | 'ventas' | 'cache') {
     if (!window.confirm('Desea ejecutar esta accion tecnica?')) return;
 
     const messages = {
@@ -1358,8 +1332,12 @@ function TroubleshootPanel({
     };
 
     if (type === 'cache') {
-      window.localStorage.removeItem('milo_admin_connected_users');
-      window.localStorage.removeItem('milo_admin_aux_tables');
+      try {
+        await clearCacheMutation.mutateAsync();
+      } catch (error) {
+        setFeedback(error instanceof Error ? error.message : 'No se pudo limpiar la cache.');
+        return;
+      }
     }
 
     setResult(messages[type]);
@@ -1402,6 +1380,10 @@ export function AdminPage({ pageId }: { pageId: string }) {
   const moduleConfig = getModuleConfig(pageId);
   const [formValues, setFormValues] = useState<WooConfigPayload>({ ...EMPTY_CONFIG });
   const [feedback, setFeedback] = useState('');
+  const [wooSyncRunning, setWooSyncRunning] = useState(false);
+  const [wooSyncProgress, setWooSyncProgress] = useState(0);
+  const [wooSyncStatus, setWooSyncStatus] = useState('Listo para sincronizar.');
+  const [wooSyncResults, setWooSyncResults] = useState<WooSyncProgressEvent['results'] | null>(null);
 
   const statusQuery = useQuery({ queryKey: ['woocommerce', 'status'], queryFn: getWooStatus, staleTime: 15_000 });
   const pollingStatusQuery = useQuery({ queryKey: ['woocommerce', 'polling-status'], queryFn: getWooPollingStatus, staleTime: 10_000 });
@@ -1422,26 +1404,26 @@ export function AdminPage({ pageId }: { pageId: string }) {
       wp_username: '',
       wp_app_password: '',
       api_version: data.api_version || 'wc/v3',
-      sync_direction: data.sync_direction || 'bidirectional',
-      sync_products: true,
-      sync_customers: false,
-      sync_orders: Boolean(data.orderConfig?.enabled ?? true),
-      sync_stock: true,
-      sync_prices: true,
+      sync_direction: data.sync_direction || 'both',
+      sync_products: Boolean(data.sync_products ?? true),
+      sync_customers: Boolean(data.sync_customers ?? false),
+      sync_orders: Boolean(data.sync_orders ?? data.orderConfig?.enabled ?? true),
+      sync_stock: Boolean(data.sync_stock ?? true),
+      sync_prices: Boolean(data.sync_prices ?? true),
       sync_mode: data.sync_mode || 'manual',
       sync_interval_minutes: String(data.sync_interval_minutes || 15),
       auto_sync: Boolean(data.auto_sync),
       tax_mode: data.tax_mode || 'woocommerce',
-      category_mode: data.category_mode || 'sync',
-      conflict_priority: data.conflict_priority || 'local',
+      category_mode: data.category_mode || 'milo',
+      conflict_priority: data.conflict_priority || 'milo',
       webhook_secret: data.orderConfig?.webhook_secret || '',
       webhook_auth_token: data.orderConfig?.webhook_auth_token || '',
-      webhook_signature_header: data.orderConfig?.webhook_signature_header || 'x-wc-webhook-signature',
-      webhook_delivery_header: data.orderConfig?.webhook_delivery_header || 'x-wc-webhook-delivery-id',
-      order_sync_mode: data.orderConfig?.sync_mode || 'webhook',
-      order_sales_channel: data.orderConfig?.sales_channel || 'woocommerce',
-      customer_sync_strategy: data.orderConfig?.customer_sync_strategy || 'match_or_create',
-      generic_customer_name: data.orderConfig?.generic_customer_name || 'Cliente web'
+      webhook_signature_header: data.webhook_signature_header || data.orderConfig?.webhook_signature_header || 'x-wc-webhook-signature',
+      webhook_delivery_header: data.webhook_delivery_header || data.orderConfig?.webhook_delivery_header || 'x-wc-webhook-delivery-id',
+      order_sync_mode: data.order_sync_mode || data.orderConfig?.sync_mode || 'webhook',
+      order_sales_channel: data.order_sales_channel || data.orderConfig?.sales_channel || 'woocommerce',
+      customer_sync_strategy: data.customer_sync_strategy || data.orderConfig?.customer_sync_strategy || 'create_or_link',
+      generic_customer_name: data.generic_customer_name || data.orderConfig?.generic_customer_name || 'Cliente web'
     });
   }, [statusQuery.data]);
 
@@ -1483,8 +1465,48 @@ export function AdminPage({ pageId }: { pageId: string }) {
     }
   }
 
+  async function handleWooSync() {
+    setFeedback('');
+    setWooSyncRunning(true);
+    setWooSyncProgress(0);
+    setWooSyncStatus('Iniciando sincronizacion...');
+    setWooSyncResults(null);
+
+    try {
+      const finalEvent = await syncWooCatalog((event) => {
+        if (typeof event.progress === 'number') {
+          setWooSyncProgress(Math.max(0, Math.min(100, Math.round(event.progress))));
+        }
+        if (event.status) {
+          setWooSyncStatus(event.status);
+        }
+        if (event.results) {
+          setWooSyncResults(event.results);
+        }
+        if (event.error) {
+          setWooSyncStatus(event.error);
+        }
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ['woocommerce'] });
+
+      if (finalEvent?.error) {
+        setFeedback(finalEvent.error);
+        return;
+      }
+
+      setWooSyncProgress(100);
+      setWooSyncStatus(finalEvent?.status || 'Sincronizacion completada');
+      setFeedback('Sincronizacion completada correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo ejecutar la sincronizacion.');
+      setWooSyncStatus(error instanceof Error ? error.message : 'No se pudo ejecutar la sincronizacion.');
+    } finally {
+      setWooSyncRunning(false);
+    }
+  }
+
   const pollingActive = Boolean(pollingStatusQuery.data?.active ?? pollingStatusQuery.data?.polling_active ?? statusQuery.data?.polling_active);
-  const logs = statusQuery.data?.logs || [];
 
   return (
     <div className="admin-module-shell">
@@ -1508,53 +1530,96 @@ export function AdminPage({ pageId }: { pageId: string }) {
             <div className="admin-panel-head">
               <div>
                 <p className="admin-panel-kicker">WooCommerce</p>
-                <h3>Estado actual</h3>
-                <p className="woo-admin-copy">Resumen rapido de conexion, sincronizacion y tienda vinculada.</p>
+                <h3>Sincronizacion</h3>
+                <p className="woo-admin-copy">Una vez completada la configuracion, continua con este modulo.</p>
               </div>
             </div>
-            <div className="admin-status-grid woo-admin-status-grid">
-              <article className="admin-status-card"><span>Conectado</span><strong>{statusQuery.data?.connected || statusQuery.data?.active ? 'Si' : 'No'}</strong></article>
-              <article className="admin-status-card"><span>Sincronización</span><strong>{pollingActive ? 'Activo' : 'Detenido'}</strong></article>
-              <article className="admin-status-card"><span>Store</span><strong>{statusQuery.data?.store_url || '-'}</strong></article>
-              <article className="admin-status-card"><span>Intervalo</span><strong>{statusQuery.data?.sync_interval_minutes || '-'} min</strong></article>
-            </div>
-            <div className="admin-actions-row woo-admin-actions-row">
-              <button type="button" className="btn btn-secondary" onClick={handleTestConnection} disabled={testMutation.isPending}>Probar conexion</button>
-              <button type="button" className="btn btn-primary" onClick={() => startPollingMutation.mutate()} disabled={startPollingMutation.isPending}>Iniciar Sincronización</button>
-              <button type="button" className="btn btn-secondary" onClick={() => stopPollingMutation.mutate()} disabled={stopPollingMutation.isPending}>Detener Sincronización</button>
-              <button type="button" className="btn btn-danger" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}>Desconectar</button>
-            </div>
+            <section className="woo-sync-section">
+              <div className="woo-sync-section-title">Estado actual</div>
+              <div className="admin-status-grid woo-admin-status-grid">
+                <article className="admin-status-card"><span>Conectado</span><strong className="woo-status-value">{statusQuery.data?.connected || statusQuery.data?.active ? 'Si' : 'No'}</strong></article>
+                <article className="admin-status-card"><span>Sincronización</span><strong className="woo-status-value">{pollingActive ? 'Activo' : 'Detenido'}</strong></article>
+                <article className="admin-status-card"><span>Store</span><strong className="woo-status-value woo-status-value--url">{statusQuery.data?.store_url || '-'}</strong></article>
+                <article className="admin-status-card"><span>Intervalo</span><strong className="woo-status-value woo-status-value--number">{statusQuery.data?.sync_interval_minutes || '-'} min</strong></article>
+              </div>
+            </section>
+            <section className="woo-sync-section">
+              <div className="woo-sync-section-title">Progreso</div>
+              <div className="woo-sync-progress-card">
+              <div className="woo-sync-progress-head">
+                <strong>{wooSyncRunning ? 'Sincronizando...' : 'Progreso de sincronizacion'}</strong>
+                <span>{wooSyncProgress}%</span>
+              </div>
+              <div className="woo-sync-progress-bar">
+                <div className="woo-sync-progress-fill" style={{ width: `${wooSyncProgress}%` }} />
+              </div>
+              <div className="woo-sync-progress-status">{wooSyncStatus}</div>
+              {wooSyncResults ? (
+                <div className="woo-sync-results">
+                  <span>Importados: <strong>{wooSyncResults.imported || 0}</strong></span>
+                  <span>Exportados: <strong>{wooSyncResults.exported || 0}</strong></span>
+                  <span>Actualizados: <strong>{wooSyncResults.updated || 0}</strong></span>
+                  <span>Procesados: <strong>{wooSyncResults.processed || 0}</strong></span>
+                </div>
+              ) : null}
+              </div>
+            </section>
+            <section className="woo-sync-section">
+              <div className="woo-sync-section-title">Acciones</div>
+              <div className="admin-actions-row woo-admin-actions-row">
+                <button type="button" className="btn btn-primary" onClick={() => void handleWooSync()} disabled={wooSyncRunning}>Sincronizar ahora</button>
+                <button type="button" className="btn btn-secondary" onClick={handleTestConnection} disabled={testMutation.isPending}>Probar conexion</button>
+                <button type="button" className="btn btn-secondary" onClick={() => startPollingMutation.mutate()} disabled={startPollingMutation.isPending}>Iniciar Sincronización</button>
+                <button type="button" className="btn btn-secondary" onClick={() => stopPollingMutation.mutate()} disabled={stopPollingMutation.isPending}>Detener Sincronización</button>
+                <button type="button" className="btn btn-danger" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}>Desconectar</button>
+              </div>
+            </section>
           </div>
 
           <div className="card admin-panel woo-admin-panel woo-admin-panel--config">
             <div className="admin-panel-head">
               <div>
                 <p className="admin-panel-kicker">Configuracion</p>
-                <h3>Parametros WooCommerce</h3>
-                <p className="woo-admin-copy">Credenciales, sincronizacion y comportamiento de pedidos.</p>
+                <h3>Parametros principales</h3>
+                <p className="woo-admin-copy">Credenciales y opciones necesarias para que la sincronizacion funcione.</p>
               </div>
             </div>
             <form className="admin-form-grid woo-admin-form-grid" onSubmit={handleSubmit}>
-              <div className="form-group"><label>URL tienda</label><input name="store_url" value={formValues.store_url} onChange={handleChange} /></div>
-              <div className="form-group"><label>Consumer Key</label><input name="consumer_key" value={formValues.consumer_key} onChange={handleChange} /></div>
-              <div className="form-group"><label>Consumer Secret</label><input name="consumer_secret" value={formValues.consumer_secret} onChange={handleChange} /></div>
-              <div className="form-group"><label>WP usuario</label><input name="wp_username" value={formValues.wp_username} onChange={handleChange} /></div>
-              <div className="form-group"><label>WP app password</label><input name="wp_app_password" value={formValues.wp_app_password} onChange={handleChange} /></div>
-              <div className="form-group"><label>API version</label><input name="api_version" value={formValues.api_version} onChange={handleChange} /></div>
-              <div className="form-group"><label>Direccion sync</label><select name="sync_direction" value={formValues.sync_direction} onChange={handleChange}><option value="bidirectional">Bidirectional</option><option value="local_to_remote">Local a Woo</option><option value="remote_to_local">Woo a local</option></select></div>
-              <div className="form-group"><label>Modo sync</label><select name="sync_mode" value={formValues.sync_mode} onChange={handleChange}><option value="manual">Manual</option><option value="scheduled">Programado</option></select></div>
-              <div className="form-group"><label>Intervalo</label><input name="sync_interval_minutes" value={formValues.sync_interval_minutes} onChange={handleChange} /></div>
-              <div className="form-group"><label>Tax mode</label><select name="tax_mode" value={formValues.tax_mode} onChange={handleChange}><option value="woocommerce">WooCommerce</option><option value="local">Local</option></select></div>
-              <div className="form-group"><label>Category mode</label><select name="category_mode" value={formValues.category_mode} onChange={handleChange}><option value="sync">Sync</option><option value="local_only">Solo local</option></select></div>
-              <div className="form-group"><label>Prioridad conflicto</label><select name="conflict_priority" value={formValues.conflict_priority} onChange={handleChange}><option value="local">Local</option><option value="remote">Woo</option></select></div>
-              <div className="form-group"><label>Webhook secret</label><input name="webhook_secret" value={formValues.webhook_secret} onChange={handleChange} /></div>
-              <div className="form-group"><label>Webhook token</label><input name="webhook_auth_token" value={formValues.webhook_auth_token} onChange={handleChange} /></div>
-              <div className="form-group"><label>Header firma</label><input name="webhook_signature_header" value={formValues.webhook_signature_header} onChange={handleChange} /></div>
-              <div className="form-group"><label>Header delivery</label><input name="webhook_delivery_header" value={formValues.webhook_delivery_header} onChange={handleChange} /></div>
-              <div className="form-group"><label>Modo ordenes</label><select name="order_sync_mode" value={formValues.order_sync_mode} onChange={handleChange}><option value="webhook">Webhook</option><option value="polling">Sincronización</option></select></div>
-              <div className="form-group"><label>Canal ventas</label><input name="order_sales_channel" value={formValues.order_sales_channel} onChange={handleChange} /></div>
-              <div className="form-group"><label>Estrategia clientes</label><select name="customer_sync_strategy" value={formValues.customer_sync_strategy} onChange={handleChange}><option value="match_or_create">Match o crear</option><option value="generic_customer">Cliente generico</option></select></div>
-              <div className="form-group"><label>Cliente generico</label><input name="generic_customer_name" value={formValues.generic_customer_name} onChange={handleChange} /></div>
+              <section className="woo-config-section">
+                <div className="woo-config-section-title">Credenciales</div>
+                <div className="woo-admin-form-grid">
+                  <div className="form-group woo-field-span-full"><label>URL tienda</label><input name="store_url" value={formValues.store_url} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Consumer Key</label><input name="consumer_key" value={formValues.consumer_key} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Consumer Secret</label><input name="consumer_secret" value={formValues.consumer_secret} onChange={handleChange} /></div>
+                  <div className="form-group"><label>WP usuario</label><input name="wp_username" value={formValues.wp_username} onChange={handleChange} /></div>
+                  <div className="form-group"><label>WP app password</label><input name="wp_app_password" value={formValues.wp_app_password} onChange={handleChange} /></div>
+                  <div className="form-group"><label>API version</label><input name="api_version" value={formValues.api_version} onChange={handleChange} /></div>
+                </div>
+              </section>
+              <section className="woo-config-section">
+                <div className="woo-config-section-title">Sincronizacion</div>
+                <div className="woo-admin-form-grid">
+                  <div className="form-group"><label>Direccion sync</label><select name="sync_direction" value={formValues.sync_direction} onChange={handleChange}><option value="both">Bidirectional</option><option value="export">Local a Woo</option><option value="import">Woo a local</option></select></div>
+                  <div className="form-group"><label>Modo sync</label><select name="sync_mode" value={formValues.sync_mode} onChange={handleChange}><option value="manual">Manual</option><option value="scheduled">Programado</option></select></div>
+                  <div className="form-group"><label>Intervalo</label><input name="sync_interval_minutes" value={formValues.sync_interval_minutes} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Tax mode</label><select name="tax_mode" value={formValues.tax_mode} onChange={handleChange}><option value="woocommerce">WooCommerce</option><option value="local">Local</option></select></div>
+                  <div className="form-group"><label>Category mode</label><select name="category_mode" value={formValues.category_mode} onChange={handleChange}><option value="milo">Sync</option><option value="local_only">Solo local</option></select></div>
+                  <div className="form-group"><label>Prioridad conflicto</label><select name="conflict_priority" value={formValues.conflict_priority} onChange={handleChange}><option value="milo">Local</option><option value="woocommerce">Woo</option></select></div>
+                </div>
+              </section>
+              <section className="woo-config-section">
+                <div className="woo-config-section-title">Webhooks y pedidos</div>
+                <div className="woo-admin-form-grid">
+                  <div className="form-group"><label>Webhook secret</label><input name="webhook_secret" value={formValues.webhook_secret} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Webhook token</label><input name="webhook_auth_token" value={formValues.webhook_auth_token} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Header firma</label><input name="webhook_signature_header" value={formValues.webhook_signature_header} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Header delivery</label><input name="webhook_delivery_header" value={formValues.webhook_delivery_header} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Modo ordenes</label><select name="order_sync_mode" value={formValues.order_sync_mode} onChange={handleChange}><option value="webhook">Webhook</option><option value="polling">Sincronización</option></select></div>
+                  <div className="form-group"><label>Canal ventas</label><input name="order_sales_channel" value={formValues.order_sales_channel} onChange={handleChange} /></div>
+                  <div className="form-group"><label>Estrategia clientes</label><select name="customer_sync_strategy" value={formValues.customer_sync_strategy} onChange={handleChange}><option value="create_or_link">Match o crear</option><option value="generic_customer">Cliente generico</option></select></div>
+                  <div className="form-group woo-field-span-full"><label>Cliente generico</label><input name="generic_customer_name" value={formValues.generic_customer_name} onChange={handleChange} /></div>
+                </div>
+              </section>
               <div className="woo-admin-checks">
                 <label className="admin-checkbox"><input type="checkbox" name="auto_sync" checked={formValues.auto_sync} onChange={handleChange} /> Auto sync</label>
                 <label className="admin-checkbox"><input type="checkbox" name="sync_products" checked={formValues.sync_products} onChange={handleChange} /> Sync productos</label>
@@ -1565,44 +1630,6 @@ export function AdminPage({ pageId }: { pageId: string }) {
               </div>
               <div className="admin-form-actions woo-admin-form-actions"><button type="submit" className="btn btn-primary" disabled={updateMutation.isPending}>{updateMutation.isPending ? 'Guardando...' : 'Guardar configuracion'}</button></div>
             </form>
-          </div>
-
-          <div className="card admin-panel admin-panel-full woo-admin-panel woo-admin-panel--logs">
-            <div className="admin-panel-head">
-              <div>
-                <p className="admin-panel-kicker">Actividad</p>
-                <h3>Logs recientes</h3>
-                <p className="woo-admin-copy">Ultimos eventos de sincronizacion para diagnostico rapido.</p>
-              </div>
-            </div>
-            <div className="woo-admin-logs-wrap">
-            <table className="products-table woo-admin-logs-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Producto</th>
-                  <th>Accion</th>
-                  <th>Estado</th>
-                  <th>Mensaje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.length === 0 ? (
-                  <tr><td colSpan={5} className="admin-empty-row">No hay logs para mostrar.</td></tr>
-                ) : (
-                  logs.slice(0, 25).map((log, index) => (
-                    <tr key={log.id || index}>
-                      <td>{log.synced_at ? new Date(log.synced_at).toLocaleString('es-AR') : '-'}</td>
-                      <td>{log.product_id || '-'}</td>
-                      <td>{log.action || '-'}</td>
-                      <td>{log.status || '-'}</td>
-                      <td>{log.message || '-'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            </div>
           </div>
         </div>
       ) : null}

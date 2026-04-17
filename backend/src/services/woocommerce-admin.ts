@@ -34,6 +34,37 @@ function preserveWooSecret(input: unknown, fallback = '') {
   return nextValue || fallback;
 }
 
+function normalizeWooSyncDirection(value: unknown, fallback = 'export') {
+  const normalized = toRequiredWooString(value, fallback).toLowerCase();
+  if (normalized === 'bidirectional') return 'both';
+  if (normalized === 'local_to_remote') return 'export';
+  if (normalized === 'remote_to_local') return 'import';
+  if (normalized === 'both' || normalized === 'export' || normalized === 'import') return normalized;
+  return fallback;
+}
+
+function normalizeWooConflictPriority(value: unknown, fallback = 'milo') {
+  const normalized = toRequiredWooString(value, fallback).toLowerCase();
+  if (normalized === 'local') return 'milo';
+  if (normalized === 'remote') return 'woocommerce';
+  if (normalized === 'milo' || normalized === 'woocommerce') return normalized;
+  return fallback;
+}
+
+function normalizeWooCategoryMode(value: unknown, fallback = 'milo') {
+  const normalized = toRequiredWooString(value, fallback).toLowerCase();
+  if (normalized === 'sync') return 'milo';
+  if (normalized === 'milo' || normalized === 'local_only') return normalized;
+  return fallback;
+}
+
+function normalizeWooCustomerStrategy(value: unknown, fallback = 'create_or_link') {
+  const normalized = toRequiredWooString(value, fallback).toLowerCase();
+  if (normalized === 'match_or_create') return 'create_or_link';
+  if (normalized === 'generic_customer' || normalized === 'create_or_link') return normalized;
+  return fallback;
+}
+
 export function normalizeWooConnectionTestPayload(body: unknown) {
   const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
   return {
@@ -57,7 +88,7 @@ export function normalizeWooConfigPayload(body: unknown, existing: unknown) {
     wp_username: preserveWooSecret(data.wp_username, toRequiredWooString(current.wp_username)),
     wp_app_password: preserveWooSecret(data.wp_app_password, toRequiredWooString(current.wp_app_password)),
     api_version: toRequiredWooString(data.api_version, toRequiredWooString(current.api_version, 'wc/v3')),
-    sync_direction: toRequiredWooString(data.sync_direction, toRequiredWooString(current.sync_direction, 'export')),
+    sync_direction: normalizeWooSyncDirection(data.sync_direction, normalizeWooSyncDirection(current.sync_direction, 'export')),
     sync_products: parseWooBoolean(data.sync_products, parseWooBoolean(current.sync_products, true)) ? 1 : 0,
     sync_customers: parseWooBoolean(data.sync_customers, parseWooBoolean(current.sync_customers, false)) ? 1 : 0,
     sync_orders: parseWooBoolean(data.sync_orders, parseWooBoolean(current.sync_orders, false)) ? 1 : 0,
@@ -67,8 +98,8 @@ export function normalizeWooConfigPayload(body: unknown, existing: unknown) {
     sync_interval_minutes: Math.max(1, toWooNumber(data.sync_interval_minutes, toWooNumber(current.sync_interval_minutes, 60))),
     auto_sync: parseWooBoolean(data.auto_sync, parseWooBoolean(current.auto_sync, false)) ? 1 : 0,
     tax_mode: toRequiredWooString(data.tax_mode, toRequiredWooString(current.tax_mode, 'woocommerce')),
-    category_mode: toRequiredWooString(data.category_mode, toRequiredWooString(current.category_mode, 'milo')),
-    conflict_priority: toRequiredWooString(data.conflict_priority, toRequiredWooString(current.conflict_priority, 'milo')),
+    category_mode: normalizeWooCategoryMode(data.category_mode, normalizeWooCategoryMode(current.category_mode, 'milo')),
+    conflict_priority: normalizeWooConflictPriority(data.conflict_priority, normalizeWooConflictPriority(current.conflict_priority, 'milo')),
     order_status_map: toWooJsonString(data.order_status_map, {
       pending: 'pendiente',
       processing: 'procesando',
@@ -81,7 +112,7 @@ export function normalizeWooConfigPayload(body: unknown, existing: unknown) {
     order_paid_statuses: toWooJsonString(data.order_paid_statuses, ['paid', 'completed']),
     order_sync_mode: toRequiredWooString(data.order_sync_mode, toRequiredWooString(current.order_sync_mode, 'webhook')),
     order_sales_channel: toRequiredWooString(data.order_sales_channel, toRequiredWooString(current.order_sales_channel, 'woocommerce')),
-    customer_sync_strategy: toRequiredWooString(data.customer_sync_strategy, toRequiredWooString(current.customer_sync_strategy, 'create_or_link')),
+    customer_sync_strategy: normalizeWooCustomerStrategy(data.customer_sync_strategy, normalizeWooCustomerStrategy(current.customer_sync_strategy, 'create_or_link')),
     generic_customer_name: toRequiredWooString(data.generic_customer_name, toRequiredWooString(current.generic_customer_name, 'Cliente WooCommerce')),
     webhook_secret: preserveWooSecret(data.webhook_secret, toRequiredWooString(current.webhook_secret)),
     webhook_auth_token: preserveWooSecret(data.webhook_auth_token, toRequiredWooString(current.webhook_auth_token)),
@@ -119,6 +150,8 @@ export function sanitizeWooStatusResponse(record: unknown) {
   const data = record && typeof record === 'object' ? record as Record<string, unknown> : {};
   const logsSummary = data.logs_summary && typeof data.logs_summary === 'object' ? data.logs_summary as Record<string, unknown> : {};
   const recentErrors = Array.isArray(logsSummary.recent_errors) ? logsSummary.recent_errors : [];
+  const logs = Array.isArray(data.logs) ? data.logs as Array<Record<string, unknown>> : [];
+  const orderConfig = data.orderConfig && typeof data.orderConfig === 'object' ? data.orderConfig as Record<string, unknown> : {};
 
   return {
     connected: parseWooBoolean(data.connected, false),
@@ -162,6 +195,18 @@ export function sanitizeWooStatusResponse(record: unknown) {
     has_wp_app_password: data.has_wp_app_password === undefined ? undefined : parseWooBoolean(data.has_wp_app_password, false),
     has_webhook_secret: data.has_webhook_secret === undefined ? undefined : parseWooBoolean(data.has_webhook_secret, false),
     has_webhook_auth_token: data.has_webhook_auth_token === undefined ? undefined : parseWooBoolean(data.has_webhook_auth_token, false),
+    logs: logs.map((log) => sanitizeWooProductSyncLog(log)),
+    orderConfig: Object.keys(orderConfig).length > 0 ? {
+      enabled: orderConfig.enabled === undefined ? undefined : parseWooBoolean(orderConfig.enabled, false),
+      sync_mode: toNullableWooString(orderConfig.sync_mode) || undefined,
+      sales_channel: toNullableWooString(orderConfig.sales_channel) || undefined,
+      customer_sync_strategy: toNullableWooString(orderConfig.customer_sync_strategy) || undefined,
+      generic_customer_name: toNullableWooString(orderConfig.generic_customer_name) || undefined,
+      webhook_secret: toNullableWooString(orderConfig.webhook_secret) || undefined,
+      webhook_auth_token: toNullableWooString(orderConfig.webhook_auth_token) || undefined,
+      webhook_signature_header: toNullableWooString(orderConfig.webhook_signature_header) || undefined,
+      webhook_delivery_header: toNullableWooString(orderConfig.webhook_delivery_header) || undefined
+    } : undefined,
     logs_summary: {
       processed: toWooNumber(logsSummary.processed),
       errors: toWooNumber(logsSummary.errors),
@@ -269,6 +314,18 @@ export function buildWooStatusResponse(config: Record<string, unknown> | null = 
     has_wp_app_password: Boolean(config.wp_app_password),
     has_webhook_secret: Boolean(config.webhook_secret || process.env.WOO_WEBHOOK_SECRET),
     has_webhook_auth_token: Boolean(config.webhook_auth_token || process.env.WOO_WEBHOOK_AUTH_TOKEN),
+    logs: logs.map((log) => sanitizeWooProductSyncLog(log)),
+    orderConfig: {
+      enabled: parseWooBoolean(config.sync_orders, false),
+      sync_mode: config.order_sync_mode || 'webhook',
+      sales_channel: config.order_sales_channel || 'woocommerce',
+      customer_sync_strategy: config.customer_sync_strategy || 'create_or_link',
+      generic_customer_name: config.generic_customer_name || 'Cliente WooCommerce',
+      webhook_secret: config.webhook_secret || '',
+      webhook_auth_token: config.webhook_auth_token || '',
+      webhook_signature_header: config.webhook_signature_header || 'x-wc-webhook-signature',
+      webhook_delivery_header: config.webhook_delivery_header || 'x-wc-webhook-delivery-id'
+    },
     logs_summary: {
       processed: logs.length,
       errors: recentErrors.length,

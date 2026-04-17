@@ -14,6 +14,12 @@ export function getCustomers(search = '') {
   return apiRequest<Customer[]>(`/customers${buildCustomerQuery(search)}`);
 }
 
+export function getCustomerByTaxId(taxId: string) {
+  const params = new URLSearchParams();
+  params.set('taxId', taxId.trim());
+  return apiRequest<Customer>(`/customers/lookup/tax-id?${params.toString()}`);
+}
+
 export function createCustomer(payload: CustomerPayload) {
   return apiRequest<Customer>('/customers', {
     method: 'POST',

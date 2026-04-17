@@ -1,33 +1,13 @@
 ﻿import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCustomers } from '../../services/customers';
 import { getSales } from '../../services/sales';
+import { createSellerPayment, deleteSeller, getSellerPayments, getSellers, saveSeller } from '../../services/sellers';
 import type { Customer } from '../../types/customer';
 import type { Sale } from '../../types/sale';
+import type { SellerPayload, SellerPaymentRecord, SellerRecord } from '../../types/seller';
 
 type SellersPageId = 'sellers' | 'sellers-commissions' | 'sellers-payments' | 'sellers-sales-report';
-
-type SellerRecord = {
-  id: string;
-  code: string;
-  name: string;
-  address: string;
-  phone: string;
-  cell: string;
-  commission_percent: number;
-  archived?: boolean;
-  source?: 'derived' | 'manual';
-};
-
-type SellerPaymentRecord = {
-  id: number;
-  payment_date: string;
-  seller_id: string;
-  seller_name: string;
-  total_paid: number;
-  total_sales: number;
-  sale_ids: string[];
-};
 
 type SellerFormValues = {
   code: string;
@@ -37,9 +17,6 @@ type SellerFormValues = {
   cell: string;
   commission_percent: string;
 };
-
-const SELLERS_STORAGE_KEY = 'milo_sellers_catalog';
-const SELLERS_PAYMENTS_STORAGE_KEY = 'milo_sellers_payments';
 
 const SELLER_PAGE_IDS = ['sellers', 'sellers-commissions', 'sellers-payments', 'sellers-sales-report'] as const;
 
@@ -70,30 +47,6 @@ function normalizeSellerKey(value: string) {
     .replace(/^-+|-+$/g, '') || 'seller';
 }
 
-function loadSellerStore(): SellerRecord[] {
-  try {
-    return JSON.parse(window.localStorage.getItem(SELLERS_STORAGE_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveSellerStore(store: SellerRecord[]) {
-  window.localStorage.setItem(SELLERS_STORAGE_KEY, JSON.stringify(store));
-}
-
-function loadSellerPaymentsStore(): SellerPaymentRecord[] {
-  try {
-    return JSON.parse(window.localStorage.getItem(SELLERS_PAYMENTS_STORAGE_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveSellerPaymentsStore(store: SellerPaymentRecord[]) {
-  window.localStorage.setItem(SELLERS_PAYMENTS_STORAGE_KEY, JSON.stringify(store));
-}
-
 function getSellerNameForSale(sale: Sale, customers: Customer[]) {
   const customer = customers.find((item) => String(item.id) === String(sale.customer_id));
   return String(customer?.seller || sale.user_name || '').trim();
@@ -102,57 +55,6 @@ function getSellerNameForSale(sale: Sale, customers: Customer[]) {
 function getSellerIdForSale(sale: Sale, customers: Customer[]) {
   const sellerName = getSellerNameForSale(sale, customers);
   return sellerName ? `seller-${normalizeSellerKey(sellerName)}` : '';
-}
-
-function buildSellerCatalog(customers: Customer[], sales: Sale[]) {
-  const stored = loadSellerStore();
-  const storedById = new Map(stored.map((item) => [item.id, item]));
-  const names = new Set<string>();
-
-  customers.forEach((customer) => {
-    if (customer.seller) {
-      names.add(String(customer.seller).trim());
-    }
-  });
-
-  sales.forEach((sale) => {
-    const sellerName = getSellerNameForSale(sale, customers);
-    if (sellerName) {
-      names.add(sellerName);
-    }
-  });
-
-  const derived = [...names].map((name, index) => {
-    const id = `seller-${normalizeSellerKey(name)}`;
-    const storedData = storedById.get(id);
-    return {
-      id,
-      code: storedData?.code || `VEN-${String(index + 1).padStart(3, '0')}`,
-      name: storedData?.name || name,
-      address: storedData?.address || '',
-      phone: storedData?.phone || '',
-      cell: storedData?.cell || '',
-      commission_percent: Number(storedData?.commission_percent ?? 5),
-      archived: Boolean(storedData?.archived),
-      source: 'derived' as const
-    };
-  });
-
-  const manual = stored
-    .filter((item) => !item.archived && !derived.some((seller) => seller.id === item.id))
-    .map((item, index) => ({
-      id: item.id,
-      code: item.code || `VEN-M${String(index + 1).padStart(3, '0')}`,
-      name: item.name || 'Vendedor',
-      address: item.address || '',
-      phone: item.phone || '',
-      cell: item.cell || '',
-      commission_percent: Number(item.commission_percent ?? 5),
-      archived: false,
-      source: 'manual' as const
-    }));
-
-  return [...derived.filter((item) => !item.archived), ...manual].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function buildReceiptNumber(sale: Sale) {
@@ -588,6 +490,7 @@ function SellersSalesReport({
 }
 
 export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
+  const queryClient = useQueryClient();
   const normalizedPage = (SELLER_PAGE_IDS.includes(pageId as SellersPageId) ? pageId : 'sellers') as SellersPageId;
   const customersQuery = useQuery({
     queryKey: ['sellers', 'customers'],
@@ -599,39 +502,65 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
     queryFn: () => getSales({}),
     staleTime: 30_000
   });
+  const sellersQuery = useQuery({
+    queryKey: ['sellers', 'catalog'],
+    queryFn: () => getSellers(),
+    staleTime: 30_000
+  });
+  const paymentsQuery = useQuery({
+    queryKey: ['sellers', 'payments'],
+    queryFn: () => getSellerPayments(),
+    staleTime: 30_000
+  });
 
   const [planillaSearch, setPlanillaSearch] = useState('');
   const [planillaPage, setPlanillaPage] = useState(1);
   const [paymentsSearch, setPaymentsSearch] = useState('');
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [selection, setSelection] = useState<Record<string, boolean>>({});
-  const [storedVersion, setStoredVersion] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSellerId, setEditingSellerId] = useState('');
   const [formValues, setFormValues] = useState<SellerFormValues>({ ...EMPTY_FORM });
+  const [submitError, setSubmitError] = useState('');
 
   const customers = customersQuery.data || [];
   const sales = salesQuery.data || [];
-  const sellers = useMemo(() => buildSellerCatalog(customers, sales), [customers, sales, storedVersion]);
-  const payments = useMemo(() => loadSellerPaymentsStore(), [storedVersion]);
+  const sellers = sellersQuery.data || [];
+  const payments = paymentsQuery.data || [];
   const editingSeller = sellers.find((item) => item.id === editingSellerId) || null;
   const defaultSellerId = sellers[0]?.id || '';
   const [commissionSellerId, setCommissionSellerId] = useState('');
 
   const activeCommissionSellerId = commissionSellerId || defaultSellerId;
-
-  function refreshLocalStores() {
-    setStoredVersion((current) => current + 1);
-  }
+  const saveSellerMutation = useMutation({
+    mutationFn: (payload: SellerPayload) => saveSeller(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sellers', 'catalog'] });
+    }
+  });
+  const deleteSellerMutation = useMutation({
+    mutationFn: (id: string) => deleteSeller(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sellers', 'catalog'] });
+    }
+  });
+  const createPaymentMutation = useMutation({
+    mutationFn: createSellerPayment,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sellers', 'payments'] });
+    }
+  });
 
   function openCreateModal() {
     setEditingSellerId('');
+    setSubmitError('');
     setFormValues({ ...EMPTY_FORM, code: `VEN-${String(sellers.length + 1).padStart(3, '0')}` });
     setIsModalOpen(true);
   }
 
   function openEditModal(seller: SellerRecord) {
     setEditingSellerId(seller.id);
+    setSubmitError('');
     setFormValues(getSellerFormValues(seller));
     setIsModalOpen(true);
   }
@@ -639,6 +568,7 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
   function closeModal() {
     setIsModalOpen(false);
     setEditingSellerId('');
+    setSubmitError('');
   }
 
   function handleFormChange(event: ChangeEvent<HTMLInputElement>) {
@@ -646,42 +576,36 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
     setFormValues((current) => ({ ...current, [name]: value }));
   }
 
-  function handleSaveSeller(event: FormEvent<HTMLFormElement>) {
+  async function handleSaveSeller(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const store = loadSellerStore();
-    const id = editingSeller?.id || `seller-${Date.now()}`;
-    const record: SellerRecord = {
-      id,
-      code: formValues.code.trim(),
-      name: formValues.name.trim(),
-      address: formValues.address.trim(),
-      phone: formValues.phone.trim(),
-      cell: formValues.cell.trim(),
-      commission_percent: Number(formValues.commission_percent || 0),
-      archived: false
-    };
-    const index = store.findIndex((item) => item.id === id);
-    if (index >= 0) store[index] = { ...store[index], ...record };
-    else store.push(record);
-    saveSellerStore(store);
-    refreshLocalStores();
-    closeModal();
-  }
-
-  function handleDeleteSeller(seller: SellerRecord) {
-    if (!window.confirm('Seguro que deseas eliminar este vendedor?')) return;
-    const store = loadSellerStore();
-    const index = store.findIndex((item) => item.id === seller.id);
-    if (index >= 0) {
-      store[index] = { ...store[index], archived: true };
-    } else {
-      store.push({ id: seller.id, code: seller.code, name: seller.name, address: '', phone: '', cell: '', commission_percent: seller.commission_percent, archived: true });
+    setSubmitError('');
+    try {
+      await saveSellerMutation.mutateAsync({
+        id: editingSeller?.id || `seller-${normalizeSellerKey(formValues.name)}`,
+        code: formValues.code.trim(),
+        name: formValues.name.trim(),
+        address: formValues.address.trim(),
+        phone: formValues.phone.trim(),
+        cell: formValues.cell.trim(),
+        commission_percent: Number(formValues.commission_percent || 0),
+        source: editingSeller?.source || 'manual'
+      });
+      closeModal();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'No se pudo guardar el vendedor.');
     }
-    saveSellerStore(store);
-    refreshLocalStores();
   }
 
-  function handlePayCommissions(seller: SellerRecord, rows: Array<{ id: string; total: number; commissionAmount: number }>) {
+  async function handleDeleteSeller(seller: SellerRecord) {
+    if (!window.confirm('Seguro que deseas eliminar este vendedor?')) return;
+    try {
+      await deleteSellerMutation.mutateAsync(seller.id);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo eliminar el vendedor.');
+    }
+  }
+
+  async function handlePayCommissions(seller: SellerRecord, rows: Array<{ id: string; total: number; commissionAmount: number }>) {
     if (rows.length === 0) {
       window.alert('Selecciona al menos una factura para registrar el pago.');
       return;
@@ -691,23 +615,23 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
       acc.totalCommissions += row.commissionAmount;
       return acc;
     }, { totalSales: 0, totalCommissions: 0 });
-    const nextPayments = loadSellerPaymentsStore();
-    nextPayments.unshift({
-      id: Date.now(),
-      payment_date: new Date().toISOString(),
-      seller_id: seller.id,
-      seller_name: seller.name,
-      total_paid: Number(totals.totalCommissions.toFixed(2)),
-      total_sales: Number(totals.totalSales.toFixed(2)),
-      sale_ids: rows.map((row) => row.id)
-    });
-    saveSellerPaymentsStore(nextPayments);
-    setSelection({});
-    refreshLocalStores();
-    window.alert('Pago de comisiones registrado en la UI.');
+    try {
+      await createPaymentMutation.mutateAsync({
+        payment_date: new Date().toISOString(),
+        seller_id: seller.id,
+        seller_name: seller.name || 'Vendedor',
+        total_paid: Number(totals.totalCommissions.toFixed(2)),
+        total_sales: Number(totals.totalSales.toFixed(2)),
+        sale_ids: rows.map((row) => row.id)
+      });
+      setSelection({});
+      window.alert('Pago de comisiones registrado correctamente.');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo registrar el pago de comisiones.');
+    }
   }
 
-  if (customersQuery.isLoading || salesQuery.isLoading) {
+  if (customersQuery.isLoading || salesQuery.isLoading || sellersQuery.isLoading || paymentsQuery.isLoading) {
     return (
       <section className="sellers-admin-content">
         <div className="card sellers-admin-panel">Cargando...</div>
@@ -715,11 +639,17 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
     );
   }
 
-  if (customersQuery.isError || salesQuery.isError) {
+  if (customersQuery.isError || salesQuery.isError || sellersQuery.isError || paymentsQuery.isError) {
     return (
       <section className="sellers-admin-content">
         <div className="card sellers-admin-panel">
-          Error: {customersQuery.error instanceof Error ? customersQuery.error.message : salesQuery.error instanceof Error ? salesQuery.error.message : 'No se pudo cargar vendedores.'}
+          Error: {
+            customersQuery.error instanceof Error ? customersQuery.error.message
+              : salesQuery.error instanceof Error ? salesQuery.error.message
+              : sellersQuery.error instanceof Error ? sellersQuery.error.message
+              : paymentsQuery.error instanceof Error ? paymentsQuery.error.message
+              : 'No se pudo cargar vendedores.'
+          }
         </div>
       </section>
     );
@@ -811,10 +741,11 @@ export function SellersPage({ pageId = 'sellers' }: { pageId?: string }) {
                     <input id="seller-commission" name="commission_percent" type="number" min="0" step="0.01" value={formValues.commission_percent} onChange={handleFormChange} />
                   </div>
                 </div>
+                {submitError ? <div className="sales-error-banner">{submitError}</div> : null}
               </div>
               <div className="modal-footer seller-modal-footer">
                 <button className="btn btn-secondary" type="button" onClick={closeModal}>Cancelar</button>
-                <button className="btn btn-success" type="submit">Guardar</button>
+                <button className="btn btn-success" type="submit" disabled={saveSellerMutation.isPending}>{saveSellerMutation.isPending ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>
           </div>

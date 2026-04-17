@@ -1,8 +1,12 @@
-import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthContext';
 import { useProductFormData, useProductMutations, useProducts } from './useProducts';
 import type { Product, ProductPayload } from '../../types/product';
+import type { ProductMovement } from '../../types/productMovement';
+import { createProductMovement, getProductMovements } from '../../services/products';
 import { parseLocaleNumber } from '../../utils/localeNumber';
+import ProductRichEditor from '../../components/ui/ProductRichEditor';
 
 const PRODUCT_MODULES = [
   { id: 'products', label: 'Planilla', title: 'Planilla de Articulos', subtitle: 'Vista principal con filtros, stock y acceso directo al alta de articulos.' },
@@ -37,20 +41,10 @@ const EMPTY_PRODUCT_FORM: ProductPayload = {
   sale_price_includes_tax: true,
   stock: '0',
   min_stock: '2',
-  image_url: ''
+  image_url: '',
+  image_upload_data: '',
+  image_upload_name: ''
 };
-
-const PRODUCT_UI_STORAGE_KEY = 'milo-pro-react-product-tools';
-
-interface ProductUiMovement {
-  id: string;
-  type: 'adjustment' | 'output';
-  date: string;
-  code: string;
-  description: string;
-  quantity: number;
-  reference: string;
-}
 
 function toProductFormValues(product: Product | null): ProductPayload {
   if (!product) return { ...EMPTY_PRODUCT_FORM };
@@ -77,7 +71,9 @@ function toProductFormValues(product: Product | null): ProductPayload {
     sale_price_includes_tax: product.sale_price_includes_tax !== false && Number(product.sale_price_includes_tax ?? 1) === 1,
     stock: String(product.stock ?? 0),
     min_stock: String(product.min_stock ?? 2),
-    image_url: product.image_url || ''
+    image_url: product.image_url || '',
+    image_upload_data: '',
+    image_upload_name: ''
   };
 }
 
@@ -106,8 +102,16 @@ function normalizeProductPayload(values: ProductPayload) {
     sale_price_includes_tax: values.sale_price_includes_tax,
     stock: Number(values.stock || 0),
     min_stock: Number(values.min_stock || 0),
-    image_url: values.image_url.trim(),
-    images: values.image_url.trim() ? [{ url_remote: values.image_url.trim(), es_principal: true }] : []
+    image_url: values.image_upload_data ? null : values.image_url.trim(),
+    images: values.image_upload_data
+      ? [{
+          upload_data: values.image_upload_data,
+          nombre_archivo: values.name.trim() || values.sku.trim() || 'producto',
+          es_principal: true
+        }]
+      : values.image_url.trim()
+        ? [{ url_remote: values.image_url.trim(), es_principal: true }]
+        : []
   };
 }
 
@@ -146,29 +150,6 @@ function calculatePriceWithMargin(cost: number, marginPercent: number, includeTa
 
 function getProductLookupCode(product: Product) {
   return String(product.sku || product.barcode || `ART-${product.id}`);
-}
-
-function loadProductUiMovements() {
-  if (typeof window === 'undefined') return [] as ProductUiMovement[];
-  try {
-    const raw = window.localStorage.getItem(PRODUCT_UI_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveProductUiMovements(movements: ProductUiMovement[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(PRODUCT_UI_STORAGE_KEY, JSON.stringify(movements));
-}
-
-function appendProductUiMovements(nextRows: ProductUiMovement[]) {
-  const current = loadProductUiMovements();
-  const merged = [...nextRows, ...current].slice(0, 300);
-  saveProductUiMovements(merged);
 }
 
 function printProductRows(title: string, rows: Array<{ code: string; name: string; barcode: string; price: number; quantity: number }>) {
@@ -562,9 +543,18 @@ function PriceUpdatePanel({ products }: { products: Product[] }) {
   );
 }
 
-function StockAdjustmentPanel({ products }: { products: Product[] }) {
+function StockAdjustmentPanel({ products, currentUserName }: { products: Product[]; currentUserName: string }) {
+  const queryClient = useQueryClient();
+  const { updateMutation } = useProductMutations();
   const [search, setSearch] = useState('');
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState('');
+  const createMovementMutation = useMutation({
+    mutationFn: createProductMovement,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['products', 'movements'] });
+    }
+  });
 
   const filteredProducts = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -575,6 +565,57 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
       return haystack.some((value) => value.includes(normalized));
     }).slice(0, 8);
   }, [products, search]);
+
+  const pendingAdjustments = useMemo(() => {
+    return products
+      .map((product) => {
+        const currentStock = Number(product.stock ?? 0);
+        const rawValue = draftValues[String(product.id)];
+        const nextStock = rawValue === undefined || rawValue === '' ? currentStock : Number(rawValue);
+        if (!Number.isFinite(nextStock) || nextStock < 0 || nextStock === currentStock) return null;
+        return {
+          product,
+          currentStock,
+          nextStock
+        };
+      })
+      .filter(Boolean) as Array<{ product: Product; currentStock: number; nextStock: number }>;
+  }, [draftValues, products]);
+
+  async function handleSaveAdjustments() {
+    if (pendingAdjustments.length === 0) {
+      setFeedback('No hay ajustes pendientes para guardar.');
+      return;
+    }
+
+    try {
+      for (const adjustment of pendingAdjustments) {
+        const payload = normalizeProductPayload({
+          ...toProductFormValues(adjustment.product),
+          stock: String(adjustment.nextStock)
+        });
+
+        await updateMutation.mutateAsync({
+          id: adjustment.product.id,
+          payload
+        });
+
+        await createMovementMutation.mutateAsync({
+          type: 'adjustment',
+          date: new Date().toISOString().slice(0, 10),
+          code: getProductLookupCode(adjustment.product),
+          description: adjustment.product.name,
+          quantity: adjustment.nextStock,
+          reference: `Ajuste de stock. Anterior: ${adjustment.currentStock}. Nuevo: ${adjustment.nextStock}. Usuario: ${currentUserName || 'Operador'}`
+        });
+      }
+
+      setDraftValues({});
+      setFeedback('Ajustes guardados correctamente.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudieron guardar los ajustes.');
+    }
+  }
 
   return (
     <div className="card products-price-card">
@@ -644,13 +685,28 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
                 </tr>
               </thead>
               <tbody>
-                <tr><td colSpan={4} className="products-sheet-empty">Vista UI preparada para futura integracion.</td></tr>
+                {pendingAdjustments.length === 0 ? (
+                  <tr><td colSpan={4} className="products-sheet-empty">No hay ajustes pendientes.</td></tr>
+                ) : (
+                  pendingAdjustments.map(({ product, nextStock }) => (
+                    <tr key={`adjustment-${product.id}`}>
+                      <td>{product.sku || `ART-${product.id}`}</td>
+                      <td>{product.name}</td>
+                      <td>{nextStock}</td>
+                      <td>Ajustar</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
           <div className="products-actions-right">
-            <button className="btn btn-success" type="button">Guardar cambios</button>
+            <button className="btn btn-success" type="button" onClick={() => void handleSaveAdjustments()} disabled={updateMutation.isPending || createMovementMutation.isPending}>{updateMutation.isPending || createMovementMutation.isPending ? 'Guardando...' : 'Guardar cambios'}</button>
           </div>
+          <div className="alert alert-info">
+            Los ajustes se guardan en stock real y quedan registrados en el historial del modulo.
+          </div>
+          {feedback ? <div className="alert alert-info">{feedback}</div> : null}
         </section>
       </div>
     </div>
@@ -658,12 +714,19 @@ function StockAdjustmentPanel({ products }: { products: Product[] }) {
 }
 
 function StockOutputPanel({ products, currentUserName }: { products: Product[]; currentUserName: string }) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [quantity, setQuantity] = useState('1');
   const [reason, setReason] = useState('');
   const [feedback, setFeedback] = useState('');
+  const createMovementMutation = useMutation({
+    mutationFn: createProductMovement,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['products', 'movements'] });
+    }
+  });
 
   const filteredProducts = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -682,7 +745,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
     setSearch(product.sku || product.barcode || product.name);
   }
 
-  function handleSaveOutput() {
+  async function handleSaveOutput() {
     if (!selectedProduct) {
       setFeedback('Selecciona un articulo antes de registrar la salida.');
       return;
@@ -692,20 +755,22 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
       return;
     }
 
-    appendProductUiMovements([
-      {
-        id: `output-${selectedProduct.id}-${Date.now()}`,
+    try {
+      await createMovementMutation.mutateAsync({
         type: 'output',
+        product_id: selectedProduct.id,
         date,
         code: getProductLookupCode(selectedProduct),
         description: selectedProduct.name,
         quantity: Number(quantity),
         reference: reason || 'Salida registrada desde el modulo'
-      }
-    ]);
-    setFeedback('Salida registrada correctamente.');
-    setQuantity('1');
-    setReason('');
+      });
+      setFeedback('Salida registrada correctamente.');
+      setQuantity('1');
+      setReason('');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se pudo registrar la salida.');
+    }
   }
 
   return (
@@ -785,7 +850,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
           </div>
 
           <div className="products-actions-right">
-            <button className="btn btn-primary" type="button" onClick={handleSaveOutput}>Guardar salida</button>
+            <button className="btn btn-primary" type="button" onClick={() => void handleSaveOutput()} disabled={createMovementMutation.isPending}>{createMovementMutation.isPending ? 'Guardando...' : 'Guardar salida'}</button>
             <button className="btn btn-secondary" type="button" onClick={() => {
               setSelectedId('');
               setSearch('');
@@ -796,7 +861,7 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
             </button>
           </div>
           <div className="alert alert-info">
-        La salida queda registrada en el historial del modulo.
+        La salida actualiza el stock real y queda registrada en el historial del modulo.
           </div>
           {feedback ? <div className="alert alert-info">{feedback}</div> : null}
         </section>
@@ -806,26 +871,30 @@ function StockOutputPanel({ products, currentUserName }: { products: Product[]; 
 }
 
 function StockQueryPanel({ products }: { products: Product[] }) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
   const [feedback, setFeedback] = useState('');
+  const movementsQuery = useQuery({
+    queryKey: ['products', 'movements', dateFrom, dateTo],
+    queryFn: () => getProductMovements({ startDate: dateFrom, endDate: dateTo, type: 'output' }),
+    staleTime: 10_000
+  });
 
   const sampleRows = useMemo(() => {
     const normalized = search.trim().toLowerCase();
-    const rows = loadProductUiMovements().filter((row) => {
-      const inDateRange = (!dateFrom || row.date >= dateFrom) && (!dateTo || row.date <= dateTo);
+    const rows = (movementsQuery.data || []).filter((row) => {
       const matchesSearch = !normalized || [row.code, row.description, row.reference]
         .some((value) => String(value || '').toLowerCase().includes(normalized));
-      return inDateRange && matchesSearch;
+      return matchesSearch;
     });
     return rows;
-  }, [dateFrom, dateTo, search, products]);
+  }, [movementsQuery.data, search, products]);
 
-  function clearDateRange() {
-    const keptRows = loadProductUiMovements().filter((row) => row.date < dateFrom || row.date > dateTo);
-    saveProductUiMovements(keptRows);
-    setFeedback('Se eliminaron los registros auxiliares dentro del rango indicado.');
+  async function refreshDateRange() {
+    await queryClient.invalidateQueries({ queryKey: ['products', 'movements'] });
+    setFeedback('Se actualizo el historial para el rango indicado.');
   }
 
   return (
@@ -867,7 +936,11 @@ function StockQueryPanel({ products }: { products: Product[] }) {
             </tr>
           </thead>
           <tbody>
-            {sampleRows.length === 0 ? (
+            {movementsQuery.isLoading ? (
+              <tr><td colSpan={5} className="products-sheet-empty">Cargando...</td></tr>
+            ) : movementsQuery.isError ? (
+              <tr><td colSpan={5} className="products-sheet-empty">Error: {movementsQuery.error instanceof Error ? movementsQuery.error.message : 'No se pudieron cargar salidas.'}</td></tr>
+            ) : sampleRows.length === 0 ? (
               <tr><td colSpan={5} className="products-sheet-empty">No hay salidas para mostrar.</td></tr>
             ) : (
               sampleRows.map((row) => (
@@ -885,7 +958,7 @@ function StockQueryPanel({ products }: { products: Product[] }) {
       </div>
 
       <div className="products-actions-right">
-        <button className="btn btn-danger" type="button" onClick={clearDateRange}>Borrar entre fechas</button>
+        <button className="btn btn-secondary" type="button" onClick={() => void refreshDateRange()}>Actualizar historial</button>
         <button className="btn btn-secondary" type="button" onClick={() => setSearch('')}>Limpiar filtro</button>
       </div>
       <div className="alert alert-info">
@@ -897,6 +970,7 @@ function StockQueryPanel({ products }: { products: Product[] }) {
 }
 
 export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const { currentUser } = useAuth();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -918,6 +992,11 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   const moduleConfig = getProductModuleConfig(pageId);
   const currentUserName = currentUser?.name || 'Operador';
   const hasImagePreview = Boolean(formValues.image_url.trim());
+  const imageModeLabel = formValues.image_upload_data
+    ? 'Archivo local listo para procesar'
+    : formValues.image_url.trim()
+      ? 'Imagen por URL'
+      : 'Sin imagen seleccionada';
   const priceRows = [
     { label: 'Lista 1', name: 'sale_price' },
     { label: 'Lista 2', name: 'sale_price_2' },
@@ -980,6 +1059,42 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
     }
 
     setFormValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleImageFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result) {
+        setFeedback('No se pudo leer la imagen seleccionada.');
+        return;
+      }
+      setFormValues((current) => ({
+        ...current,
+        image_url: result,
+        image_upload_data: result,
+        image_upload_name: file.name
+      }));
+    };
+    reader.onerror = () => {
+      setFeedback('No se pudo leer la imagen seleccionada.');
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  }
+
+  function clearSelectedImage() {
+    setFormValues((current) => ({
+      ...current,
+      image_url: '',
+      image_upload_data: '',
+      image_upload_name: ''
+    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1051,7 +1166,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
   if (pageId === 'products-stock-adjustment') {
     return (
       <section className="products-admin-content">
-        <StockAdjustmentPanel products={products} />
+        <StockAdjustmentPanel products={products} currentUserName={currentUserName} />
       </section>
     );
   }
@@ -1260,7 +1375,7 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
                           <input id="product-barcode" name="barcode" value={formValues.barcode} onChange={handleChange} />
                         </div>
                         <div className="form-group">
-                          <label htmlFor="product-name">Descripcion</label>
+                          <label htmlFor="product-name">Nombre del producto</label>
                           <input id="product-name" name="name" value={formValues.name} onChange={handleChange} required />
                         </div>
                       </div>
@@ -1289,15 +1404,27 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
                         </div>
                       </div>
                       <div className="products-help-inline">Gestiona el arbol en Administracion - Categorias.</div>
-                      <div className="products-edit-grid products-edit-grid--double">
-                        <div className="form-group">
-                          <label htmlFor="product-short-description">Descripcion corta</label>
-                          <input id="product-short-description" name="short_description" value={formValues.short_description} onChange={handleChange} />
-                        </div>
+                      <div className="products-edit-grid products-edit-grid--description-meta">
+                        <ProductRichEditor
+                          label="Descripcion corta"
+                          value={formValues.short_description}
+                          height={230}
+                          placeholder="Pega aca el contenido corto con formato, vinetas y saltos de linea."
+                          onChange={(nextValue) => setFormValues((current) => ({ ...current, short_description: nextValue }))}
+                        />
                         <div className="form-group">
                           <label htmlFor="product-color">Color</label>
                           <input id="product-color" name="color" value={formValues.color} onChange={handleChange} />
                         </div>
+                      </div>
+                      <div className="products-edit-grid products-edit-grid--full">
+                        <ProductRichEditor
+                          label="Descripcion"
+                          value={formValues.description}
+                          height={320}
+                          placeholder="Descripcion completa del producto para la ficha y WooCommerce"
+                          onChange={(nextValue) => setFormValues((current) => ({ ...current, description: nextValue }))}
+                        />
                       </div>
                       <div className="products-edit-grid products-edit-grid--stock">
                         <div className="form-group">
@@ -1330,9 +1457,41 @@ export function ProductsPage({ pageId = 'products' }: { pageId?: string }) {
                             <span>Sin imagen</span>
                           )}
                         </div>
+                        <div className="products-image-meta">
+                          <strong>{imageModeLabel}</strong>
+                          <span>{formValues.image_upload_name || 'JPG, PNG o WEBP. Salida optimizada para WooCommerce.'}</span>
+                        </div>
+                        <div className="products-help-inline products-help-inline--dense">
+                          Carga desde la computadora. La imagen se convierte automaticamente a WEBP y se prepara en formato cuadrado 1200 x 1200 px para WooCommerce.
+                        </div>
+                        <div className="products-image-actions">
+                          <button className="btn btn-primary" type="button" onClick={() => imageFileInputRef.current?.click()}>
+                            Subir desde la computadora
+                          </button>
+                          <button className="btn btn-secondary" type="button" onClick={clearSelectedImage}>
+                            Quitar imagen
+                          </button>
+                        </div>
+                        <input
+                          ref={imageFileInputRef}
+                          id="product-image-file"
+                          className="products-image-file-input"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={handleImageFileChange}
+                        />
                         <div className="form-group">
                           <label htmlFor="product-image-url">URL de imagen principal</label>
-                          <input id="product-image-url" name="image_url" value={formValues.image_url} onChange={handleChange} />
+                          <input
+                            id="product-image-url"
+                            name="image_url"
+                            value={formValues.image_upload_data ? '' : formValues.image_url}
+                            onChange={(event) => {
+                              handleChange(event);
+                              setFormValues((current) => ({ ...current, image_upload_data: '', image_upload_name: '' }));
+                            }}
+                            placeholder="Opcional: usar URL en vez de subir archivo"
+                          />
                         </div>
                       </div>
                     </aside>

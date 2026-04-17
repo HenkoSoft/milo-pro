@@ -381,6 +381,194 @@ async function main() {
       await harness.cleanup();
     }
   });
+
+  await runCase('sales guarda presupuestos sin descontar stock', async () => {
+    const harness = await createHarness();
+    try {
+      const create = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: harness.customerId,
+          payment_method: 'cash',
+          notes: 'Presupuesto test',
+          receipt_type: 'PRESUPUESTO',
+          point_of_sale: '1',
+          items: [
+            { product_id: harness.productId, quantity: 2, unit_price: 1500 }
+          ]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(create.statusCode, 201);
+      assert.equal(create.body.sale.receipt_type, 'PRESUPUESTO');
+      assert.equal(Number(create.body.sale.total), 3000);
+      assert.equal(harness.syncCalls.length, 0);
+
+      const productAfterCreate = harness.database.get('SELECT stock FROM products WHERE id = ?', [harness.productId]);
+      assert.equal(Number(productAfterCreate.stock), 10);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('sales guarda remitos sin descontar stock cuando se indica', async () => {
+    const harness = await createHarness();
+    try {
+      const create = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: harness.customerId,
+          payment_method: 'cash',
+          notes: 'Remito sin stock',
+          receipt_type: 'REMITO',
+          point_of_sale: '1',
+          affects_stock: false,
+          items: [
+            { product_id: harness.productId, quantity: 2, unit_price: 1500 }
+          ]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(create.statusCode, 201);
+      assert.equal(create.body.sale.receipt_type, 'REMITO');
+      assert.equal(create.body.sale.stock_applied_state, 'not_applied');
+      assert.equal(harness.syncCalls.length, 0);
+
+      const productAfterCreate = harness.database.get('SELECT stock FROM products WHERE id = ?', [harness.productId]);
+      assert.equal(Number(productAfterCreate.stock), 10);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('sales guarda remitos descontando stock cuando corresponde', async () => {
+    const harness = await createHarness();
+    try {
+      const create = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: harness.customerId,
+          payment_method: 'cash',
+          notes: 'Remito con stock',
+          receipt_type: 'REMITO',
+          point_of_sale: '1',
+          affects_stock: true,
+          items: [
+            { product_id: harness.productId, quantity: 2, unit_price: 1500 }
+          ]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(create.statusCode, 201);
+      assert.equal(create.body.sale.receipt_type, 'REMITO');
+      assert.equal(create.body.sale.stock_applied_state, 'applied');
+      assert.equal(harness.syncCalls.length, 1);
+
+      const productAfterCreate = harness.database.get('SELECT stock FROM products WHERE id = ?', [harness.productId]);
+      assert.equal(Number(productAfterCreate.stock), 8);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('sales guarda pedidos sin descontar stock', async () => {
+    const harness = await createHarness();
+    try {
+      const create = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: harness.customerId,
+          payment_method: 'cash',
+          notes: 'Pedido test',
+          receipt_type: 'PEDIDO',
+          point_of_sale: '1',
+          items: [
+            { product_id: harness.productId, quantity: 2, unit_price: 1500 }
+          ]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(create.statusCode, 201);
+      assert.equal(create.body.sale.receipt_type, 'PEDIDO');
+      assert.equal(create.body.sale.stock_applied_state, 'not_applied');
+      assert.equal(Number(create.body.sale.total), 3000);
+      assert.equal(harness.syncCalls.length, 0);
+
+      const productAfterCreate = harness.database.get('SELECT stock FROM products WHERE id = ?', [harness.productId]);
+      assert.equal(Number(productAfterCreate.stock), 10);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('sales guarda notas de credito sin devolver stock cuando se indica', async () => {
+    const harness = await createHarness();
+    try {
+      const create = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: harness.customerId,
+          payment_method: 'cash',
+          notes: 'NC test | Factura asociada: 0001-00000001',
+          receipt_type: 'NOTA_CREDITO',
+          point_of_sale: '1',
+          affects_stock: false,
+          items: [
+            { product_id: harness.productId, quantity: 2, unit_price: 1500 }
+          ]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(create.statusCode, 201);
+      assert.equal(create.body.sale.receipt_type, 'NOTA_CREDITO');
+      assert.equal(create.body.sale.stock_applied_state, 'not_applied');
+      assert.equal(harness.syncCalls.length, 0);
+
+      const productAfterCreate = harness.database.get('SELECT stock FROM products WHERE id = ?', [harness.productId]);
+      assert.equal(Number(productAfterCreate.stock), 10);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('sales guarda notas de credito devolviendo stock cuando corresponde', async () => {
+    const harness = await createHarness();
+    try {
+      harness.database.run('UPDATE products SET stock = ? WHERE id = ?', [5, harness.productId]);
+      harness.database.saveDatabase();
+
+      const create = await harness.request(
+        'POST',
+        '/api/sales',
+        {
+          customer_id: harness.customerId,
+          payment_method: 'cash',
+          notes: 'NC con devolucion | Factura asociada: 0001-00000002',
+          receipt_type: 'NOTA_CREDITO',
+          point_of_sale: '1',
+          affects_stock: true,
+          items: [
+            { product_id: harness.productId, quantity: 2, unit_price: 1500 }
+          ]
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(create.statusCode, 201);
+      assert.equal(create.body.sale.receipt_type, 'NOTA_CREDITO');
+      assert.equal(create.body.sale.stock_applied_state, 'applied');
+      assert.equal(harness.syncCalls.length, 1);
+
+      const productAfterCreate = harness.database.get('SELECT stock FROM products WHERE id = ?', [harness.productId]);
+      assert.equal(Number(productAfterCreate.stock), 7);
+    } finally {
+      await harness.cleanup();
+    }
+  });
 }
 
 main().catch((error) => {

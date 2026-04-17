@@ -44,6 +44,7 @@ async function startServer() {
     try {
         const databaseState = await initializeRuntimeDatabase();
         const authRoutes = require('./routes/auth.js');
+        const adminRoutes = require('./routes/admin.js');
         const categoryRoutes = require('./routes/categories.js');
         const productRoutes = require('./routes/products.js');
         const saleRoutes = require('./routes/sales.js');
@@ -55,6 +56,8 @@ async function startServer() {
         const woocommerceRoutes = require('./routes/woocommerce.js');
         const deviceOptionsRoutes = require('./routes/deviceOptions.js');
         const purchaseRoutes = require('./routes/purchases.js');
+        const cashRoutes = require('./routes/cash.js');
+        const sellersRoutes = require('./routes/sellers.js');
         const catalogService = require('./services/catalog.js');
         const woocommerceSyncService = require('./services/woocommerce-sync.js');
         const wooOrderSyncService = require('./services/woo-order-sync.js');
@@ -84,6 +87,7 @@ async function startServer() {
             });
         });
         app.use('/api/auth', authRoutes);
+        app.use('/api/admin', adminRoutes);
         app.use('/api/categories', categoryRoutes);
         app.use('/api/products', productRoutes);
         app.use('/api/sales', saleRoutes);
@@ -98,6 +102,8 @@ async function startServer() {
         app.use('/api/woocommerce', woocommerceRoutes);
         app.use('/api/device-options', deviceOptionsRoutes);
         app.use('/api/purchases', purchaseRoutes);
+        app.use('/api/cash', cashRoutes);
+        app.use('/api/sellers', sellersRoutes);
         if (typeof woocommerceRoutes.initializeWooAutomation === 'function') {
             await woocommerceRoutes.initializeWooAutomation();
         }

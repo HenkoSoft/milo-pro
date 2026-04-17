@@ -92,6 +92,8 @@ interface SalesPageProps {
   pageId: string;
 }
 
+type ReceiptTypeOption = 'A' | 'B' | 'C' | 'PRESUPUESTO' | 'REMITO' | 'PEDIDO' | 'NOTA_CREDITO';
+
 interface DocumentStubConfig {
   kicker: string;
   title: string;
@@ -805,6 +807,15 @@ function getSalesQueryColumns(pageId: string, sellerName: string) {
   ];
 }
 
+function matchesSalesQueryPage(pageId: string, sale: Sale) {
+  const receiptType = String(sale.receipt_type || '').toUpperCase();
+  if (pageId === 'sales-query-delivery-notes') return receiptType === 'REMITO';
+  if (pageId === 'sales-query-credit-notes') return receiptType === 'NOTA_CREDITO';
+  if (pageId === 'sales-query-quotes') return receiptType === 'PRESUPUESTO';
+  if (pageId === 'sales-query-orders') return receiptType === 'PEDIDO';
+  return !['REMITO', 'NOTA_CREDITO', 'PRESUPUESTO', 'PEDIDO'].includes(receiptType);
+}
+
 function SalesQueryPanel({ pageId, title, subtitle, sellerName }: { pageId: string; title: string; subtitle: string; sellerName: string }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -814,8 +825,9 @@ function SalesQueryPanel({ pageId, title, subtitle, sellerName }: { pageId: stri
 
   const rows = useMemo(() => {
     const normalized = search.trim().toLowerCase();
-    if (!normalized) return salesHistory;
-    return salesHistory.filter((sale) => {
+    const scopedRows = salesHistory.filter((sale) => matchesSalesQueryPage(pageId, sale));
+    if (!normalized) return scopedRows;
+    return scopedRows.filter((sale) => {
       return [
         sale.customer_name,
         sale.notes,
@@ -825,7 +837,7 @@ function SalesQueryPanel({ pageId, title, subtitle, sellerName }: { pageId: stri
         buildReceiptNumber(sale)
       ].some((value) => String(value || '').toLowerCase().includes(normalized));
     });
-  }, [salesHistory, search]);
+  }, [pageId, salesHistory, search]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / 8));
   const safePage = Math.max(1, Math.min(totalPages, page));
@@ -1006,6 +1018,11 @@ function SalesDocumentStub({ config, customers, sellerName }: { config: Document
 
 export function SalesPage({ pageId }: SalesPageProps) {
   const { currentUser } = useAuth();
+  const isQuotePage = pageId === 'sales-quotes';
+  const isDeliveryNotePage = pageId === 'sales-delivery-notes';
+  const isOrderPage = pageId === 'sales-orders';
+  const isCreditNotePage = pageId === 'sales-credit-notes';
+  const usesDirectSubmit = isQuotePage || isDeliveryNotePage || isOrderPage || isCreditNotePage;
   const settingsQuery = useSettings();
   const [customerId, setCustomerId] = useState('');
   const [customerCodeInput, setCustomerCodeInput] = useState('');
@@ -1032,6 +1049,9 @@ export function SalesPage({ pageId }: SalesPageProps) {
   const [ticketPromptSale, setTicketPromptSale] = useState<SalePrintData | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cashReceived, setCashReceived] = useState('0.00');
+  const [deliveryNoteAffectsStock, setDeliveryNoteAffectsStock] = useState(true);
+  const [creditNoteAffectsStock, setCreditNoteAffectsStock] = useState(true);
+  const [referenceInvoice, setReferenceInvoice] = useState('');
   const normalizedPointOfSale = normalizePointOfSale(pointOfSale);
   const moduleConfig = getModuleConfig(pageId);
   const { productsQuery, customersQuery, nextNumberQuery } = useSaleComposerData(receiptType, normalizedPointOfSale);
@@ -1044,9 +1064,9 @@ export function SalesPage({ pageId }: SalesPageProps) {
   const selectedCustomer = customers.find((customer) => String(customer.id) === customerId) || null;
   const emitterTaxCondition = settingsQuery.data?.emitter_tax_condition || null;
   const customerTaxCondition = ivaCondition || 'Consumidor Final';
-  const availableReceiptTypes = useMemo(
-    () => getAvailableVoucherTypes(emitterTaxCondition, customerTaxCondition),
-    [customerTaxCondition, emitterTaxCondition]
+  const availableReceiptTypes = useMemo<ReceiptTypeOption[]>(
+    () => (isQuotePage ? ['PRESUPUESTO'] : isDeliveryNotePage ? ['REMITO'] : isOrderPage ? ['PEDIDO'] : isCreditNotePage ? ['NOTA_CREDITO'] : getAvailableVoucherTypes(emitterTaxCondition, customerTaxCondition)),
+    [customerTaxCondition, emitterTaxCondition, isCreditNotePage, isDeliveryNotePage, isOrderPage, isQuotePage]
   );
   const defaultReceiptType = useMemo(
     () => getDefaultVoucherType(emitterTaxCondition, customerTaxCondition),
@@ -1126,6 +1146,19 @@ export function SalesPage({ pageId }: SalesPageProps) {
   }, [selectedCustomer]);
 
   useEffect(() => {
+    if (usesDirectSubmit) {
+      const directReceiptType = isQuotePage
+        ? 'PRESUPUESTO'
+        : isDeliveryNotePage
+          ? 'REMITO'
+          : isOrderPage
+            ? 'PEDIDO'
+            : 'NOTA_CREDITO';
+      if (receiptType !== directReceiptType) {
+        setReceiptType(directReceiptType);
+      }
+      return;
+    }
     if (availableReceiptTypes.length === 0) {
       if (receiptType !== '') {
         setReceiptType('');
@@ -1136,7 +1169,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
     if (defaultReceiptType) {
       setReceiptType(defaultReceiptType);
     }
-  }, [availableReceiptTypes, defaultReceiptType, receiptType]);
+  }, [availableReceiptTypes, defaultReceiptType, isQuotePage, receiptType, usesDirectSubmit]);
 
   useEffect(() => {
     setCart((current) => current.map((item) => {
@@ -1271,6 +1304,9 @@ export function SalesPage({ pageId }: SalesPageProps) {
 
   function openPaymentModal() {
     setFeedback('');
+    if (usesDirectSubmit) {
+      return;
+    }
     if (fiscalValidationMessage) {
       setFeedback(fiscalValidationMessage);
       return;
@@ -1294,7 +1330,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
 
   async function confirmSale() {
     setFeedback('');
-    if (fiscalValidationMessage) {
+    if (!usesDirectSubmit && fiscalValidationMessage) {
       setFeedback(fiscalValidationMessage);
       return;
     }
@@ -1309,9 +1345,15 @@ export function SalesPage({ pageId }: SalesPageProps) {
         customer_id: customerId,
         customer_tax_condition: ivaCondition,
         payment_method: paymentMethod,
-        notes: [observations, oc ? `O.C: ${oc}` : '', remito ? `Rem: ${remito}` : ''].filter(Boolean).join(' | '),
+        notes: [
+          observations,
+          oc ? `O.C: ${oc}` : '',
+          remito ? `Rem: ${remito}` : '',
+          referenceInvoice ? `Factura asociada: ${referenceInvoice}` : ''
+        ].filter(Boolean).join(' | '),
         receipt_type: receiptType,
         point_of_sale: normalizedPointOfSale,
+        affects_stock: isDeliveryNotePage ? deliveryNoteAffectsStock : isCreditNotePage ? creditNoteAffectsStock : undefined,
         items: normalizeSaleItems(cart)
       });
 
@@ -1331,26 +1373,31 @@ export function SalesPage({ pageId }: SalesPageProps) {
       };
       setFeedback(
         warningCount > 0
-          ? `Factura ${response.sale.id} guardada con advertencias de sync Woo en ${warningCount} articulo(s).`
-          : `Factura ${response.sale.id} guardada correctamente.`
+          ? `${isQuotePage ? 'Presupuesto' : isDeliveryNotePage ? 'Remito' : isOrderPage ? 'Pedido' : isCreditNotePage ? 'Nota de credito' : 'Factura'} ${response.sale.id} guardado${usesDirectSubmit ? '' : 'a'} con advertencias de sync Woo en ${warningCount} articulo(s).`
+          : `${isQuotePage ? 'Presupuesto' : isDeliveryNotePage ? 'Remito' : isOrderPage ? 'Pedido' : isCreditNotePage ? 'Nota de credito' : 'Factura'} ${response.sale.id} guardado${usesDirectSubmit ? '' : 'a'} correctamente.`
       );
       setPaymentModalOpen(false);
-      setTicketPromptSale(saleForPrint);
+      setTicketPromptSale(usesDirectSubmit ? null : saleForPrint);
       setCart([]);
       setObservations('');
       setOc('');
       setRemito('');
+      setReferenceInvoice('');
       setGlobalDiscount('0,00');
       setItemSearch('');
       setPaymentMethod('cash');
       setCashReceived('0.00');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'No se pudo registrar la factura.');
+      setFeedback(error instanceof Error ? error.message : `No se pudo registrar ${isQuotePage ? 'el presupuesto' : isDeliveryNotePage ? 'el remito' : isOrderPage ? 'el pedido' : isCreditNotePage ? 'la nota de credito' : 'la factura'}.`);
     }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (usesDirectSubmit) {
+      await confirmSale();
+      return;
+    }
     openPaymentModal();
   }
 
@@ -1362,7 +1409,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
     return <SalesWebOrdersPanel />;
   }
 
-  if (pageId in DOCUMENT_STUB_CONFIG) {
+  if (pageId in DOCUMENT_STUB_CONFIG && pageId !== 'sales-quotes' && pageId !== 'sales-delivery-notes' && pageId !== 'sales-orders' && pageId !== 'sales-credit-notes') {
     return (
       <SalesDocumentStub
         config={DOCUMENT_STUB_CONFIG[pageId as keyof typeof DOCUMENT_STUB_CONFIG]}
@@ -1401,6 +1448,15 @@ export function SalesPage({ pageId }: SalesPageProps) {
                     <div className="form-group"><label>Lista</label><select value={priceList} onChange={(event) => setPriceList(event.target.value)}>{PRICE_LISTS.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
                     <div className="form-group"><label>Desc.</label><input type="text" inputMode="decimal" data-discount="true" value={globalDiscount} onChange={(event: ChangeEvent<HTMLInputElement>) => setGlobalDiscount(event.target.value)} placeholder="0,00" /></div>
                     <div className="form-group"><label>Vendedor</label><select value={seller} onChange={(event) => setSeller(event.target.value)}>{sellerOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></div>
+                    {isCreditNotePage ? (
+                      <div className="form-group sales-field-span-2">
+                        <label>Factura asociada</label>
+                        <div className="sales-inline-combo">
+                          <input value={referenceInvoice} onChange={(event: ChangeEvent<HTMLInputElement>) => setReferenceInvoice(event.target.value)} placeholder="Factura asociada" />
+                          <button className="sales-addon-button sales-addon-button--wide" type="button">Buscar</button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
 
@@ -1530,7 +1586,7 @@ export function SalesPage({ pageId }: SalesPageProps) {
                   </thead>
                   <tbody>
                     {cart.length === 0 ? (
-                      <tr><td colSpan={7} className="sales-empty-row">Agrega articulos para comenzar la facturacion.</td></tr>
+                      <tr><td colSpan={7} className="sales-empty-row">Agrega articulos para comenzar {isQuotePage ? 'el presupuesto' : isDeliveryNotePage ? 'el remito' : isOrderPage ? 'el pedido' : isCreditNotePage ? 'la nota de credito' : 'la facturacion'}.</td></tr>
                     ) : (
                       cart.map((item) => {
                         const lineTotal = getLineTotal(item, globalDiscount);
@@ -1560,6 +1616,12 @@ export function SalesPage({ pageId }: SalesPageProps) {
               <div className="sales-summary-inline">
                 <div className="sales-summary-card sales-summary-card--full">
                   {feedback ? <div className={`alert ${feedback.includes('No se pudo') || feedback.includes('Debes') || feedback.includes('Revisa') || feedback.includes('Solo ') ? 'alert-warning' : 'alert-info'}`}>{feedback}</div> : null}
+                  {isDeliveryNotePage ? (
+                    <div className="sales-check-row"><label><input type="checkbox" checked={deliveryNoteAffectsStock} onChange={(event) => setDeliveryNoteAffectsStock(event.target.checked)} /> Descontar stock</label></div>
+                  ) : null}
+                  {isCreditNotePage ? (
+                    <div className="sales-check-row"><label><input type="checkbox" checked={creditNoteAffectsStock} onChange={(event) => setCreditNoteAffectsStock(event.target.checked)} /> Devolver stock</label></div>
+                  ) : null}
                   <div className="sales-summary-row"><span>Neto</span><strong>{formatMoney(netTotal)}</strong></div>
                   <div className="sales-summary-row"><span>Descuento</span><strong>{formatMoney(discountAmount)}</strong></div>
                   <div className="sales-summary-row"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div>

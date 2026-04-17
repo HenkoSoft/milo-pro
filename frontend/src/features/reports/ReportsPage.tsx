@@ -1,17 +1,17 @@
 import { useMemo, useState, type ChangeEvent } from 'react';
 import { useQueries } from '@tanstack/react-query';
+import { getCashMovements } from '../../services/cash';
 import { getCategories } from '../../services/catalog';
 import { getCustomers } from '../../services/customers';
 import { getPurchases, getSuppliers } from '../../services/purchases';
 import { getProducts } from '../../services/products';
 import { getSalesReport } from '../../services/reports';
+import type { CashMovement } from '../../types/cash';
 import type { Category } from '../../types/catalog';
 import type { Customer } from '../../types/customer';
 import type { Product } from '../../types/product';
 import type { Purchase, Supplier } from '../../types/purchase';
 import type { Sale } from '../../types/sale';
-
-const CASH_KEYS = { income: 'milo_cash_income', expenses: 'milo_cash_expenses', withdrawals: 'milo_cash_withdrawals' };
 
 const REPORT_SECTIONS = {
   articles: { title: 'Reportes de Articulos', subtitle: 'Filtros simples, tabla clara y exportacion directa para control de stock y catalogo.', reportTypes: ['Listado de Articulos', 'Listado de Articulos por Rubro', 'Stock Valorizado', 'Listado de Stock Critico', 'Stock Inicial', 'Ajuste de Stock', 'Stock con Ubicacion', 'Salidas por Articulos'], search: 'Buscar articulo...' },
@@ -37,12 +37,22 @@ const PAGE_SECTION = {
   'reports-excel': 'excel'
 } as const;
 
+const EXCEL_MODULE_SECTION: Record<string, SectionId> = {
+  Articulos: 'articles',
+  Ventas: 'sales',
+  Compras: 'purchases',
+  Clientes: 'customers',
+  Remitos: 'deliveryNotes',
+  'Cuentas Corrientes': 'accounts',
+  'Ranking de Ventas': 'ranking',
+  Caja: 'cash'
+};
+
 type SectionId = keyof typeof REPORT_SECTIONS;
 type Cell = string | number;
 type Filters = { from: string; to: string; customer: string; seller: string; supplier: string; category: string; user: string; type: string; top: string; cashType: string };
 type Result = { columns: string[]; rows: Cell[][]; summary: Array<{ label: string; value: Cell }> };
 type SaleRow = { sale: Sale; date: string; number: string; customer: string; seller: string; zone: string; user: string; type: string; article: string; code: string; qty: number; price: number; cost: number; total: number; gain: number };
-type CashEntry = { date?: string; description?: string; person?: string; amount?: number };
 
 const DEFAULT_FILTERS: Filters = { from: '', to: '', customer: '', seller: '', supplier: '', category: '', user: '', type: '', top: '10', cashType: '' };
 
@@ -91,18 +101,31 @@ function saleNumber(sale: Sale) {
   return `${String(sale.point_of_sale || '001').padStart(3, '0')}-${String(sale.receipt_number || sale.id || 0).padStart(8, '0')}`;
 }
 
-function loadCash(key: string): CashEntry[] {
-  try {
-    const value = JSON.parse(window.localStorage.getItem(key) || '[]') as CashEntry[];
-    return Array.isArray(value) ? value : [];
-  } catch (_error) {
-    return [];
-  }
+function receiptTypeOf(sale: Sale) {
+  return String(sale.receipt_type || '').trim().toUpperCase();
+}
+
+function isInvoiceLikeSale(sale: Sale) {
+  return !['REMITO', 'PRESUPUESTO', 'PEDIDO', 'NOTA_CREDITO'].includes(receiptTypeOf(sale));
+}
+
+function isDeliveryNoteSale(sale: Sale) {
+  return receiptTypeOf(sale) === 'REMITO';
+}
+
+function isCreditNoteSale(sale: Sale) {
+  return receiptTypeOf(sale) === 'NOTA_CREDITO';
+}
+
+function signedSaleTotal(sale: Sale) {
+  const total = Number(sale.total || 0);
+  return isCreditNoteSale(sale) ? -total : total;
 }
 
 function buildSaleRows(sales: Sale[], customers: Customer[], products: Product[]): SaleRow[] {
   return sales.flatMap((sale) => {
     const customer = customers.find((item) => String(item.id) === String(sale.customer_id));
+    const multiplier = isCreditNoteSale(sale) ? -1 : 1;
     const base = {
       sale,
       date: sale.created_at || '',
@@ -113,19 +136,19 @@ function buildSaleRows(sales: Sale[], customers: Customer[], products: Product[]
       user: sale.user_name || '-',
       type: sale.receipt_type || 'C'
     };
-    if (!sale.items?.length) return [{ ...base, article: '-', code: '-', qty: 0, price: 0, cost: 0, total: Number(sale.total || 0), gain: Number(sale.total || 0) }];
+    if (!sale.items?.length) return [{ ...base, article: '-', code: '-', qty: 0, price: 0, cost: 0, total: Number(sale.total || 0) * multiplier, gain: Number(sale.total || 0) * multiplier }];
     return sale.items.map((item) => {
       const product = products.find((entry) => String(entry.id) === String(item.product_id));
       const qty = Number(item.quantity || 0);
       const price = Number(item.unit_price || 0);
-      const total = Number(item.subtotal || qty * price || 0);
+      const total = Number(item.subtotal || qty * price || 0) * multiplier;
       const cost = Number(product?.purchase_price || 0);
-      return { ...base, article: item.product_name || product?.name || '-', code: item.sku || product?.sku || product?.barcode || '-', qty, price, cost, total, gain: total - qty * cost };
+      return { ...base, article: item.product_name || product?.name || '-', code: item.sku || product?.sku || product?.barcode || '-', qty: qty * multiplier, price, cost, total, gain: total - qty * cost * multiplier };
     });
   });
 }
 
-function buildResult(section: SectionId, data: { products: Product[]; categories: Category[]; customers: Customer[]; sales: Sale[]; purchases: Purchase[]; saleRows: SaleRow[] }, filters: Filters, reportType: string, search: string): Result {
+function buildResult(section: SectionId, data: { products: Product[]; categories: Category[]; customers: Customer[]; sales: Sale[]; purchases: Purchase[]; saleRows: SaleRow[]; cashMovements: CashMovement[] }, filters: Filters, reportType: string, search: string): Result {
   if (section === 'articles') {
     const sold = new Map<string, number>();
     data.saleRows.forEach((row) => row.code !== '-' && sold.set(row.code, (sold.get(row.code) || 0) + row.qty));
@@ -144,10 +167,11 @@ function buildResult(section: SectionId, data: { products: Product[]; categories
   }
 
   if (section === 'sales') {
-    let rows = between(data.saleRows, filters, (row) => row.date);
+    let rows = between(data.saleRows.filter((row) => isInvoiceLikeSale(row.sale) || isCreditNoteSale(row.sale)), filters, (row) => row.date);
     if (filters.customer) rows = rows.filter((row) => String(row.sale.customer_id || '') === String(filters.customer));
     if (filters.seller) rows = rows.filter((row) => row.seller === filters.seller);
     if (filters.type) rows = rows.filter((row) => row.type === filters.type);
+    if (!reportType.includes('incluye NC')) rows = rows.filter((row) => !isCreditNoteSale(row.sale));
     if (reportType === 'Ventas con medios de pago digital') rows = rows.filter((row) => normalize(row.sale.payment_method) !== 'cash');
     rows = searchRows(rows, search, [(row) => row.number, (row) => row.customer, (row) => row.article, (row) => row.seller, (row) => row.zone]);
     return { columns: ['Fecha', 'Numero comprobante', 'Cliente', 'Articulo', 'Cantidad', 'Precio', 'Costo', 'Descuento', 'Total', 'Ganancia'], rows: rows.map((row) => [dateText(row.date), row.number, row.customer, row.article, row.qty, money(row.price), money(row.cost), '0%', money(row.total), money(row.gain)]), summary: [{ label: 'Total vendido', value: money(rows.reduce((acc, row) => acc + row.total, 0)) }, { label: 'Total costo', value: money(rows.reduce((acc, row) => acc + row.cost * row.qty, 0)) }, { label: 'Total ganancia', value: money(rows.reduce((acc, row) => acc + row.gain, 0)) }, { label: 'Comprobantes', value: new Set(rows.map((row) => row.number)).size }] };
@@ -163,8 +187,8 @@ function buildResult(section: SectionId, data: { products: Product[]; categories
 
   if (section === 'customers' || section === 'accounts') {
     let rows = data.customers.map((customer) => {
-      const sales = data.sales.filter((sale) => String(sale.customer_id || '') === String(customer.id));
-      const total = sales.reduce((acc, sale) => acc + Number(sale.total || 0), 0);
+      const sales = data.sales.filter((sale) => String(sale.customer_id || '') === String(customer.id) && (isInvoiceLikeSale(sale) || isCreditNoteSale(sale)));
+      const total = sales.reduce((acc, sale) => acc + signedSaleTotal(sale), 0);
       const last = sales[0]?.created_at || '';
       return { code: customer.id, name: customer.name || '-', taxId: customer.tax_id || '-', phone: customer.phone || '-', zone: customer.zone || '-', count: sales.length, total, last, seller: customer.seller || '-' };
     });
@@ -177,17 +201,17 @@ function buildResult(section: SectionId, data: { products: Product[]; categories
   }
 
   if (section === 'deliveryNotes') {
-    let rows = between(data.saleRows, filters, (row) => row.date);
+    let rows = between(data.saleRows.filter((row) => isDeliveryNoteSale(row.sale)), filters, (row) => row.date);
     if (filters.customer) rows = rows.filter((row) => String(row.sale.customer_id || '') === String(filters.customer));
     if (filters.seller) rows = rows.filter((row) => row.seller === filters.seller);
     if (filters.user) rows = rows.filter((row) => row.user === filters.user);
     rows = searchRows(rows, search, [(row) => row.number, (row) => row.customer, (row) => row.article, (row) => row.seller]);
-    return { columns: ['Fecha', 'Numero remito', 'Cliente', 'Articulo', 'Cantidad', 'Estado facturacion'], rows: rows.map((row) => [dateText(row.date), row.number, row.customer, row.article, row.qty, 'Facturado']), summary: [{ label: 'Remitos listados', value: new Set(rows.map((row) => row.number)).size }, { label: 'Items enviados', value: rows.reduce((acc, row) => acc + row.qty, 0) }, { label: 'Clientes', value: new Set(rows.map((row) => row.customer)).size }, { label: 'Usuarios', value: new Set(rows.map((row) => row.user)).size }] };
+    return { columns: ['Fecha', 'Numero remito', 'Cliente', 'Articulo', 'Cantidad', 'Estado stock'], rows: rows.map((row) => [dateText(row.date), row.number, row.customer, row.article, row.qty, row.sale.stock_applied_state === 'applied' ? 'Stock descontado' : 'Stock no descontado']), summary: [{ label: 'Remitos listados', value: new Set(rows.map((row) => row.number)).size }, { label: 'Items enviados', value: rows.reduce((acc, row) => acc + row.qty, 0) }, { label: 'Clientes', value: new Set(rows.map((row) => row.customer)).size }, { label: 'Usuarios', value: new Set(rows.map((row) => row.user)).size }] };
   }
 
   if (section === 'ranking') {
     const ranking = new Map<string, { qty: number; total: number }>();
-    between(data.saleRows, filters, (row) => row.date).forEach((row) => {
+    between(data.saleRows.filter((row) => isInvoiceLikeSale(row.sale) || isCreditNoteSale(row.sale)), filters, (row) => row.date).forEach((row) => {
       const key = reportType === 'Ranking por cliente' ? row.customer : reportType === 'Ranking por vendedor' ? row.seller : row.article;
       const current = ranking.get(key) || { qty: 0, total: 0 };
       current.qty += row.qty;
@@ -201,9 +225,9 @@ function buildResult(section: SectionId, data: { products: Product[]; categories
   }
 
   if (section === 'cash') {
-    const income = loadCash(CASH_KEYS.income).map((item) => ({ date: item.date || '', type: 'Ingreso', description: item.description || '-', user: 'Caja', amount: Number(item.amount || 0) }));
-    const expenses = loadCash(CASH_KEYS.expenses).map((item) => ({ date: item.date || '', type: 'Gasto', description: item.description || '-', user: 'Caja', amount: -Math.abs(Number(item.amount || 0)) }));
-    const withdrawals = loadCash(CASH_KEYS.withdrawals).map((item) => ({ date: item.date || '', type: 'Retiro', description: item.description || '-', user: item.person || 'Caja', amount: -Math.abs(Number(item.amount || 0)) }));
+    const income = data.cashMovements.filter((item) => item.type === 'income').map((item) => ({ date: item.date || '', type: 'Ingreso', description: item.description || '-', user: 'Caja', amount: Number(item.amount || 0) }));
+    const expenses = data.cashMovements.filter((item) => item.type === 'expenses').map((item) => ({ date: item.date || '', type: 'Gasto', description: item.description || '-', user: 'Caja', amount: -Math.abs(Number(item.amount || 0)) }));
+    const withdrawals = data.cashMovements.filter((item) => item.type === 'withdrawals').map((item) => ({ date: item.date || '', type: 'Retiro', description: item.description || '-', user: item.person || 'Caja', amount: -Math.abs(Number(item.amount || 0)) }));
     const cashSales = data.sales.filter((sale) => normalize(sale.payment_method || 'cash') === 'cash').map((sale) => ({ date: sale.created_at || '', type: 'Venta', description: 'Venta en efectivo', user: sale.user_name || 'Caja', amount: Number(sale.total || 0) }));
     let rows = between([...cashSales, ...income, ...expenses, ...withdrawals], filters, (row) => row.date);
     if (filters.cashType) rows = rows.filter((row) => normalize(row.type) === normalize(filters.cashType));
@@ -214,6 +238,10 @@ function buildResult(section: SectionId, data: { products: Product[]; categories
   }
 
   return { columns: [], rows: [], summary: [] };
+}
+
+function excelSectionFromModule(moduleName: string): SectionId | null {
+  return EXCEL_MODULE_SECTION[moduleName] || null;
 }
 
 function exportCsv(filename: string, columns: string[], rows: Cell[][]) {
@@ -229,6 +257,68 @@ function exportCsv(filename: string, columns: string[], rows: Cell[][]) {
   URL.revokeObjectURL(url);
 }
 
+function printReportDocument(title: string, subtitle: string, summary: Array<{ label: string; value: Cell }>, columns: string[], rows: Cell[][]) {
+  const popup = window.open('', '_blank', 'width=1200,height=800');
+  if (!popup) {
+    window.alert('No se pudo abrir la vista de impresion.');
+    return;
+  }
+
+  const summaryHtml = summary
+    .map((item) => `<div class="report-summary-card"><span>${String(item.label)}</span><strong>${String(item.value)}</strong></div>`)
+    .join('');
+
+  const headerHtml = columns.map((column) => `<th>${String(column)}</th>`).join('');
+  const bodyHtml = rows.length === 0
+    ? `<tr><td colspan="${Math.max(1, columns.length)}" class="report-empty-row">No hay resultados para los filtros seleccionados.</td></tr>`
+    : rows
+      .map((row) => `<tr>${row.map((cell) => `<td>${String(cell ?? '')}</td>`).join('')}</tr>`)
+      .join('');
+
+  popup.document.write(`
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #111; margin: 24px; }
+          .report-head { margin-bottom: 20px; }
+          .report-head h1 { margin: 0 0 8px; font-size: 24px; }
+          .report-head p { margin: 0; color: #555; font-size: 14px; }
+          .report-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+          .report-summary-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+          .report-summary-card span { display: block; font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+          .report-summary-card strong { font-size: 16px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; font-size: 12px; vertical-align: top; }
+          th { background: #f3f4f6; font-weight: 700; }
+          .report-empty-row { text-align: center; color: #6b7280; }
+          @media print {
+            body { margin: 12px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="report-head">
+          <h1>${title}</h1>
+          <p>${subtitle}</p>
+        </div>
+        ${summary.length ? `<div class="report-summary-grid">${summaryHtml}</div>` : ''}
+        <table>
+          <thead>
+            <tr>${headerHtml}</tr>
+          </thead>
+          <tbody>
+            ${bodyHtml}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  popup.document.close();
+  popup.focus();
+  popup.print();
+}
+
 export function ReportsPage({ pageId }: { pageId: string }) {
   const section = sectionFromPage(pageId);
   const [filtersBySection, setFiltersBySection] = useState<Record<string, Filters>>({});
@@ -240,18 +330,19 @@ export function ReportsPage({ pageId }: { pageId: string }) {
   const [excelFrom, setExcelFrom] = useState(() => inputDate(new Date()));
   const [excelTo, setExcelTo] = useState(() => inputDate(new Date()));
 
-  const [productsQuery, categoriesQuery, customersQuery, salesQuery, purchasesQuery, suppliersQuery] = useQueries({
+  const [productsQuery, categoriesQuery, customersQuery, salesQuery, purchasesQuery, suppliersQuery, cashMovementsQuery] = useQueries({
     queries: [
       { queryKey: ['reports', 'products-source'], queryFn: () => getProducts({}), staleTime: 30_000 },
       { queryKey: ['reports', 'categories-source'], queryFn: getCategories, staleTime: 30_000 },
       { queryKey: ['reports', 'customers-source'], queryFn: () => getCustomers(''), staleTime: 30_000 },
       { queryKey: ['reports', 'sales-source'], queryFn: () => getSalesReport({}), staleTime: 30_000 },
       { queryKey: ['reports', 'purchases-source'], queryFn: getPurchases, staleTime: 30_000 },
-      { queryKey: ['reports', 'suppliers-source'], queryFn: getSuppliers, staleTime: 30_000 }
+      { queryKey: ['reports', 'suppliers-source'], queryFn: getSuppliers, staleTime: 30_000 },
+      { queryKey: ['reports', 'cash-source'], queryFn: () => getCashMovements({}), staleTime: 30_000 }
     ]
   });
 
-  const queries = [productsQuery, categoriesQuery, customersQuery, salesQuery, purchasesQuery, suppliersQuery];
+  const queries = [productsQuery, categoriesQuery, customersQuery, salesQuery, purchasesQuery, suppliersQuery, cashMovementsQuery];
   const loading = queries.some((query) => query.isLoading);
   const error = queries.find((query) => query.isError)?.error;
   const products = productsQuery.data || [];
@@ -260,6 +351,7 @@ export function ReportsPage({ pageId }: { pageId: string }) {
   const sales = salesQuery.data?.sales || [];
   const purchases = purchasesQuery.data || [];
   const suppliers = suppliersQuery.data || [];
+  const cashMovements = cashMovementsQuery.data || [];
   const config = REPORT_SECTIONS[section];
   const filters = filtersBySection[section] || DEFAULT_FILTERS;
   const search = searchBySection[section] || '';
@@ -269,7 +361,25 @@ export function ReportsPage({ pageId }: { pageId: string }) {
   const sellers = useMemo(() => [...new Set(customers.map((item: Customer) => item.seller).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b)), [customers]);
   const users = useMemo(() => [...new Set(sales.map((item: Sale) => item.user_name).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b)), [sales]);
   const saleRows = useMemo(() => buildSaleRows(sales, customers, products), [customers, products, sales]);
-  const result = useMemo(() => buildResult(section, { products, categories, customers, sales, purchases, saleRows }, filters, reportType, search), [categories, customers, filters, products, purchases, reportType, saleRows, sales, search, section]);
+  const result = useMemo(() => buildResult(section, { products, categories, customers, sales, purchases, saleRows, cashMovements }, filters, reportType, search), [cashMovements, categories, customers, filters, products, purchases, reportType, saleRows, sales, search, section]);
+  const excelResult = useMemo(() => {
+    const excelSection = excelSectionFromModule(excelModule);
+    if (!excelSection) return null;
+    const excelFilters: Filters = {
+      ...DEFAULT_FILTERS,
+      from: excelFrom,
+      to: excelTo
+    };
+    const fallbackType = REPORT_SECTIONS[excelSection].reportTypes[0] || '';
+    const normalizedType = excelType.trim() || fallbackType;
+    return buildResult(
+      excelSection,
+      { products, categories, customers, sales, purchases, saleRows, cashMovements },
+      excelFilters,
+      normalizedType,
+      ''
+    );
+  }, [cashMovements, categories, customers, excelFrom, excelModule, excelTo, excelType, products, purchases, saleRows, sales]);
   const totalPages = Math.max(1, Math.ceil(result.rows.length / 10));
   const safePage = Math.max(1, Math.min(totalPages, currentPage));
   const visibleRows = result.rows.slice((safePage - 1) * 10, safePage * 10);
@@ -317,7 +427,23 @@ export function ReportsPage({ pageId }: { pageId: string }) {
               <div className="form-group"><label>Fecha hasta</label><input type="date" value={excelTo} onChange={(event) => setExcelTo(event.target.value)} /></div>
             </div>
             <div className="reports-toolbar-actions">
-              <button className="btn btn-success" type="button" onClick={() => exportCsv(`reportes-excel-${inputDate(new Date())}.csv`, ['Modulo', 'Tipo reporte', 'Fecha desde', 'Fecha hasta'], [[excelModule || '-', excelType || '-', excelFrom || '-', excelTo || '-']])}>Generar Excel</button>
+              <button
+                className="btn btn-success"
+                type="button"
+                onClick={() => {
+                  if (!excelModule || !excelResult) {
+                    window.alert('Seleccione un modulo para generar el reporte.');
+                    return;
+                  }
+                  exportCsv(
+                    `reportes-excel-${normalize(excelModule)}-${inputDate(new Date())}.csv`,
+                    excelResult.columns,
+                    excelResult.rows
+                  );
+                }}
+              >
+                Generar Excel
+              </button>
             </div>
           </div>
         </div>
@@ -359,8 +485,8 @@ export function ReportsPage({ pageId }: { pageId: string }) {
           <div className="reports-toolbar-actions">
             <button className="btn btn-primary" type="button" onClick={() => setPageBySection((current) => ({ ...current, [section]: 1 }))}>Buscar</button>
             <button className="btn btn-success" type="button" onClick={() => exportCsv(`reportes-${section}-${inputDate(new Date())}.csv`, result.columns, result.rows)}>Exportar Excel</button>
-            <button className="btn btn-secondary" type="button" onClick={() => window.print()}>Exportar PDF</button>
-            <button className="btn btn-secondary" type="button" onClick={() => window.print()}>Imprimir</button>
+            <button className="btn btn-secondary" type="button" onClick={() => printReportDocument(config.title, config.subtitle, result.summary, result.columns, result.rows)}>Exportar PDF</button>
+            <button className="btn btn-secondary" type="button" onClick={() => printReportDocument(config.title, config.subtitle, result.summary, result.columns, result.rows)}>Imprimir</button>
           </div>
         </div>
 

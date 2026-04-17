@@ -35,6 +35,17 @@ export interface WooStatusResponse {
   category_mode?: string | null;
   conflict_priority?: string | null;
   api_version?: string | null;
+  sync_products?: boolean;
+  sync_customers?: boolean;
+  sync_orders?: boolean;
+  sync_stock?: boolean;
+  sync_prices?: boolean;
+  order_sync_mode?: string | null;
+  order_sales_channel?: string | null;
+  customer_sync_strategy?: string | null;
+  generic_customer_name?: string | null;
+  webhook_signature_header?: string | null;
+  webhook_delivery_header?: string | null;
   logs?: WooSyncLog[];
   logs_summary?: {
     total?: number;
@@ -80,4 +91,19 @@ export interface WooConnectionTestPayload {
   api_version: string;
   wp_username: string;
   wp_app_password: string;
+}
+
+export interface WooSyncProgressEvent {
+  status?: string;
+  progress?: number;
+  done?: boolean;
+  error?: string;
+  results?: {
+    imported?: number;
+    exported?: number;
+    updated?: number;
+    errors?: string[];
+    total?: number;
+    processed?: number;
+  };
 }

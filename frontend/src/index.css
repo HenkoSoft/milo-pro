@@ -1306,6 +1306,15 @@ textarea[readonly] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.products-edit-grid--description-meta {
+  grid-template-columns: minmax(0, 1fr) 180px;
+  align-items: start;
+}
+
+.products-edit-grid--full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .products-edit-grid--meta {
   grid-template-columns: 112px 112px minmax(0, 1fr) minmax(0, 1fr);
 }
@@ -1317,6 +1326,163 @@ textarea[readonly] {
 
 .products-edit-grid--status {
   grid-template-columns: repeat(2, minmax(140px, 1fr));
+}
+
+.products-description-textarea {
+  min-height: 180px;
+}
+
+.products-wp-editor {
+  border: 1px solid #c3c4c7;
+  background: #fff;
+}
+
+.products-wp-editor-chrome {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px;
+  border-bottom: 1px solid #c3c4c7;
+  background: #f0f0f1;
+}
+
+.products-wp-editor-actions {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.products-wp-editor-action {
+  padding: 6px 10px;
+  border: 1px solid #2271b1;
+  background: #f6f7f7;
+  color: #2271b1;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.products-wp-editor-action.is-active {
+  background: #eaf2fa;
+}
+
+.products-wp-editor-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.products-wp-editor-tab {
+  margin-top: 6px;
+  padding: 6px 12px;
+  border: 1px solid #c3c4c7;
+  border-bottom: none;
+  background: #f6f7f7;
+  color: #2c3338;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+}
+
+.products-wp-editor-tab.is-active {
+  background: #fff;
+  position: relative;
+  top: 1px;
+}
+
+.products-wp-editor-body .tox-tinymce {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.products-wp-editor-body .tox .tox-toolbar,
+.products-wp-editor-body .tox .tox-toolbar__primary,
+.products-wp-editor-body .tox .tox-toolbar-overlord {
+  background: #f6f7f7 !important;
+}
+
+.products-wp-editor-body .tox .tox-editor-header {
+  box-shadow: none !important;
+  border-bottom: 1px solid #dcdcde !important;
+}
+
+.products-wp-editor-body .tox .tox-toolbar__group {
+  padding: 0 2px !important;
+}
+
+.products-wp-editor-body .tox .tox-tbtn,
+.products-wp-editor-body .tox .tox-tbtn--select {
+  margin: 2px 1px !important;
+  border-radius: 2px !important;
+}
+
+.products-wp-editor-body .tox .tox-tbtn:hover,
+.products-wp-editor-body .tox .tox-tbtn--enabled,
+.products-wp-editor-body .tox .tox-tbtn--select:hover {
+  background: #e2e8f0 !important;
+}
+
+.products-wp-editor-body .tox .tox-edit-area__iframe {
+  background: #fff;
+}
+
+.products-wp-editor-body .tox .tox-statusbar {
+  border-top: 1px solid #dcdcde !important;
+  background: #f6f7f7 !important;
+}
+
+.products-wp-editor-code {
+  display: grid;
+  gap: 0;
+}
+
+.products-wp-editor-code-input {
+  min-height: 220px;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid #c3c4c7;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+}
+
+.products-wp-editor-preview {
+  border-top: 1px solid #dcdcde;
+  background: #fff;
+}
+
+.products-wp-editor-preview-title {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #50575e;
+  background: #f6f7f7;
+  border-bottom: 1px solid #dcdcde;
+}
+
+.products-wp-editor-preview-body {
+  min-height: 120px;
+  padding: 12px;
+  line-height: 1.6;
+  color: #1d2327;
+}
+
+.products-wp-editor-preview-body p {
+  margin: 0 0 12px;
+}
+
+.products-wp-editor-preview-body ul,
+.products-wp-editor-preview-body ol {
+  margin: 0 0 12px 24px;
+}
+
+.products-rich-editor-required {
+  color: var(--danger);
+}
+
+.products-help-inline--dense {
+  margin-top: 6px;
+  line-height: 1.45;
 }
 
 .products-edit-grid--prices-top {
@@ -1339,6 +1505,26 @@ textarea[readonly] {
   font-size: 12px;
 }
 
+.products-image-meta {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  background: #f6f7f7;
+}
+
+.products-image-meta strong {
+  font-size: 12px;
+  color: #1d2327;
+}
+
+.products-image-meta span {
+  font-size: 12px;
+  color: #50575e;
+}
+
 .products-image-preview {
   display: flex;
   align-items: center;
@@ -1358,6 +1544,16 @@ textarea[readonly] {
   height: 100%;
   object-fit: contain;
   display: block;
+}
+
+.products-image-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.products-image-file-input {
+  display: none;
 }
 
 .products-prices-layout {
@@ -2832,7 +3028,8 @@ textarea[readonly] {
 .woo-admin-grid {
   grid-template-columns: 1fr;
   align-items: start;
-  max-width: 1120px;
+  max-width: none;
+  gap: 18px;
 }
 
 .woo-admin-panel {
@@ -2872,37 +3069,122 @@ textarea[readonly] {
 .woo-admin-status-grid .admin-status-card strong {
   font-size: 17px;
   line-height: 1.25;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.woo-status-value {
+  display: block;
+  white-space: normal;
+}
+
+.woo-status-value--url {
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+  word-break: break-all;
+}
+
+.woo-status-value--number {
+  font-size: 15px !important;
+  line-height: 1.3 !important;
 }
 
 .woo-admin-actions-row {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.woo-sync-progress-card {
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.woo-sync-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.woo-sync-progress-bar {
+  width: 100%;
+  height: 18px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.woo-sync-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #2563eb;
+  transition: width 0.2s ease;
+}
+
+.woo-sync-progress-status {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.woo-sync-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.woo-sync-section + .woo-sync-section {
   margin-top: 18px;
-  padding-top: 14px;
+  padding-top: 18px;
   border-top: 1px solid var(--border-color);
 }
 
+.woo-sync-section-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .woo-admin-form-grid {
-  grid-template-columns: 1fr;
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
 }
 
 .woo-admin-form-grid .form-group {
-  max-width: 760px;
+  max-width: none;
+  min-width: 0;
 }
 
 .woo-admin-form-grid .form-group label {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.woo-field-span-full {
+  grid-column: 1 / -1;
 }
 
 .woo-admin-checks {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 6px 0 2px;
-  max-width: 760px;
+  max-width: none;
 }
 
 .woo-admin-checks .admin-checkbox {
@@ -2918,7 +3200,33 @@ textarea[readonly] {
   margin-top: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--border-color);
-  max-width: 760px;
+  max-width: none;
+}
+
+.woo-admin-panel--config .form-group input,
+.woo-admin-panel--config .form-group select {
+  width: 100%;
+}
+
+.woo-config-section {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 16px;
+  background: #fafafa;
+}
+
+.woo-config-section + .woo-config-section {
+  margin-top: 2px;
+}
+
+.woo-config-section-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .woo-admin-logs-wrap {
@@ -4758,6 +5066,12 @@ td {
 @media (max-width: 1100px) {
   .reports-filter-grid,
   .reports-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .woo-admin-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

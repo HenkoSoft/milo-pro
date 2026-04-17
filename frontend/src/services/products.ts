@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { ProductMovement, ProductMovementPayload } from '../types/productMovement';
 import type { Product, ProductListParams } from '../types/product';
 
 function buildProductsQuery(params: ProductListParams = {}) {
@@ -44,4 +45,24 @@ export function deleteProduct(id: number) {
 
 export function getLowStockProducts() {
   return apiRequest<Product[]>('/products/low-stock/alerts');
+}
+
+function buildProductMovementsQuery(params: { startDate?: string; endDate?: string; type?: string } = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.startDate?.trim()) searchParams.set('startDate', params.startDate.trim());
+  if (params.endDate?.trim()) searchParams.set('endDate', params.endDate.trim());
+  if (params.type?.trim()) searchParams.set('type', params.type.trim());
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
+export function getProductMovements(params: { startDate?: string; endDate?: string; type?: string } = {}) {
+  return apiRequest<ProductMovement[]>(`/products/movements/history${buildProductMovementsQuery(params)}`);
+}
+
+export function createProductMovement(payload: ProductMovementPayload) {
+  return apiRequest<ProductMovement>('/products/movements/history', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }

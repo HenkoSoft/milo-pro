@@ -82,6 +82,47 @@ function getWooPrimaryColor(wooProduct: WooProductRecord) {
   return getWooPrimaryColorBase(wooProduct, normalizeCatalogText);
 }
 
+function escapeWooHtml(value: unknown) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatWooRichText(value: unknown) {
+  const raw = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!raw) return '';
+  if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
+
+  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return '';
+
+  const blocks: string[] = [];
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    blocks.push(`<ul>${listItems.map((item) => `<li>${escapeWooHtml(item)}</li>`).join('')}</ul>`);
+    listItems = [];
+  };
+
+  for (const line of lines) {
+    const bulletMatch = line.match(/^[•·▪◦\-*]\s*(.+)$/u);
+    if (bulletMatch) {
+      listItems.push(bulletMatch[1].trim());
+      continue;
+    }
+
+    flushList();
+    blocks.push(`<p>${escapeWooHtml(line)}</p>`);
+  }
+
+  flushList();
+  return blocks.join('');
+}
+
 async function buildWooManagedAttribute(attributes: any[] = [], config: WooConfig, name: string, slug: string, options: any) {
   const nextOptions = [...new Set((Array.isArray(options) ? options : [options]).map((item) => String(item || '').trim()).filter(Boolean))];
   if (!name || nextOptions.length === 0) return attributes;
@@ -138,6 +179,34 @@ async function ensureLocalBrand(brandName: string, extra: AnyRecord = {}) {
 
 function woocommerceRequest(method: string, apiPath: string, data: any = null, config: WooConfig = null, requestOptions: AnyRecord | null = null) {
   return woocommerceRequestBase(method, apiPath, data, config, requestOptions, getActiveWooConfigAsync);
+}
+
+async function fetchAllWooProducts(config: WooConfig = null) {
+  const activeConfig = config || await getActiveWooConfigAsync();
+  const products: AnyRecord[] = [];
+  let page = 1;
+
+  while (true) {
+    const result = await woocommerceRequest('GET', `/products?per_page=100&page=${page}`, null, activeConfig);
+    if (!Array.isArray(result) || result.length === 0) {
+      break;
+    }
+
+    products.push(...result);
+
+    if (result.length < 100) {
+      break;
+    }
+
+    page += 1;
+
+    // Safety guard against malformed pagination loops while still allowing large catalogs.
+    if (page > 1000) {
+      throw new Error('La paginacion de productos WooCommerce excedio el maximo esperado');
+    }
+  }
+
+  return products;
 }
 
 function wordpressRequest(method: string, apiPath: string, body: any = null, headers: AnyRecord = {}, config: WooConfig = null) {
@@ -345,7 +414,7 @@ async function buildWooProductPayload(product: AnyRecord, config: WooConfig = nu
   const payload: AnyRecord = {
     name: snapshot.name || `Producto ${snapshot.id}`,
     description: snapshot.description || '',
-    short_description: snapshot.short_description || '',
+    short_description: formatWooRichText(snapshot.short_description),
     regular_price: normalizePrice(snapshot.sale_price),
     stock_quantity: stockQuantity,
     manage_stock: true,
@@ -648,6 +717,7 @@ module.exports = {
   ensureLocalCategoryFromWooCategory,
   ensureLocalCategoriesFromWooProduct,
   ensureWooCategoryFromLocal,
+  fetchAllWooProducts,
   findWooProductBySku,
   getActiveWooConfig,
   getActiveWooConfigAsync,
@@ -657,6 +727,7 @@ module.exports = {
   getWooProductImages,
   isWooExportEnabled,
   normalizeWooText: normalizeCatalogText,
+  formatWooRichText,
   setRuntimeDatabase,
   syncProductSnapshotToWooCommerce,
   syncProductToWooCommerce,

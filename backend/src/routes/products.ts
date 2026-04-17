@@ -10,7 +10,11 @@ const {
   syncProductSnapshotToWooCommerce
 } = require('../services/woocommerce-sync.js');
 const { processProductImages } = require('../services/product-images.js');
-const { getNextAutomaticProductSku } = require('../services/product-sku.js');
+const {
+  buildAutomaticProductSku,
+  extractAutomaticProductSkuNumber,
+  getNextAutomaticProductSku
+} = require('../services/product-sku.js');
 const {
   getProductById,
   listProductsWithCatalog,
@@ -56,6 +60,29 @@ function toNullableString(value: unknown) {
 function toNumber(value: unknown, fallback = 0) {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeAutomaticSku(value: unknown) {
+  const skuNumber = extractAutomaticProductSkuNumber(value);
+  return typeof skuNumber === 'number' && Number.isFinite(skuNumber) && skuNumber > 0
+    ? buildAutomaticProductSku(skuNumber)
+    : null;
+}
+
+function normalizeProvidedSku(value: unknown) {
+  const trimmed = toNullableString(value);
+  if (!trimmed) return null;
+  return normalizeAutomaticSku(trimmed) || trimmed;
+}
+
+function resolveProductSku(rawSku: unknown, fallbackSku: unknown, skuRows: Array<string | { sku?: unknown }> = []) {
+  const normalizedInput = normalizeProvidedSku(rawSku);
+  if (normalizedInput) return normalizedInput;
+
+  const normalizedFallback = normalizeProvidedSku(fallbackSku);
+  if (normalizedFallback) return normalizedFallback;
+
+  return getNextAutomaticProductSku(skuRows);
 }
 
 function sanitizeProductSummary(product: ProductRecord | null) {
@@ -210,7 +237,7 @@ async function persistProduct(db: { all: Function; run: Function; save: Function
 
   if (productId) {
     const existingProduct = await getProductById(productId);
-    const nextSku = payload.sku || (existingProduct && existingProduct.sku) || getNextAutomaticProductSku(await db.all('SELECT sku FROM products'));
+    const nextSku = resolveProductSku(payload.sku, existingProduct && existingProduct.sku, await db.all('SELECT sku FROM products'));
     await db.run(
       `UPDATE products
        SET sku = ?, barcode = ?, name = ?, description = ?, short_description = ?, color = ?, category_id = ?, category_primary_id = ?,
@@ -254,7 +281,7 @@ async function persistProduct(db: { all: Function; run: Function; save: Function
       ]
     );
   } else {
-    const nextSku = payload.sku || getNextAutomaticProductSku(await db.all('SELECT sku FROM products'));
+    const nextSku = resolveProductSku(payload.sku, null, await db.all('SELECT sku FROM products'));
     const result = await db.run(
       `INSERT INTO products (
         sku, barcode, name, description, short_description, color, category_id, category_primary_id, brand_id, supplier,
@@ -309,6 +336,20 @@ async function persistProduct(db: { all: Function; run: Function; save: Function
 }
 
 const router = express.Router();
+
+function sanitizeProductMovement(record: Record<string, unknown> | null) {
+  if (!record) return null;
+  return {
+    id: String(record.id || ''),
+    type: String(record.type || ''),
+    product_id: record.product_id == null ? null : Number(record.product_id),
+    date: String(record.date || ''),
+    code: String(record.code || ''),
+    description: String(record.description || ''),
+    quantity: toNumber(record.quantity),
+    reference: toNullableString(record.reference) || ''
+  };
+}
 
 router.get('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const { query, params } = buildProductsQuery(req.query || {});
@@ -420,6 +461,118 @@ router.get('/low-stock/alerts', authenticate, async (_req: RouteRequest, res: Js
      ORDER BY p.stock ASC`
   );
   res.json(products.map((product: ProductRecord) => sanitizeProductSummary(product)));
+});
+
+router.get('/movements/history', authenticate, async (req: RouteRequest, res: JsonResponse) => {
+  const db = getDatabaseAccessForRequest(req);
+  const startDate = String(req.query.startDate || '').trim();
+  const endDate = String(req.query.endDate || '').trim();
+  const type = String(req.query.type || '').trim();
+
+  let query = `
+    SELECT *
+    FROM product_movements
+    WHERE 1=1
+  `;
+  const params: unknown[] = [];
+
+  if (startDate) {
+    query += ' AND date >= ?';
+    params.push(startDate);
+  }
+
+  if (endDate) {
+    query += ' AND date <= ?';
+    params.push(endDate);
+  }
+
+  if (type) {
+    query += ' AND type = ?';
+    params.push(type);
+  }
+
+  query += ' ORDER BY date DESC, created_at DESC, id DESC';
+
+  const rows = await db.all(query, params);
+  res.json(rows.map((row: Record<string, unknown>) => sanitizeProductMovement(row)));
+});
+
+router.post('/movements/history', authenticate, async (req: RouteRequest, res: JsonResponse) => {
+  const db = getDatabaseAccessForRequest(req);
+  const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+  const type = String(body.type || '').trim();
+  const productId = body.product_id == null || body.product_id === '' ? null : Number(body.product_id);
+  const date = String(body.date || '').trim();
+  const code = String(body.code || '').trim();
+  const description = String(body.description || '').trim();
+  const quantity = toNumber(body.quantity, 0);
+  const reference = toNullableString(body.reference);
+  const id = String(body.id || `${type}-${Date.now()}`).trim();
+
+  if (type !== 'adjustment' && type !== 'output') {
+    res.status(400).json({ error: 'Tipo de movimiento invalido.' });
+    return;
+  }
+
+  if (!date) {
+    res.status(400).json({ error: 'La fecha es obligatoria.' });
+    return;
+  }
+
+  if (!code || !description) {
+    res.status(400).json({ error: 'El articulo es obligatorio.' });
+    return;
+  }
+
+  if (type === 'output' && quantity <= 0) {
+    res.status(400).json({ error: 'La cantidad debe ser mayor a cero.' });
+    return;
+  }
+
+  if (type === 'output' && (!Number.isFinite(productId) || Number(productId) <= 0)) {
+    res.status(400).json({ error: 'El articulo es obligatorio.' });
+    return;
+  }
+
+  if (type === 'adjustment' && quantity < 0) {
+    res.status(400).json({ error: 'El nuevo stock no puede ser negativo.' });
+    return;
+  }
+
+  if (type === 'output') {
+    const product = await db.get('SELECT id, stock FROM products WHERE id = ?', [productId]);
+    if (!product) {
+      res.status(404).json({ error: 'Articulo no encontrado.' });
+      return;
+    }
+
+    const currentStock = toNumber((product as Record<string, unknown>).stock, 0);
+    if (currentStock < quantity) {
+      res.status(400).json({ error: 'La cantidad supera el stock disponible.' });
+      return;
+    }
+
+    await db.run(
+      `
+        UPDATE products
+        SET stock = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `,
+      [currentStock - quantity, productId]
+    );
+  }
+
+  await db.run(
+    `
+      INSERT INTO product_movements (id, type, product_id, date, code, description, quantity, reference)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [id, type, productId, date, code, description, quantity, reference]
+  );
+
+  await db.save();
+  const created = await db.get('SELECT * FROM product_movements WHERE id = ?', [id]);
+  res.status(201).json(sanitizeProductMovement(created));
 });
 
 export = router;

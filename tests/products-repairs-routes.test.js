@@ -261,6 +261,137 @@ async function main() {
     }
   });
 
+  await runCase('products permite SKU personalizado y normaliza referencias ART cortas', async () => {
+    const harness = await createHarness();
+    try {
+      const createLegacy = await harness.request(
+        'POST',
+        '/api/products',
+        {
+          name: 'Producto SKU legacy',
+          sku: 'MOD-MOT-G22',
+          category_id: harness.categoryId,
+          category_primary_id: harness.categoryId,
+          category_ids: [harness.categoryId],
+          brand_id: harness.brandId,
+          sale_price: '15000',
+          stock: '2'
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(createLegacy.statusCode, 201);
+      assert.equal(createLegacy.body.sku, 'MOD-MOT-G22');
+
+      const createArtShort = await harness.request(
+        'POST',
+        '/api/products',
+        {
+          name: 'Producto SKU corto',
+          sku: 'ART-103',
+          category_id: harness.categoryId,
+          category_primary_id: harness.categoryId,
+          category_ids: [harness.categoryId],
+          brand_id: harness.brandId,
+          sale_price: '17000',
+          stock: '1'
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(createArtShort.statusCode, 201);
+      assert.equal(createArtShort.body.sku, 'ART-000103');
+
+      const updateCustom = await harness.request(
+        'PUT',
+        `/api/products/${createLegacy.body.id}`,
+        {
+          name: 'Producto SKU personalizado actualizado',
+          sku: 'SKU-PROPIO-001',
+          category_id: harness.categoryId,
+          category_primary_id: harness.categoryId,
+          category_ids: [harness.categoryId],
+          brand_id: harness.brandId,
+          sale_price: '18000',
+          stock: '3'
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(updateCustom.statusCode, 200);
+      assert.equal(updateCustom.body.sku, 'SKU-PROPIO-001');
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('products registra y consulta movimientos de salida', async () => {
+    const harness = await createHarness();
+    try {
+      const product = await harness.request(
+        'POST',
+        '/api/products',
+        {
+          name: 'Cable USB-C',
+          category_id: harness.categoryId,
+          category_primary_id: harness.categoryId,
+          category_ids: [harness.categoryId],
+          brand_id: harness.brandId,
+          sale_price: '9999',
+          stock: '5',
+          min_stock: '2'
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(product.statusCode, 201);
+
+      const movement = await harness.request(
+        'POST',
+        '/api/products/movements/history',
+        {
+          type: 'output',
+          product_id: product.body.id,
+          date: '2026-04-17',
+          code: product.body.sku,
+          description: 'Cable USB-C',
+          quantity: 2,
+          reference: 'Muestra comercial'
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(movement.statusCode, 201);
+      assert.equal(movement.body.type, 'output');
+      assert.equal(Number(movement.body.quantity), 2);
+      assert.equal(Number(movement.body.product_id), Number(product.body.id));
+
+      const detail = await harness.request('GET', `/api/products/${product.body.id}`, undefined, { token: harness.adminToken });
+      assert.equal(detail.statusCode, 200);
+      assert.equal(Number(detail.body.stock), 3);
+
+      const list = await harness.request('GET', '/api/products/movements/history?type=output&startDate=2026-04-17&endDate=2026-04-17', undefined, { token: harness.adminToken });
+      assert.equal(list.statusCode, 200);
+      assert.equal(Array.isArray(list.body), true);
+      assert.equal(list.body.length, 1);
+      assert.equal(list.body[0].reference, 'Muestra comercial');
+
+      const insufficient = await harness.request(
+        'POST',
+        '/api/products/movements/history',
+        {
+          type: 'output',
+          product_id: product.body.id,
+          date: '2026-04-17',
+          code: product.body.sku,
+          description: 'Cable USB-C',
+          quantity: 4,
+          reference: 'Salida invalida'
+        },
+        { token: harness.adminToken }
+      );
+      assert.equal(insufficient.statusCode, 400);
+      assert.equal(insufficient.body.error, 'La cantidad supera el stock disponible.');
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
   await runCase('repairs permite alta, cambio de estado, detalle y borrado', async () => {
     const harness = await createHarness();
     try {

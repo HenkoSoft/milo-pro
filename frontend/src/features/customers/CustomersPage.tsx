@@ -1,5 +1,8 @@
 import { startTransition, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CUSTOMER_COUNTRIES, CUSTOMER_IVA_CONDITIONS, CUSTOMER_PROVINCES, CUSTOMER_SELLERS, CUSTOMER_TRANSPORTS, CUSTOMER_ZONES } from './constants';
+import { createAdminAuxRow, getAdminAuxRows } from '../../services/admin';
+import { getCustomerByTaxId } from '../../services/customers';
 import { useCustomerMutations, useCustomers } from './useCustomers';
 import type { Customer, CustomerPayload } from '../../types/customer';
 import { parseLocaleNumber } from '../../utils/localeNumber';
@@ -62,6 +65,7 @@ function getCustomerCode(customer: Customer | null) {
 }
 
 export function CustomersPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formValues, setFormValues] = useState<CustomerPayload>({ ...EMPTY_FORM });
@@ -70,9 +74,28 @@ export function CustomersPage() {
   const [activeTab, setActiveTab] = useState<CustomerTab>('datos');
   const customersQuery = useCustomers(search);
   const { createMutation, updateMutation, deleteMutation } = useCustomerMutations();
+  const provincesQuery = useQuery({ queryKey: ['admin', 'aux-tables', 'provinces'], queryFn: () => getAdminAuxRows('provinces'), staleTime: 30_000 });
+  const countriesQuery = useQuery({ queryKey: ['admin', 'aux-tables', 'countries'], queryFn: () => getAdminAuxRows('countries'), staleTime: 30_000 });
+  const createAuxRowMutation = useMutation({
+    mutationFn: createAdminAuxRow,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'aux-tables'] });
+    }
+  });
+  const searchTaxIdMutation = useMutation({
+    mutationFn: getCustomerByTaxId
+  });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const customers = customersQuery.data || [];
+  const provinceOptions = useMemo(
+    () => [...new Set([...CUSTOMER_PROVINCES, ...(provincesQuery.data || []).map((row) => row.description).filter(Boolean) as string[]])].sort((a, b) => a.localeCompare(b)),
+    [provincesQuery.data]
+  );
+  const countryOptions = useMemo(
+    () => [...new Set([...CUSTOMER_COUNTRIES, ...(countriesQuery.data || []).map((row) => row.description).filter(Boolean) as string[]])].sort((a, b) => a.localeCompare(b)),
+    [countriesQuery.data]
+  );
 
   const sortedCustomers = useMemo(
     () => customers.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
@@ -150,6 +173,40 @@ export function CustomersPage() {
       }
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'No se pudo eliminar el cliente.');
+    }
+  }
+
+  async function handleCreateAuxOption(tableKey: 'provinces' | 'countries', label: 'provincia' | 'pais') {
+    const description = window.prompt(`Ingrese ${label}:`, '');
+    if (!description || !description.trim()) return;
+    try {
+      await createAuxRowMutation.mutateAsync({
+        table_key: tableKey,
+        description: description.trim(),
+        active: true
+      });
+      setFormValues((current) => ({
+        ...current,
+        [tableKey === 'provinces' ? 'province' : 'country']: description.trim()
+      }));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : `No se pudo guardar ${label}.`);
+    }
+  }
+
+  async function handleSearchTaxId() {
+    const normalizedTaxId = formValues.tax_id.trim();
+    if (!normalizedTaxId) {
+      setFeedback('Ingrese DNI/CUIT para buscar.');
+      return;
+    }
+
+    try {
+      const existingCustomer = await searchTaxIdMutation.mutateAsync(normalizedTaxId);
+      openEditCustomerModal(existingCustomer);
+      setFeedback('Cliente encontrado.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No se encontro un cliente con ese DNI/CUIT.');
     }
   }
 
@@ -285,11 +342,11 @@ export function CustomersPage() {
                       <div className="customer-input-combo">
                         <select id="customer-province" name="province" value={formValues.province} onChange={handleChange}>
                           <option value="">Seleccionar provincia</option>
-                          {CUSTOMER_PROVINCES.map((option) => (
+                          {provinceOptions.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
                         </select>
-                        <button type="button" className="customer-addon-button" onClick={() => window.alert('Esta opcion no esta disponible en este momento.')}>+</button>
+                        <button type="button" className="customer-addon-button" onClick={() => void handleCreateAuxOption('provinces', 'provincia')}>+</button>
                       </div>
                     </div>
                     <div className="form-group">
@@ -297,11 +354,11 @@ export function CustomersPage() {
                       <div className="customer-input-combo">
                         <select id="customer-country" name="country" value={formValues.country} onChange={handleChange}>
                           <option value="">Seleccionar pais</option>
-                          {CUSTOMER_COUNTRIES.map((option) => (
+                          {countryOptions.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
                         </select>
-                        <button type="button" className="customer-addon-button" onClick={() => window.alert('Esta opcion no esta disponible en este momento.')}>+</button>
+                        <button type="button" className="customer-addon-button" onClick={() => void handleCreateAuxOption('countries', 'pais')}>+</button>
                       </div>
                     </div>
                     <div className="form-group">
@@ -312,7 +369,7 @@ export function CustomersPage() {
                       <label htmlFor="customer-tax-id">DNI/CUIT</label>
                       <div className="customer-input-combo">
                         <input id="customer-tax-id" name="tax_id" type="text" value={formValues.tax_id} onChange={handleChange} placeholder="Documento o CUIT" />
-                        <button type="button" className="customer-addon-button customer-addon-button--wide" onClick={() => window.alert('Esta opcion no esta disponible en este momento.')}>Buscar</button>
+                        <button type="button" className="customer-addon-button customer-addon-button--wide" onClick={() => void handleSearchTaxId()}>Buscar</button>
                       </div>
                     </div>
                     <div className="form-group">

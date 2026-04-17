@@ -45,7 +45,8 @@ async function createHarness() {
         { order_id: 1, success: true },
         { order_id: 2, success: true }
       ]
-    }
+    },
+    fetchAllProducts: null
   };
 
   const woocommerceSyncPath = require.resolve('../backend/dist/services/woocommerce-sync.js');
@@ -56,6 +57,14 @@ async function createHarness() {
     exports: {
       ensureLocalBrand: () => null,
       ensureLocalCategoriesFromWooProduct: async () => [],
+      fetchAllWooProducts: async () => {
+        if (Array.isArray(mockResults.fetchAllProducts)) {
+          return mockResults.fetchAllProducts;
+        }
+        const firstPage = await require.cache[woocommerceSyncPath].exports.woocommerceRequest('GET', '/products?per_page=100&page=1');
+        const secondPage = await require.cache[woocommerceSyncPath].exports.woocommerceRequest('GET', '/products?per_page=100&page=2');
+        return [...(Array.isArray(firstPage) ? firstPage : []), ...(Array.isArray(secondPage) ? secondPage : [])];
+      },
       findWooProductBySku: async () => null,
       getActiveWooConfig: () => database.get('SELECT * FROM woocommerce_sync WHERE id = 1'),
       getActiveWooConfigAsync: async () => database.get('SELECT * FROM woocommerce_sync WHERE id = 1'),
@@ -67,7 +76,10 @@ async function createHarness() {
         if (method === 'GET' && apiPath === '/system_status') {
           return { environment: { site_url: 'https://example.com', version: '9.0.0' } };
         }
-        if (method === 'GET' && apiPath === '/products?per_page=100') {
+        if (method === 'GET' && (apiPath === '/products?per_page=100' || apiPath === '/products?per_page=100&page=1')) {
+          return [];
+        }
+        if (method === 'GET' && apiPath === '/products?per_page=100&page=2') {
           return [];
         }
         if (method === 'GET' && apiPath.startsWith('/products/')) {
@@ -318,6 +330,32 @@ async function main() {
       assert.equal(row.webhook_secret, 'old-secret');
       assert.equal(row.sync_products, 0);
       assert.equal(row.sync_interval_minutes, 15);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  await runCase('normaliza aliases de configuracion Woo usados por el frontend', async () => {
+    const harness = await createHarness();
+    try {
+      const response = await harness.request('PUT', '/api/woocommerce/config', {
+        store_url: 'https://new.example.com',
+        consumer_key: 'ck_test',
+        consumer_secret: 'cs_test',
+        sync_direction: 'bidirectional',
+        category_mode: 'sync',
+        conflict_priority: 'local',
+        customer_sync_strategy: 'match_or_create'
+      });
+
+      assert.equal(response.statusCode, 200);
+      const row = harness.database.get('SELECT * FROM woocommerce_sync WHERE id = 1');
+      assert.equal(row.sync_direction, 'both');
+      assert.equal(row.category_mode, 'milo');
+      assert.equal(row.conflict_priority, 'milo');
+      assert.equal(row.customer_sync_strategy, 'create_or_link');
+      assert.ok(Array.isArray(response.body.config.logs));
+      assert.equal(response.body.config.orderConfig.sync_mode, 'webhook');
     } finally {
       await harness.cleanup();
     }
@@ -580,6 +618,29 @@ async function main() {
       await harness.cleanup();
     }
   });
+
+  await runCase('sincroniza un producto manual usando el detalle real del catalogo', async () => {
+    const harness = await createHarness();
+    try {
+      harness.database.run(
+        'INSERT OR REPLACE INTO woocommerce_sync (id, store_url, consumer_key, consumer_secret, sync_direction, active) VALUES (1, ?, ?, ?, ?, 1)',
+        ['https://example.com', 'ck_test', 'cs_test', 'both']
+      );
+      const productResult = harness.database.run(
+        'INSERT INTO products (sku, name, stock, sale_price) VALUES (?, ?, ?, ?)',
+        ['SKU-MANUAL-1', 'Producto manual', 4, 120]
+      );
+      harness.database.saveDatabase();
+
+      const response = await harness.request('POST', `/api/woocommerce/sync-product/${productResult.lastInsertRowid}`);
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.body.success, true);
+      assert.equal(response.body.woocommerce_id, 99);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
 }
 
 main().catch((error) => {

@@ -25,6 +25,10 @@ export interface Sale {
   status?: string | null;
   external_status?: string | null;
   external_reference?: string | null;
+  stock_applied_at?: string | null;
+  stock_applied_state?: string | null;
+  stock_reverted_at?: string | null;
+  stock_reverted_state?: string | null;
   created_at?: string;
   items?: SaleItem[];
 }
@@ -42,6 +46,7 @@ export interface SalePayload {
   notes: string;
   receipt_type: string;
   point_of_sale: string;
+  affects_stock?: boolean;
   items: SalePayloadItem[];
 }
 

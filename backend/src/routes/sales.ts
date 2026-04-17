@@ -38,7 +38,7 @@ type DatabaseAccess = {
 };
 
 const router = express.Router();
-const ALLOWED_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET'];
+const ALLOWED_RECEIPT_TYPES = ['A', 'B', 'C', 'X', 'PRESUPUESTO', 'TICKET', 'REMITO', 'PEDIDO', 'NOTA_CREDITO'];
 
 function getDatabaseAccess(req: RouteRequest): DatabaseAccess {
   return getDatabaseAccessForRequest(req, {
@@ -88,6 +88,7 @@ function normalizeSalePayload(body: unknown) {
     notes: String(data.notes || ''),
     receipt_type: normalizeReceiptType(data.receipt_type),
     point_of_sale: normalizePointOfSale(data.point_of_sale),
+    affects_stock: data.affects_stock === false ? false : true,
     items: Array.isArray(data.items) ? data.items.map(normalizeSaleItemPayload) : []
   };
 }
@@ -134,6 +135,10 @@ function sanitizeSale(record: SaleRecord | null, items: ReturnType<typeof saniti
     status: toNullableString(record.status),
     payment_status: toNullableString(record.payment_status),
     external_status: toNullableString(record.external_status),
+    stock_applied_at: toNullableString(record.stock_applied_at),
+    stock_applied_state: toNullableString(record.stock_applied_state),
+    stock_reverted_at: toNullableString(record.stock_reverted_at),
+    stock_reverted_state: toNullableString(record.stock_reverted_state),
     items
   };
 }
@@ -348,7 +353,13 @@ router.get('/:id', authenticate, async (req: RouteRequest, res: JsonResponse) =>
 router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const db = getDatabaseAccess(req);
   const payload = normalizeSalePayload(req.body);
-  const { customer_id, customer_tax_condition, items, payment_method, notes, receipt_type, point_of_sale } = payload;
+  const { customer_id, customer_tax_condition, items, payment_method, notes, receipt_type, point_of_sale, affects_stock } = payload;
+  const normalizedReceiptType = normalizeReceiptType(receipt_type);
+  const isQuote = normalizedReceiptType === 'PRESUPUESTO';
+  const isDeliveryNote = normalizedReceiptType === 'REMITO';
+  const isOrder = normalizedReceiptType === 'PEDIDO';
+  const isCreditNote = normalizedReceiptType === 'NOTA_CREDITO';
+  const applyStock = isQuote || isOrder ? false : ((isDeliveryNote || isCreditNote) ? affects_stock !== false : true);
 
   if (!items || items.length === 0) {
     res.status(400).json({ error: 'No items in sale' });
@@ -359,7 +370,7 @@ router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const customerVal = customer_id === undefined ? null : customer_id;
   const paymentVal = payment_method === undefined ? 'cash' : payment_method;
   const notesVal = notes === undefined || notes === '' ? null : notes;
-  const receiptType = normalizeReceiptType(receipt_type);
+  const receiptType = normalizedReceiptType;
   const pointOfSale = normalizePointOfSale(point_of_sale);
   const settings = await db.get('SELECT emitter_tax_condition FROM settings WHERE id = 1');
   const customer = customerVal ? await db.get('SELECT iva_condition FROM customers WHERE id = ?', [customerVal]) : null;
@@ -367,12 +378,12 @@ router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const fiscalValidationMessage = getFiscalValidationMessage(settings?.emitter_tax_condition, customerTaxCondition);
   const allowedVoucherTypes = getAvailableVoucherTypes(settings?.emitter_tax_condition, customerTaxCondition);
 
-  if (fiscalValidationMessage) {
+  if (!isQuote && !isDeliveryNote && !isOrder && !isCreditNote && fiscalValidationMessage) {
     res.status(400).json({ error: fiscalValidationMessage });
     return;
   }
 
-  if (!allowedVoucherTypes.includes(receiptType)) {
+  if (!isQuote && !isDeliveryNote && !isOrder && !isCreditNote && !allowedVoucherTypes.includes(receiptType)) {
     res.status(400).json({ error: 'El tipo de comprobante no es valido para la condicion fiscal actual.' });
     return;
   }
@@ -390,7 +401,7 @@ router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
           throw new Error('Invalid item quantity');
         }
 
-        if (Number(product.stock || 0) < item.quantity) {
+        if (applyStock && Number(product.stock || 0) < item.quantity) {
           throw new Error(`Insufficient stock for ${product.name}`);
         }
 
@@ -406,10 +417,24 @@ router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
 
       const saleResult = await tx.run(
         `
-          INSERT INTO sales (customer_id, user_id, receipt_type, point_of_sale, receipt_number, total, payment_method, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO sales (
+            customer_id, user_id, receipt_type, point_of_sale, receipt_number, total, payment_method, notes,
+            stock_applied_at, stock_applied_state
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-        [customerVal, req.user?.id, receiptType, pointOfSale, receiptNumber, total, paymentVal, notesVal]
+        [
+          customerVal,
+          req.user?.id,
+          receiptType,
+          pointOfSale,
+          receiptNumber,
+          total,
+          paymentVal,
+          notesVal,
+          applyStock ? new Date().toISOString() : null,
+          applyStock ? 'applied' : 'not_applied'
+        ]
       ) as { lastInsertRowid?: number | null };
 
       const saleId = saleResult.lastInsertRowid;
@@ -423,19 +448,26 @@ router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
           [saleId, item.product_id, item.quantity, item.unit_price, item.quantity * item.unit_price]
         );
 
-        await tx.run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
+        if (applyStock) {
+          const stockDelta = isCreditNote ? item.quantity : -item.quantity;
+          await tx.run('UPDATE products SET stock = stock + ? WHERE id = ?', [stockDelta, item.product_id]);
+        }
       }
 
       const snapshotsAfterSale = [];
-      for (const productId of getUniqueProductIds(items)) {
-        const currentSnapshot = await tx.get('SELECT * FROM products WHERE id = ?', [productId]);
-        snapshotsAfterSale.push({
-          ...currentSnapshot,
-          previousState: productSnapshotsBeforeSale.get(productId)
-        });
+      if (applyStock) {
+        for (const productId of getUniqueProductIds(items)) {
+          const currentSnapshot = await tx.get('SELECT * FROM products WHERE id = ?', [productId]);
+          snapshotsAfterSale.push({
+            ...currentSnapshot,
+            previousState: productSnapshotsBeforeSale.get(productId)
+          });
+        }
       }
 
-      const syncResults = await syncSnapshotsOrThrow(snapshotsAfterSale, 'sale_sync');
+      const syncResults = snapshotsAfterSale.length > 0
+        ? await syncSnapshotsOrThrow(snapshotsAfterSale, 'sale_sync')
+        : [];
       const sale = await tx.get('SELECT * FROM sales WHERE id = ?', [saleId]);
 
       return { sale, syncResults };
@@ -457,42 +489,51 @@ router.post('/', authenticate, async (req: RouteRequest, res: JsonResponse) => {
 router.delete('/:id', authenticate, async (req: RouteRequest, res: JsonResponse) => {
   const db = getDatabaseAccess(req);
   try {
-    const sale = await db.get('SELECT id FROM sales WHERE id = ?', [req.params.id]);
+    const sale = await db.get('SELECT id, stock_applied_state FROM sales WHERE id = ?', [req.params.id]);
     if (!sale) {
       res.status(404).json({ error: 'Sale not found' });
       return;
     }
+    const shouldRestoreStock = String(sale.stock_applied_state || '') === 'applied';
 
     const productSnapshotsBeforeDelete = new Map<number, Record<string, unknown>>();
     const { syncResults } = await db.transaction(async (tx) => {
       const items = await tx.all('SELECT product_id, quantity FROM sale_items WHERE sale_id = ?', [req.params.id]) as Array<{ product_id: number; quantity: number }>;
 
-      for (const item of items) {
-        if (!productSnapshotsBeforeDelete.has(item.product_id)) {
-          productSnapshotsBeforeDelete.set(
-            item.product_id,
-            await tx.get('SELECT * FROM products WHERE id = ?', [item.product_id]) as Record<string, unknown>
-          );
+      if (shouldRestoreStock) {
+        for (const item of items) {
+          if (!productSnapshotsBeforeDelete.has(item.product_id)) {
+            productSnapshotsBeforeDelete.set(
+              item.product_id,
+              await tx.get('SELECT * FROM products WHERE id = ?', [item.product_id]) as Record<string, unknown>
+            );
+          }
         }
       }
 
-      for (const item of items) {
-        await tx.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+      if (shouldRestoreStock) {
+        for (const item of items) {
+          await tx.run('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+        }
       }
 
       await tx.run('DELETE FROM sale_items WHERE sale_id = ?', [req.params.id]);
       await tx.run('DELETE FROM sales WHERE id = ?', [req.params.id]);
 
       const snapshotsAfterDelete = [];
-      for (const productId of getUniqueProductIds(items)) {
-        const currentSnapshot = await tx.get('SELECT * FROM products WHERE id = ?', [productId]);
-        snapshotsAfterDelete.push({
-          ...currentSnapshot,
-          previousState: productSnapshotsBeforeDelete.get(productId)
-        });
+      if (shouldRestoreStock) {
+        for (const productId of getUniqueProductIds(items)) {
+          const currentSnapshot = await tx.get('SELECT * FROM products WHERE id = ?', [productId]);
+          snapshotsAfterDelete.push({
+            ...currentSnapshot,
+            previousState: productSnapshotsBeforeDelete.get(productId)
+          });
+        }
       }
 
-      const syncResults = await syncSnapshotsOrThrow(snapshotsAfterDelete, 'sale_delete_sync');
+      const syncResults = snapshotsAfterDelete.length > 0
+        ? await syncSnapshotsOrThrow(snapshotsAfterDelete, 'sale_delete_sync')
+        : [];
       return { syncResults };
     });
 

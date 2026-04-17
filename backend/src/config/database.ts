@@ -242,6 +242,101 @@ async function initializeDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS cash_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      date TEXT NOT NULL,
+      description TEXT NOT NULL,
+      person TEXT,
+      amount REAL NOT NULL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sellers (
+      id TEXT PRIMARY KEY,
+      code TEXT,
+      name TEXT NOT NULL,
+      address TEXT,
+      phone TEXT,
+      cell TEXT,
+      commission_percent REAL DEFAULT 5,
+      archived INTEGER DEFAULT 0,
+      source TEXT DEFAULT 'manual',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS seller_commission_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_date TEXT NOT NULL,
+      seller_id TEXT NOT NULL,
+      seller_name TEXT NOT NULL,
+      total_paid REAL NOT NULL,
+      total_sales REAL DEFAULT 0,
+      sale_ids_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS admin_connected_sessions (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      ip TEXT,
+      login_date TEXT,
+      last_activity TEXT,
+      connection_status TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS admin_config_store (
+      id INTEGER PRIMARY KEY,
+      general_json TEXT,
+      documents_json TEXT,
+      mail_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS admin_aux_rows (
+      id TEXT PRIMARY KEY,
+      table_key TEXT NOT NULL,
+      description TEXT NOT NULL,
+      code TEXT,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS product_movements (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      product_id INTEGER,
+      date TEXT NOT NULL,
+      code TEXT NOT NULL,
+      description TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      reference TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
   
   db.run(`
     CREATE TABLE IF NOT EXISTS sale_items (
@@ -462,6 +557,78 @@ async function initializeDatabase() {
   } catch (e) {}
 
   try {
+    db.run("ALTER TABLE sellers ADD COLUMN source TEXT DEFAULT 'manual'");
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE sellers ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE sellers ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE seller_commission_payments ADD COLUMN total_sales REAL DEFAULT 0');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE seller_commission_payments ADD COLUMN sale_ids_json TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE seller_commission_payments ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE seller_commission_payments ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_connected_sessions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_connected_sessions ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_config_store ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_config_store ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_aux_rows ADD COLUMN code TEXT');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_aux_rows ADD COLUMN active INTEGER DEFAULT 1');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_aux_rows ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE admin_aux_rows ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE product_movements ADD COLUMN product_id INTEGER');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE product_movements ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
+    db.run('ALTER TABLE product_movements ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  } catch (e) {}
+
+  try {
     db.run("ALTER TABLE customers ADD COLUMN price_list TEXT DEFAULT '1'");
   } catch (e) {}
 
@@ -614,6 +781,43 @@ async function initializeDatabase() {
   const settingsCount = get('SELECT COUNT(*) as count FROM settings');
   if (!settingsCount || settingsCount.count === 0) {
     run('INSERT INTO settings (id, business_name) VALUES (1, ?)', ['Milo Pro']);
+  }
+
+  const adminConfigCount = get('SELECT COUNT(*) as count FROM admin_config_store');
+  if (!adminConfigCount || Number(adminConfigCount.count || 0) === 0) {
+    run(
+      `
+        INSERT INTO admin_config_store (id, general_json, documents_json, mail_json)
+        VALUES (1, ?, ?, ?)
+      `,
+      [
+        JSON.stringify({
+          legal_name: '',
+          tax_id: '',
+          currency: 'ARS',
+          date_format: 'dd/MM/yyyy',
+          timezone: 'America/Argentina/Buenos_Aires',
+          logo_name: '',
+          logo_data_url: ''
+        }),
+        JSON.stringify({
+          numbering_format: 'PV-00000000',
+          prefixes: '',
+          control_stock: true,
+          allow_negative_stock: false,
+          control_min_price: false,
+          decimals: 2
+        }),
+        JSON.stringify({
+          smtp_server: '',
+          port: '587',
+          username: '',
+          password: '',
+          encryption: 'tls',
+          sender_email: ''
+        })
+      ]
+    );
   }
 
   const settings = get('SELECT sku_sequence_migrated FROM settings WHERE id = 1');

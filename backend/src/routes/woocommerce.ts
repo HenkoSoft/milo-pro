@@ -7,6 +7,7 @@ const { buildAutomaticProductSku, getNextAutomaticProductSku } = require('../ser
 const {
   ensureLocalBrand,
   ensureLocalCategoriesFromWooProduct,
+  fetchAllWooProducts,
   findWooProductBySku,
   getActiveWooConfigAsync,
   getWooPrimaryBrand,
@@ -261,7 +262,7 @@ async function unlinkWooProductFromLocal(wooProductId: unknown, action: string) 
 const wooPollingManager = createWooPollingManager({
   pollingIntervalMs: POLLING_INTERVAL_MS,
   getConfig: () => resolveActiveWooConfig(),
-  fetchWooProducts: () => woocommerceRequest('GET', '/products?per_page=100'),
+  fetchWooProducts: () => fetchAllWooProducts(),
   hydrateWooProduct: (wooProduct: Record<string, unknown>) => hydrateWooProductForImport(wooProduct),
   upsertWooProduct: (wooProduct: Record<string, unknown>, action: string) => upsertWooProductIntoLocal(wooProduct, action),
   markLastSync: async () => {
@@ -294,6 +295,7 @@ registerWooAdminRoutes(router, {
 
 registerWooProductRoutes(router, {
   authenticate,
+  fetchAllWooProducts,
   findWooProductBySku,
   getActiveWooConfig: resolveActiveWooConfig,
   getActiveWooConfigAsync,

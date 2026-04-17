@@ -10,7 +10,9 @@ import { ReportsPage } from '../features/reports/ReportsPage';
 import { SalesPage } from '../features/sales/SalesPage';
 import { SellersPage } from '../features/sellers/SellersPage';
 import { ToolsPage } from '../features/tools/ToolsPage';
+import { getAdminConfig } from '../services/admin';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../features/auth/AuthContext';
 import { useSettings } from '../features/settings/useSettings';
 
@@ -317,14 +319,7 @@ function formatCurrentDate() {
 }
 
 function readSidebarBranding(): SidebarBranding {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem('milo_admin_config_store') || 'null');
-    return {
-      logoDataUrl: typeof parsed?.general?.logo_data_url === 'string' ? parsed.general.logo_data_url : ''
-    };
-  } catch {
-    return { logoDataUrl: '' };
-  }
+  return { logoDataUrl: '' };
 }
 
 function PagePlaceholder({ pageId, title }: { pageId: string; title: string }) {
@@ -493,6 +488,7 @@ function renderGroupItem(
 export function AppLayout() {
   const { currentUser, logout } = useAuth();
   const settingsQuery = useSettings();
+  const adminConfigQuery = useQuery({ queryKey: ['admin', 'config'], queryFn: getAdminConfig, staleTime: 30_000 });
   const [currentPage, setCurrentPage] = useState<string>(() => getCurrentHashPage());
   const [currentDate, setCurrentDate] = useState<string>(() => formatCurrentDate());
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -516,22 +512,20 @@ export function AppLayout() {
       setCurrentDate(formatCurrentDate());
     };
 
-    const handleBrandingRefresh = () => {
-      setSidebarBranding(readSidebarBranding());
-    };
-
     window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('storage', handleBrandingRefresh);
-    window.addEventListener('milo-admin-config-updated', handleBrandingRefresh as EventListener);
     const timerId = window.setInterval(handleDateRefresh, 60000);
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('storage', handleBrandingRefresh);
-      window.removeEventListener('milo-admin-config-updated', handleBrandingRefresh as EventListener);
       window.clearInterval(timerId);
     };
   }, []);
+
+  useEffect(() => {
+    setSidebarBranding({
+      logoDataUrl: typeof adminConfigQuery.data?.general?.logo_data_url === 'string' ? adminConfigQuery.data.general.logo_data_url : ''
+    });
+  }, [adminConfigQuery.data]);
 
   const pageTitle = useMemo(() => pageTitleMap.get(currentPage) || 'Inicio', [currentPage]);
   const isAdmin = isAdminRole(currentUser?.role);

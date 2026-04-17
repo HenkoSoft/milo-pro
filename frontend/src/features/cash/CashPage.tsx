@@ -1,21 +1,14 @@
-﻿import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { createCashMovement, getCashMovements } from '../../services/cash';
 import { getCustomers } from '../../services/customers';
 import { getSales } from '../../services/sales';
+import type { CashMovement, CashMovementPayload, CashMovementType } from '../../types/cash';
 import type { Customer } from '../../types/customer';
 import type { Sale } from '../../types/sale';
 
 type CashPageId = 'cash' | 'cash-expenses' | 'cash-withdrawals' | 'cash-day';
-type CashEntryType = 'income' | 'expenses' | 'withdrawals';
-
-type CashEntry = {
-  id: number;
-  date: string;
-  description: string;
-  person: string;
-  amount: number;
-  notes: string;
-};
+type CashEntryType = CashMovementType;
 
 type CashFormValues = {
   date: string;
@@ -23,12 +16,6 @@ type CashFormValues = {
   person: string;
   amount: string;
   notes: string;
-};
-
-const CASH_STORAGE_KEYS: Record<CashEntryType, string> = {
-  income: 'milo_cash_income',
-  expenses: 'milo_cash_expenses',
-  withdrawals: 'milo_cash_withdrawals'
 };
 
 const CASH_PAGE_IDS = ['cash', 'cash-expenses', 'cash-withdrawals', 'cash-day'] as const;
@@ -46,18 +33,6 @@ function formatDateInput(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function loadCashEntries(type: CashEntryType): CashEntry[] {
-  try {
-    return JSON.parse(window.localStorage.getItem(CASH_STORAGE_KEYS[type]) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveCashEntries(type: CashEntryType, entries: CashEntry[]) {
-  window.localStorage.setItem(CASH_STORAGE_KEYS[type], JSON.stringify(entries));
 }
 
 function getCashConfig(type: CashEntryType) {
@@ -107,7 +82,7 @@ function CashTableSection({
   onCreate
 }: {
   type: CashEntryType;
-  entries: CashEntry[];
+  entries: CashMovement[];
   customers: Customer[];
   search: string;
   setSearch: (value: string) => void;
@@ -211,11 +186,11 @@ function CashDaySection({
   date: string;
   setDate: (value: string) => void;
   sales: Sale[];
-  income: CashEntry[];
-  expenses: CashEntry[];
-  withdrawals: CashEntry[];
+  income: CashMovement[];
+  expenses: CashMovement[];
+  withdrawals: CashMovement[];
 }) {
-  function sumEntries(entries: CashEntry[]) {
+  function sumEntries(entries: CashMovement[]) {
     return entries.filter((entry) => entry.date === date).reduce((acc, entry) => acc + Number(entry.amount || 0), 0);
   }
 
@@ -296,15 +271,15 @@ function CashDaySection({
 
 export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
   const normalizedPage = (CASH_PAGE_IDS.includes(pageId as CashPageId) ? pageId : 'cash') as CashPageId;
-  const customersQuery = useQuery({
-    queryKey: ['cash', 'customers'],
-    queryFn: () => getCustomers(''),
-    staleTime: 30_000
-  });
-  const salesQuery = useQuery({
-    queryKey: ['cash', 'sales'],
-    queryFn: () => getSales({}),
-    staleTime: 30_000
+  const queryClient = useQueryClient();
+  const [customersQuery, salesQuery, incomeQuery, expensesQuery, withdrawalsQuery] = useQueries({
+    queries: [
+      { queryKey: ['cash', 'customers'], queryFn: () => getCustomers(''), staleTime: 30_000 },
+      { queryKey: ['cash', 'sales'], queryFn: () => getSales({}), staleTime: 30_000 },
+      { queryKey: ['cash', 'movements', 'income'], queryFn: () => getCashMovements({ type: 'income' }), staleTime: 10_000 },
+      { queryKey: ['cash', 'movements', 'expenses'], queryFn: () => getCashMovements({ type: 'expenses' }), staleTime: 10_000 },
+      { queryKey: ['cash', 'movements', 'withdrawals'], queryFn: () => getCashMovements({ type: 'withdrawals' }), staleTime: 10_000 }
+    ]
   });
 
   const [search, setSearch] = useState<Record<CashEntryType, string>>({
@@ -318,7 +293,6 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
     withdrawals: 1
   });
   const [dayDate, setDayDate] = useState(() => formatDateInput(new Date()));
-  const [storedVersion, setStoredVersion] = useState(0);
   const [modalType, setModalType] = useState<CashEntryType>('income');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formValues, setFormValues] = useState<CashFormValues>({
@@ -329,15 +303,18 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
     notes: ''
   });
 
+  const createMovementMutation = useMutation({
+    mutationFn: (payload: CashMovementPayload) => createCashMovement(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['cash', 'movements'] });
+    }
+  });
+
   const customers = customersQuery.data || [];
   const sales = salesQuery.data || [];
-  const incomeEntries = useMemo(() => loadCashEntries('income'), [storedVersion]);
-  const expenseEntries = useMemo(() => loadCashEntries('expenses'), [storedVersion]);
-  const withdrawalEntries = useMemo(() => loadCashEntries('withdrawals'), [storedVersion]);
-
-  function refreshEntries() {
-    setStoredVersion((current) => current + 1);
-  }
+  const incomeEntries = useMemo(() => incomeQuery.data || [], [incomeQuery.data]);
+  const expenseEntries = useMemo(() => expensesQuery.data || [], [expensesQuery.data]);
+  const withdrawalEntries = useMemo(() => withdrawalsQuery.data || [], [withdrawalsQuery.data]);
 
   function openModal(type: CashEntryType) {
     setModalType(type);
@@ -360,23 +337,21 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
     setFormValues((current) => ({ ...current, [name]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const items = loadCashEntries(modalType);
-    items.unshift({
-      id: Date.now(),
+    await createMovementMutation.mutateAsync({
+      type: modalType,
       date: formValues.date,
       description: formValues.description.trim(),
       person: formValues.person.trim(),
       amount: Number(formValues.amount || 0),
       notes: formValues.notes.trim()
     });
-    saveCashEntries(modalType, items);
-    refreshEntries();
     closeModal();
   }
 
-  if (customersQuery.isLoading || salesQuery.isLoading) {
+  const cashQueries = [customersQuery, salesQuery, incomeQuery, expensesQuery, withdrawalsQuery];
+  if (cashQueries.some((query) => query.isLoading)) {
     return (
       <section className="cash-admin-content">
         <div className="card cash-admin-panel">Cargando...</div>
@@ -384,11 +359,12 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
     );
   }
 
-  if (customersQuery.isError || salesQuery.isError) {
+  if (cashQueries.some((query) => query.isError)) {
+    const firstError = cashQueries.find((query) => query.isError)?.error;
     return (
       <section className="cash-admin-content">
         <div className="card cash-admin-panel">
-          Error: {customersQuery.error instanceof Error ? customersQuery.error.message : salesQuery.error instanceof Error ? salesQuery.error.message : 'No se pudo cargar caja.'}
+          Error: {firstError instanceof Error ? firstError.message : 'No se pudo cargar caja.'}
         </div>
       </section>
     );
@@ -467,7 +443,7 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
               </div>
               <button type="button" className="modal-close" onClick={closeModal}>&times;</button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={(event) => { void handleSubmit(event); }}>
               <div className="modal-body cash-modal-body">
                 <div className="cash-form-grid">
                   <div className="form-group">
@@ -505,7 +481,7 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
               </div>
               <div className="modal-footer cash-modal-footer">
                 <button className="btn btn-secondary" type="button" onClick={closeModal}>Cancelar</button>
-                <button className="btn btn-success" type="submit">Guardar</button>
+                <button className="btn btn-success" type="submit" disabled={createMovementMutation.isPending}>{createMovementMutation.isPending ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>
           </div>
@@ -514,4 +490,3 @@ export function CashPage({ pageId = 'cash' }: { pageId?: string }) {
     </section>
   );
 }
-
